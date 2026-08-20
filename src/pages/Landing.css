@@ -1,0 +1,304 @@
+/* ===== Base ===== */
+#landing {
+  min-height: 100vh;
+  color: #e6edf3;
+  font-family: 'Inter', sans-serif;
+  background: radial-gradient(circle at 10% 10%, #0f2a44, #081826 70%);
+}
+
+#landing.candidate-landing {
+  background: radial-gradient(circle at 10% 10%, #0f3d3e, #081826 68%);
+}
+
+#landing.internal-landing {
+  background: radial-gradient(circle at 20% 10%, #0b1b33, #050b16 72%);
+}
+
+/* ===== Navbar ===== */
+.land-nav {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 20px 48px;
+}
+
+.nav-left {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.logo-box {
+  width: 42px;
+  height: 42px;
+  border-radius: 10px;
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-weight: 800;
+  color: #111;
+}
+
+.logo-title {
+  font-weight: 700;
+  font-size: 18px;
+}
+
+.logo-sub {
+  font-size: 11px;
+  color: #fbbf24;
+}
+
+.land-nav-links a {
+  margin: 0 14px;
+  color: #9fb3c8;
+  text-decoration: none;
+  font-size: 14px;
+}
+
+.land-nav-links a:hover {
+  color: #ffffff;
+}
+
+/* Login Button */
+.btn-login {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  border: none;
+  padding: 8px 18px;
+  border-radius: 8px;
+  font-weight: 600;
+  color: #111;
+  cursor: pointer;
+}
+
+/* ===== Hero ===== */
+.land-hero {
+  max-width: 900px;
+  margin: 100px auto 0;
+  text-align: center;
+  padding: 0 20px;
+}
+
+.land-tag {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 999px;
+  background: rgba(245, 158, 11, 0.15);
+  color: #f59e0b;
+  font-size: 12px;
+  margin-bottom: 20px;
+}
+
+.land-h1 {
+  font-size: 56px;
+  font-weight: 800;
+  line-height: 1.15;
+  margin-bottom: 20px;
+}
+
+.land-h1 span {
+  background: linear-gradient(90deg, #f59e0b, #f97316);
+  background-clip: text;
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+
+.land-sub {
+  font-size: 16px;
+  color: #9fb3c8;
+  line-height: 1.6;
+  margin-bottom: 32px;
+}
+
+/* ===== Buttons ===== */
+.hero-actions {
+  display: flex;
+  justify-content: center;
+  gap: 14px;
+  margin-bottom: 40px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, #f59e0b, #f97316);
+  border: none;
+  color: #111;
+  padding: 12px 26px;
+  border-radius: 10px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: 0.25s;
+}
+
+.btn-primary:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 25px rgba(245, 158, 11, 0.35);
+}
+
+.btn-secondary {
+  background: transparent;
+  border: 1px solid rgba(148, 163, 184, 0.3);
+  color: #cbd5f5;
+  padding: 12px 26px;
+  border-radius: 10px;
+  cursor: pointer;
+}
+
+.btn-secondary:hover {
+  background: rgba(148, 163, 184, 0.1);
+}
+
+.btn-tertiary {
+  background: rgba(255, 255, 255, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.2);
+  color: #f8fafc;
+  padding: 12px 26px;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: 0.25s;
+}
+
+.btn-tertiary:hover {
+  background: rgba(255, 255, 255, 0.14);
+}
+
+/* ===== Stats ===== */
+.land-stats {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+  gap: 24px;
+  justify-items: center;
+  margin-top: 30px;
+}
+
+.land-stats div {
+  text-align: center;
+}
+
+.land-stats strong {
+  display: block;
+  font-size: 22px;
+  font-weight: 800;
+}
+
+.land-stats span {
+  font-size: 13px;
+  color: #94a3b8;
+  margin-top: 6px;
+}
+
+.landing-features {
+  max-width: 1100px;
+  margin: 0 auto 80px;
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 20px;
+  padding: 0 20px;
+}
+
+.feature-card {
+  background: rgba(15, 42, 68, 0.72);
+  border: 1px solid rgba(148, 163, 184, 0.14);
+  border-radius: 22px;
+  padding: 30px 24px;
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.feature-card svg {
+  font-size: 24px;
+  color: #f59e0b;
+}
+
+.feature-card h3 {
+  font-size: 20px;
+  margin: 0;
+}
+
+.feature-card p {
+  color: #cbd5f5;
+  line-height: 1.75;
+  margin: 0;
+}
+
+#landing.internal-landing .land-tag {
+  background: rgba(59, 130, 246, 0.14);
+  color: #7dd3fc;
+}
+
+#landing.internal-landing .btn-primary {
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+}
+
+#landing.internal-landing .btn-primary:hover {
+  box-shadow: 0 16px 30px rgba(56, 189, 248, 0.24);
+}
+
+#landing.internal-landing .feature-card {
+  background: rgba(8, 18, 44, 0.72);
+  border-color: rgba(56, 189, 248, 0.18);
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 768px) {
+  /* Navbar */
+  .land-nav {
+    padding: 16px 20px;
+    flex-direction: column;
+    gap: 16px;
+  }
+  .land-nav-links {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    gap: 12px;
+  }
+  .land-nav-links a {
+    margin: 0;
+  }
+
+  /* Hero */
+  .land-hero {
+    margin-top: 60px;
+    padding: 0 16px;
+  }
+  .land-h1 {
+    font-size: 32px;
+    line-height: 1.2;
+  }
+  .land-sub {
+    font-size: 14px;
+  }
+
+  /* Buttons */
+  .hero-actions {
+    flex-direction: column;
+    align-items: center;
+    gap: 12px;
+  }
+  .btn-primary,
+  .btn-secondary,
+  .btn-tertiary {
+    width: 100%;
+  }
+
+  /* Stats */
+  .land-stats {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 16px;
+  }
+
+  /* Features */
+  .landing-features {
+    grid-template-columns: 1fr;
+    gap: 16px;
+    padding: 0 16px;
+    margin-bottom: 40px;
+  }
+  .feature-card {
+    min-height: auto;
+    padding: 20px 16px;
+  }
+}

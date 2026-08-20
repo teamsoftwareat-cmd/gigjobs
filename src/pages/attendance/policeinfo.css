@@ -1,0 +1,607 @@
+/* Police Info Page Styles */
+
+:root {
+  --saffron: #f4a130;
+  --saffron-hover: #f09010;
+  --text-primary: #1a1a1b;
+  --text-secondary: #656566;
+  --border-color: #e5e5e5;
+  --bg-light: #ffffff;
+  --card-light: #f9f9fa;
+  --success-color: #10b981;
+  --error-color: #ef4444;
+}
+
+.police-container {
+  min-height: 100vh;
+  background: linear-gradient(135deg, #f0f4f8 0%, #d9e2ec 100%);
+  padding: 20px;
+  font-family: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+}
+
+.police-container.dark {
+  background: linear-gradient(135deg, #0f172a 0%, #1e293b 100%);
+}
+
+.police-wrapper {
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* ===== HEADER ===== */
+.police-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 32px;
+  background: linear-gradient(135deg, var(--saffron) 0%, #f97316 100%);
+  padding: 24px;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(244, 161, 48, 0.2);
+}
+
+.police-header h1 {
+  margin: 0;
+  font-size: 28px;
+  font-weight: 800;
+  color: white;
+  letter-spacing: -0.5px;
+}
+
+.police-theme-toggle {
+  background: rgba(255, 255, 255, 0.2);
+  border: 2px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  width: 44px;
+  height: 44px;
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  transition: all 0.3s ease;
+}
+
+.police-theme-toggle:hover {
+  background: rgba(255, 255, 255, 0.3);
+  transform: scale(1.05);
+}
+
+/* ===== KYC INFO CARD ===== */
+.kyc-card {
+  background: white;
+  border-radius: 16px;
+  padding: 24px;
+  margin-bottom: 28px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  border: 2px solid #f0f0f0;
+  animation: slideDown 0.4s ease-out;
+}
+
+.police-container.dark .kyc-card {
+  background: #1e293b;
+  border-color: #334155;
+}
+
+.kyc-card.loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 120px;
+  color: var(--text-secondary);
+  font-weight: 500;
+}
+
+.kyc-header {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 20px;
+  padding-bottom: 16px;
+  border-bottom: 2px solid #f0f0f0;
+}
+
+.police-container.dark .kyc-header {
+  border-bottom-color: #334155;
+}
+
+.kyc-icon {
+  width: 48px;
+  height: 48px;
+  background: linear-gradient(135deg, var(--saffron) 0%, #f97316 100%);
+  border-radius: 12px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 24px;
+}
+
+.kyc-header h3 {
+  margin: 0;
+  font-size: 18px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.police-container.dark .kyc-header h3 {
+  color: #f1f5f9;
+}
+
+.kyc-info-list {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.kyc-info-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+}
+
+.kyc-info-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.kyc-info-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: right;
+  word-break: break-word;
+  max-width: 60%;
+}
+
+.police-container.dark .kyc-info-value {
+  color: #f1f5f9;
+}
+
+/* ===== FORM CARD ===== */
+.form-card {
+  background: white;
+  border-radius: 16px;
+  padding: 28px;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  margin-bottom: 24px;
+  animation: slideDown 0.5s ease-out;
+}
+
+.police-container.dark .form-card {
+  background: #1e293b;
+}
+
+.form-card h2 {
+  margin: 0 0 24px;
+  font-size: 20px;
+  font-weight: 700;
+  color: var(--text-primary);
+}
+
+.police-container.dark .form-card h2 {
+  color: #f1f5f9;
+}
+
+.form-group {
+  margin-bottom: 24px;
+}
+
+.form-group:last-child {
+  margin-bottom: 0;
+}
+
+.form-label {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-bottom: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.police-container.dark .form-label {
+  color: #f1f5f9;
+}
+
+.form-label-icon {
+  width: 32px;
+  height: 32px;
+  background: linear-gradient(135deg, var(--saffron) 0%, #f97316 100%);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: white;
+  font-size: 14px;
+  flex-shrink: 0;
+}
+
+.form-input {
+  width: 100%;
+  padding: 14px 16px;
+  border: 2px solid #e5e5e5;
+  border-radius: 10px;
+  background: #fafafa;
+  color: var(--text-primary);
+  font-size: 15px;
+  font-weight: 500;
+  font-family: inherit;
+  transition: all 0.3s ease;
+}
+
+.police-container.dark .form-input {
+  background: #0f172a;
+  border-color: #334155;
+  color: #f1f5f9;
+}
+
+.form-input:focus {
+  outline: none;
+  border-color: var(--saffron);
+  background: white;
+  box-shadow: 0 0 0 4px rgba(244, 161, 48, 0.1);
+}
+
+.police-container.dark .form-input:focus {
+  background: #1e293b;
+  box-shadow: 0 0 0 4px rgba(244, 161, 48, 0.15);
+}
+
+.form-input::placeholder {
+  color: #999;
+}
+
+.form-input:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  background: #f0f0f0;
+}
+
+.police-container.dark .form-input:disabled {
+  background: #0f172a;
+}
+
+.form-input.input-error {
+  border-color: var(--error-color);
+  background: #fef2f2;
+}
+
+.police-container.dark .form-input.input-error {
+  background: #7f1d1d;
+}
+
+.error-message {
+  display: block;
+  margin-top: 8px;
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--error-color);
+  animation: shake 0.3s ease-out;
+}
+
+.form-hint {
+  display: block;
+  margin-top: 6px;
+  font-size: 12px;
+  color: var(--text-secondary);
+  font-weight: 400;
+}
+
+/* ===== BUTTON GROUP ===== */
+.button-group {
+  display: flex;
+  gap: 12px;
+  margin-top: 28px;
+}
+
+.btn {
+  flex: 1;
+  padding: 14px 20px;
+  border: none;
+  border-radius: 10px;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-family: inherit;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+}
+
+.btn-primary {
+  background: linear-gradient(135deg, var(--saffron) 0%, #f97316 100%);
+  color: white;
+  box-shadow: 0 6px 20px rgba(244, 161, 48, 0.3);
+}
+
+.btn-primary:hover:not(:disabled) {
+  transform: translateY(-2px);
+  box-shadow: 0 10px 30px rgba(244, 161, 48, 0.4);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-secondary {
+  background: #e5e5e5;
+  color: var(--text-primary);
+  border: 2px solid #d0d0d0;
+}
+
+.police-container.dark .btn-secondary {
+  background: #334155;
+  color: #f1f5f9;
+  border-color: #475569;
+}
+
+.btn-secondary:hover:not(:disabled) {
+  background: #d0d0d0;
+  transform: translateY(-2px);
+}
+
+.police-container.dark .btn-secondary:hover:not(:disabled) {
+  background: #475569;
+}
+
+.btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ===== SUCCESS SCREEN ===== */
+.success-screen {
+  background: white;
+  border-radius: 16px;
+  padding: 40px 28px;
+  text-align: center;
+  box-shadow: 0 4px 15px rgba(0, 0, 0, 0.08);
+  animation: slideUp 0.5s ease-out;
+}
+
+.police-container.dark .success-screen {
+  background: #1e293b;
+}
+
+.success-icon-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 80px;
+  height: 80px;
+  background: linear-gradient(135deg, var(--success-color) 0%, #059669 100%);
+  border-radius: 16px;
+  margin: 0 auto 24px;
+  font-size: 44px;
+  color: white;
+  box-shadow: 0 8px 20px rgba(16, 185, 129, 0.3);
+  animation: scaleIn 0.5s ease-out 0.2s backwards;
+}
+
+.success-title {
+  margin: 0 0 12px;
+  font-size: 28px;
+  font-weight: 800;
+  color: var(--text-primary);
+}
+
+.police-container.dark .success-title {
+  color: #f1f5f9;
+}
+
+.success-subtitle {
+  margin: 0 0 32px;
+  font-size: 15px;
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
+.success-details {
+  background: #f9f9fa;
+  border-radius: 12px;
+  padding: 20px;
+  margin-bottom: 28px;
+  text-align: left;
+}
+
+.police-container.dark .success-details {
+  background: #0f172a;
+}
+
+.success-detail-item {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 0;
+  border-bottom: 1px solid #e5e5e5;
+}
+
+.police-container.dark .success-detail-item {
+  border-bottom-color: #334155;
+}
+
+.success-detail-item:last-child {
+  border-bottom: none;
+}
+
+.success-detail-label {
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.3px;
+}
+
+.success-detail-value {
+  font-size: 15px;
+  font-weight: 600;
+  color: var(--text-primary);
+  text-align: right;
+  word-break: break-word;
+  max-width: 50%;
+}
+
+.police-container.dark .success-detail-value {
+  color: #f1f5f9;
+}
+
+/* ===== ANIMATIONS ===== */
+@keyframes slideDown {
+  from {
+    opacity: 0;
+    transform: translateY(-20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes slideUp {
+  from {
+    opacity: 0;
+    transform: translateY(20px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes scaleIn {
+  from {
+    opacity: 0;
+    transform: scale(0.8);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
+@keyframes shake {
+  0%, 100% {
+    transform: translateX(0);
+  }
+  25% {
+    transform: translateX(-4px);
+  }
+  75% {
+    transform: translateX(4px);
+  }
+}
+
+/* ===== RESPONSIVE ===== */
+@media (max-width: 640px) {
+  .police-container {
+    padding: 12px;
+  }
+
+  .police-header {
+    flex-direction: row;
+    text-align: center;
+    gap: 12px;
+    padding: 20px;
+  }
+
+  .police-header h1 {
+    font-size: 24px;
+  }
+
+  .form-card,
+  .kyc-card {
+    padding: 20px;
+  }
+
+  .form-card h2 {
+    font-size: 18px;
+  }
+
+  .kyc-info-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .kyc-info-value {
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .button-group {
+    flex-direction: column;
+  }
+
+  .btn {
+    width: 100%;
+  }
+
+  .success-screen {
+    padding: 32px 20px;
+  }
+
+  .success-title {
+    font-size: 24px;
+  }
+
+  .success-details {
+    padding: 16px;
+  }
+
+  .success-detail-item {
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 6px;
+  }
+
+  .success-detail-value {
+    max-width: 100%;
+    text-align: left;
+  }
+
+  .form-label {
+    font-size: 13px;
+  }
+
+  .form-input {
+    font-size: 14px;
+    padding: 12px 14px;
+  }
+}
+
+@media (max-width: 480px) {
+  .police-header h1 {
+    font-size: 20px;
+  }
+
+  .form-card,
+  .kyc-card {
+    border-radius: 12px;
+    padding: 16px;
+  }
+
+  .button-group {
+    gap: 8px;
+  }
+
+  .btn {
+    padding: 12px 16px;
+    font-size: 13px;
+  }
+
+  .success-icon-wrapper {
+    width: 64px;
+    height: 64px;
+    font-size: 32px;
+  }
+}

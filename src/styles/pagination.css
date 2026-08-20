@@ -1,0 +1,119 @@
+.pagination-wrapper {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 20px 0;
+  flex-wrap: wrap;
+}
+
+.pagination-btn {
+  padding: 8px 12px;
+  border: 1px solid var(--border-color, #ddd);
+  background: white;
+  color: var(--text-primary, #333);
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.2s ease;
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: var(--primary-color, #007bff);
+  color: white;
+  border-color: var(--primary-color, #007bff);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  background: #f5f5f5;
+  border-color: #ddd;
+}
+
+.pagination-numbers {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+  justify-content: center;
+}
+
+.pagination-number {
+  min-width: 40px;
+  padding: 8px 10px;
+  border: 1px solid var(--border-color, #ddd);
+  background: white;
+  color: var(--text-primary, #333);
+  border-radius: 4px;
+  cursor: pointer;
+  font-weight: 500;
+  font-size: 14px;
+  transition: all 0.2s ease;
+  text-align: center;
+}
+
+.pagination-number:hover:not(:disabled) {
+  border-color: var(--primary-color, #007bff);
+  color: var(--primary-color, #007bff);
+}
+
+.pagination-number.active {
+  background: var(--primary-color, #007bff);
+  color: white;
+  border-color: var(--primary-color, #007bff);
+}
+
+.pagination-number:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.pagination-ellipsis {
+  padding: 8px 4px;
+  color: var(--text3, #999);
+  font-weight: 500;
+}
+
+/* Responsive adjustments */
+@media (max-width: 768px) {
+  .pagination-wrapper {
+    gap: 6px;
+    padding: 16px 0;
+  }
+
+  .pagination-btn {
+    padding: 6px 10px;
+    font-size: 13px;
+  }
+
+  .pagination-number {
+    min-width: 36px;
+    padding: 6px 8px;
+    font-size: 13px;
+  }
+}
+
+@media (max-width: 480px) {
+  .pagination-wrapper {
+    flex-direction: column;
+    gap: 12px;
+    width: 100%;
+  }
+
+  .pagination-btn {
+    width: 100%;
+    padding: 8px 12px;
+  }
+
+  .pagination-numbers {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .pagination-number {
+    min-width: 32px;
+    padding: 6px 6px;
+    font-size: 12px;
+  }
+}

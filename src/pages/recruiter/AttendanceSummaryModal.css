@@ -1,0 +1,51 @@
+@import "./recruiter-mobile.css";
+/* Modal-specific tweaks for outside candidates table */
+.modal .projects-table-wrap {
+  border-radius: 12px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  background: var(--surface);
+  box-shadow: none;
+}
+.modal .projects-table-wrap table thead th {
+  padding: 12px 16px;
+  font-size: 12px;
+}
+.modal .projects-table-wrap table tbody td {
+  padding: 12px 14px;
+}
+.modal .projects-table-wrap select.form-control {
+  min-width: 160px;
+  max-width: 220px;
+  height: 40px;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+.modal .projects-table-wrap .btn {
+  padding: 7px 12px;
+  border-radius: 8px;
+}
+.modal .projects-table-wrap .tag {
+  font-size: 12px;
+  padding: 6px 10px;
+}
+.modal .filter-search-box {
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--input-bg);
+}
+.modal .filter-search-box input.form-control {
+  padding-left: 36px;
+  border: none;
+  background: transparent;
+  height: 40px;
+}
+.modal .filter-search-icon { left: 12px; color: var(--text3); }
+.modal .projects-table-pagination { padding-top: 12px; border-top: none; background: transparent; }
+.modal .modal-footer .btn-full { width: 100%; padding: 12px 18px; border-radius: 10px; font-weight: 700; }
+
+/* Searchable project select */
+.modal .projects-table-wrap .searchable-project-select { min-width: 160px; max-width: 320px; }
+.modal .projects-table-wrap .searchable-project-select input.form-control { height: 40px; border-radius: 8px; padding: 8px 10px; }
+.modal .projects-table-wrap .searchable-project-options { box-shadow: 0 6px 18px rgba(19,21,26,0.06); }
+.modal .projects-table-wrap .searchable-project-option:hover { background: rgba(0,0,0,0.03); }

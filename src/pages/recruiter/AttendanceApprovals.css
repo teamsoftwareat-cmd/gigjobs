@@ -1,0 +1,303 @@
+@import "./recruiter-mobile.css";
+.attendance-approvals-page {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.attendance-approvals-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+  margin-bottom: 18px;
+}
+
+.attendance-approvals-tab {
+  padding: 10px 18px;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  background: var(--bg);
+  color: var(--text);
+  cursor: pointer;
+  transition: all 0.2s ease;
+  font-weight: 600;
+}
+
+.attendance-approvals-tab:hover {
+  border-color: var(--text3);
+}
+
+.attendance-approvals-tab.active {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: var(--bg);
+}
+
+.attendance-approvals-toolbar {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: flex-end;
+}
+
+.attendance-approvals-filter {
+  display: flex;
+  flex-direction: column;
+  min-width: 220px;
+}
+
+.attendance-approvals-filter label {
+  font-size: 12px;
+  font-weight: 600;
+  margin-bottom: 6px;
+  color: var(--text3);
+}
+
+.attendance-approvals-filter select,
+.attendance-approvals-filter input {
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  background: var(--bg);
+  color: var(--text);
+}
+
+.attendance-approvals-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  color: var(--text3);
+}
+
+.attendance-approvals-summary .summary-item {
+  display: flex;
+  gap: 8px;
+  align-items: center;
+}
+
+.attendance-approvals-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  justify-content: flex-end;
+}
+
+.attendance-approvals-actions .btn {
+  min-width: 100px;
+}
+
+@media (max-width: 768px) {
+  .attendance-approvals-toolbar,
+  .attendance-approvals-summary {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .attendance-approvals-actions {
+    justify-content: flex-start;
+  }
+}
+
+.attendance-approvals-pagination {
+  display: flex;
+  gap: 12px;
+  justify-content: flex-end;
+  margin-top: 12px;
+}
+
+@media (max-width: 768px) {
+  .attendance-approvals-toolbar,
+  .attendance-approvals-summary {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .attendance-approvals-actions {
+    justify-content: flex-start;
+  }
+
+  .attendance-approvals-pagination {
+    justify-content: flex-start;
+    flex-wrap: wrap;
+  }
+}
+
+@media (max-width: 1180px) {
+  .attendance-approvals-page {
+    padding: 0 12px;
+  }
+
+  .attendance-approvals-toolbar {
+    gap: 12px;
+  }
+
+  .attendance-approvals-filter {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .attendance-approvals-filter select,
+  .attendance-approvals-filter input {
+    width: 100%;
+  }
+
+  .attendance-approvals-summary {
+    gap: 12px;
+  }
+}
+
+@media (max-width: 900px) {
+  .attendance-approvals-tab {
+    padding: 10px 14px;
+    font-size: 13px;
+  }
+
+  .attendance-approvals-toolbar {
+    gap: 10px;
+  }
+
+  .attendance-approvals-pagination {
+    gap: 8px;
+  }
+}
+
+.select-group {
+  margin-top: 20px;
+}
+
+.select-group label {
+  display: block;
+  margin-bottom: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--text2);
+}
+
+.project-dropdown,
+.dropdown-group {
+  position: relative;
+}
+
+.dropdown-select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  background: var(--bg);
+  color: var(--text);
+  padding: 12px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  cursor: pointer;
+  font-weight: 500;
+  transition: border-color 0.15s ease, background 0.15s ease;
+}
+
+.dropdown-select:hover {
+  border-color: var(--text3);
+}
+
+.dropdown-menu {
+  position: relative;
+  top: calc(100% + 10px);
+  left: 0;
+  width: 100%;
+  z-index: 20;
+  padding: 14px;
+  border: 1px solid var(--border);
+  border-radius: 18px;
+  background: var(--bg);
+  box-shadow: 0 24px 60px rgba(0, 0, 0, 0.08);
+  max-height: 450px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+}
+
+.dropdown-search {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 10px 12px;
+  background: var(--card);
+  flex-shrink: 0;
+  margin-bottom: 12px;
+}
+
+.dropdown-search-input {
+  width: 100%;
+  border: none;
+  background: transparent;
+  outline: none;
+  color: var(--text);
+  font-size: 14px;
+}
+
+.select-group .form-control {
+  width: 100%;
+  border-radius: 14px;
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.dropdown-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  max-height: 360px;
+  overflow-y: auto;
+  min-height: 0;
+}
+
+.dropdown-option {
+  width: 100%;
+  border: 1px solid transparent;
+  border-radius: 12px;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 12px 14px;
+  cursor: pointer;
+  transition: background 0.15s ease, box-shadow 0.15s ease, transform 0.15s ease;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.dropdown-option:hover {
+  background: var(--bg-hover);
+}
+
+.dropdown-option.selected {
+  background: var(--primary-light);
+  border-color: var(--primary);
+  color: var(--primary);
+  box-shadow: inset 0 0 0 1px var(--primary);
+}
+
+.dropdown-empty {
+  padding: 16px;
+  color: var(--text3);
+  text-align: center;
+  font-size: 13px;
+}
+
+.badge-small {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 28px;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: var(--border-light);
+  color: var(--text-secondary);
+  font-size: 11px;
+  font-weight: 700;
+}

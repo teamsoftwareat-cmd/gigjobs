@@ -1,0 +1,133 @@
+.multi-select-dropdown {
+  position: relative;
+  width: 100%;
+}
+
+.dropdown-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border: 1.5px solid #DDE4EE;
+  border-radius: 10px;
+  background: white;
+  cursor: pointer;
+  transition: all 0.2s;
+  min-height: 44px;
+}
+
+.dropdown-header:hover {
+  border-color: #0E7C86;
+}
+
+.selected-items {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  flex: 1;
+  align-items: center;
+}
+
+.selected-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px 8px;
+  background: #E0F5F7;
+  color: #0E7C86;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 500;
+}
+
+.remove-tag {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 16px;
+  color: #0E7C86;
+  padding: 0 2px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.remove-tag:hover {
+  color: #E53935;
+}
+
+.dropdown-input {
+  flex: 1;
+  min-width: 100px;
+  border: none;
+  outline: none;
+  font-size: 14px;
+  padding: 4px 0;
+  background: transparent;
+}
+
+.dropdown-input::placeholder {
+  color: #8899AA;
+  font-size: 14px;
+}
+
+.dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background: white;
+  border: 1px solid #DDE4EE;
+  border-radius: 10px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+  z-index: 1000;
+  max-height: 250px;
+  overflow: hidden;
+  display: flex;
+  flex-direction: column;
+}
+
+.options-list {
+  overflow-y: auto;
+  max-height: 250px;
+}
+
+.dropdown-option {
+  padding: 10px 12px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  cursor: pointer;
+  transition: background 0.2s;
+}
+
+.dropdown-option:hover {
+  background: #F0F4F8;
+}
+
+.dropdown-option.selected {
+  background: #E0F5F7;
+  color: #0E7C86;
+}
+
+.dropdown-option i {
+  width: 18px;
+  font-size: 14px;
+}
+
+.no-options {
+  padding: 20px;
+  text-align: center;
+  color: #8899AA;
+}
+
+.add-new-option {
+  color: #0E7C86;
+  font-size: 13px;
+}
+
+.add-new-option span {
+  background: #E0F5F7;
+  padding: 4px 8px;
+  border-radius: 6px;
+}

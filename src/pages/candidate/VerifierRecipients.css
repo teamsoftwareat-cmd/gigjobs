@@ -1,0 +1,223 @@
+.verifier-dialer-wrapper {
+  width: 100%;
+  margin-top: 16px;
+}
+.dialer-card {
+  width: 100%;
+  max-width: 100%;
+  border-radius: 20px;
+  background: #ffffff;
+  box-shadow: 0 8px 20px rgba(15, 23, 42, 0.08);
+  display: flex;
+  flex-direction: column;
+  padding: 18px 16px 18px;
+  overflow: hidden;
+}
+.dialer-card-fill {
+  min-height: auto;
+}
+.dialer-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.dialer-title {
+  font-size: 20px;
+  font-weight: 800;
+  line-height: 1.1;
+}
+.dialer-subtitle {
+  font-size: 13px;
+  color: #475569;
+  margin-top: 6px;
+}
+.dialer-summary-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 16px;
+}
+.dialer-step {
+  font-size: 12px;
+  color: #0f172a;
+  background: #f1f5f9;
+  border-radius: 999px;
+  padding: 8px 14px;
+}
+.dialer-status-row {
+  display: none;
+}
+.dialer-info-panel {
+  display: grid;
+  gap: 14px;
+  margin-bottom: 20px;
+}
+.dialer-info-item {
+  padding: 16px;
+  border-radius: 18px;
+  background: #f8fafc;
+}
+.dialer-field-title {
+  font-size: 12px;
+  color: #64748b;
+  margin-bottom: 8px;
+}
+.dialer-field-value {
+  font-size: 18px;
+  font-weight: 700;
+  color: #0f172a;
+}
+.dialer-call-area {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 18px 0 0;
+}
+.dialer-call-btn {
+  border-radius: 52px;
+  background: linear-gradient(135deg, #0f766e, #14b8a6);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 30px;
+  box-shadow: 0 18px 38px rgba(20, 184, 166, 0.2);
+}
+.dialer-call-icon {
+  transform: translateY(-1px);
+}
+.dialer-call-note {
+  font-size: 14px;
+  color: #475569;
+  text-align: center;
+  max-width: 220px;
+}
+.dialer-nav-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  margin-top: 18px;
+}
+.dialer-nav-btn {
+  flex: 1;
+  min-height: 54px;
+  border-radius: 16px;
+  border: 1px solid #cbd5e1;
+  background: #fff;
+  color: #0f172a;
+  font-weight: 700;
+  letter-spacing: 0.01em;
+  box-shadow: 0 6px 18px rgba(15, 23, 42, 0.08);
+}
+.dialer-nav-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+.status-edit-btn {
+  width: 46px;
+  height: 46px;
+  border-radius: 16px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+}
+.dialer-footer {
+  display: none;
+}
+@media (max-width: 680px) {
+  .verifier-dialer-wrapper {
+    margin-top: 12px;
+  }
+  .dialer-card {
+    padding: 16px 14px 18px;
+  }
+  .dialer-title {
+    font-size: 19px;
+  }
+  .dialer-field-value {
+    font-size: 17px;
+  }
+  .dialer-call-btn {
+    width: 96px;
+    height: 96px;
+    font-size: 28px;
+  }
+}
+
+/* Slide-to-call styles */
+/* Inline edit pencil inside status tag */
+.status-tag-wrapper {
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+}
+.status-tag-with-icon {
+  padding-right: 30px;
+}
+.status-edit-inline {
+  position: relative;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  border: none;
+  background: rgba(255, 255, 255, 0.9);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #0f172a;
+  cursor: pointer;
+  box-shadow: 0 1px 5px rgba(15, 23, 42, 0.14);
+}
+.status-edit-inline:hover {
+  background: #f8fafc;
+}
+.status-edit-inline svg {
+  width: 12px;
+  height: 12px;
+}
+
+/* New mobile call button layout */
+.dialer-call-btn-mobile {
+  width: 100%;
+  max-width: 320px;
+  height: 52px;
+  font-size: 15px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+}
+.dialer-call-btn-mobile .dialer-call-icon {
+  font-size: 18px;
+}
+
+/* Dropdown sizing inside dialer & table */
+.dialer-info-item .form-control,
+.recipient-row-select,
+.recipient-row-select select,
+.dialer-info-item select {
+  width: 100%;
+  max-width: 340px;
+  min-width: 0;
+  padding: 8px 10px;
+  border-radius: 8px;
+  border: 1px solid #e6e6ef;
+  background: #fff;
+  font-size: 14px;
+}
+
+@media (max-width: 680px) {
+  .dialer-info-item .form-control,
+  .recipient-row-select,
+  .recipient-row-select select,
+  .dialer-info-item select {
+    max-width: 100%;
+  }
+}

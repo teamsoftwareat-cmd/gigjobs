@@ -1,0 +1,443 @@
+@import "./recruiter-mobile.css";
+.recruiter-attendance-page {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.attendancedata-card {
+  padding: 0;
+}
+
+.clear-button {
+  position: absolute;
+  right: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  border: none;
+  background: transparent;
+  color: var(--text3);
+  cursor: pointer;
+  padding: 4px;
+}
+
+.projects-table-filter-group {
+  position: relative;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.filter-search-box {
+  position: relative;
+  width: 100%;
+}
+
+.filter-search-box input {
+  padding-left: 36px;
+}
+
+.filter-search-icon {
+  position: absolute;
+  left: 12px;
+  top: 50%;
+  transform: translateY(-50%);
+  color: var(--text3);
+  pointer-events: none;
+}
+
+.filter-label {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: var(--text3);
+  text-transform: uppercase;
+  letter-spacing: 0.2px;
+}
+
+.date-group {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  align-items: center;
+}
+
+.date-separator {
+  margin: 0 6px;
+  color: var(--text3);
+  white-space: nowrap;
+}
+
+.entries-selector {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.entries-selector label {
+  font-size: 0.88rem;
+  white-space: nowrap;
+}
+
+.projects-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+}
+
+.projects-table-wrap table {
+  min-width: 900px;
+}
+
+.projects-table-project-title {
+  padding: 20px 24px 0;
+  font-size: 0.98rem;
+  font-weight: 600;
+  color: var(--text);
+}
+
+.attendance-kpis-chart {
+  display: flex;
+  gap: 24px;
+  padding: 20px 24px;
+  align-items: flex-start;
+}
+
+.attendance-kpis {
+  flex: 0 0 auto;
+}
+
+.attendance-chart {
+  flex: 1;
+  min-height: 420px;
+}
+
+.attendance-chart .chart-container {
+  height: 280px;
+}
+
+.summary-table-section {
+  border-bottom: 1px solid var(--border);
+}
+
+.summary-table-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.summary-table-header h3 {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+}
+
+.filter-note {
+  margin: 12px 0 0;
+  font-size: 0.92rem;
+  color: var(--text2);
+}
+
+.suggestion-list {
+  position: absolute;
+  top: calc(100% + 6px);
+  left: 0;
+  right: 0;
+  z-index: 20;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--surface);
+  box-shadow: 0 16px 40px rgba(0, 0, 0, 0.08);
+  max-height: 280px;
+  overflow: auto;
+}
+
+.suggestion-item {
+  padding: 12px 14px;
+  font-size: 0.95rem;
+  color: var(--text);
+  cursor: pointer;
+}
+
+.suggestion-item:hover {
+  background: var(--bg-light);
+}
+
+.attendance-image-thumb {
+  width: 60px;
+  max-height: 48px;
+  object-fit: cover;
+  border-radius: 8px;
+  border: 1px solid var(--border);
+}
+
+.attendance-image-button {
+  border: none;
+  padding: 0;
+  margin: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.attendance-image-clickable {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.attendance-image-button:hover .attendance-image-clickable {
+  transform: scale(1.03);
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+}
+
+.image-modal-content {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+.image-modal-preview {
+  width: 100%;
+  max-height: 70vh;
+  object-fit: contain;
+  border-radius: 14px;
+}
+
+.attendance-coords-cell {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  white-space: nowrap;
+}
+
+.map-pin-btn {
+  background: var(--surface-secondary);
+  border: 1px solid var(--border);
+  color: var(--text);
+  border-radius: 10px;
+  padding: 8px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+}
+
+.map-pin-btn:hover {
+  background: var(--bg-light);
+}
+
+.coord-text {
+  font-size: 0.82rem;
+  color: var(--text2);
+}
+
+.map-modal-frame {
+  width: 100%;
+  min-height: 420px;
+  border-radius: 12px;
+  overflow: hidden;
+}
+
+@media (max-width: 900px) {
+  .projects-table-filters {
+    align-items: stretch;
+  }
+  .projects-table-filter-group,
+  .projects-table-filter-group.date-group,
+  .projects-table-filter-group.location-group {
+    width: 100%;
+  }
+}
+
+.export-buttons {
+  margin-left: 12px;
+  position: relative;
+}
+
+.export-buttons .dropdown-toggle {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.export-buttons .dropdown-menu {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 1000;
+  min-width: 160px;
+  padding: 0.5rem 0;
+  margin: 0.125rem 0 0;
+  font-size: 0.875rem;
+  color: #212529;
+  text-align: left;
+  list-style: none;
+  background-color: #fff;
+  background-clip: padding-box;
+  border: 1px solid rgba(0, 0, 0, 0.15);
+  border-radius: 0.375rem;
+  box-shadow: 0 0.5rem 1rem rgba(0, 0, 0, 0.175);
+}
+
+.export-buttons .dropdown-menu.show {
+  display: block;
+}
+
+.export-buttons .dropdown-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  width: 100%;
+  padding: 0.375rem 1.5rem;
+  clear: both;
+  font-weight: 400;
+  color: #212529;
+  text-align: inherit;
+  text-decoration: none;
+  white-space: nowrap;
+  background-color: transparent;
+  border: 0;
+  cursor: pointer;
+}
+
+.export-buttons .dropdown-item:hover {
+  color: #1e2125;
+  background-color: #e9ecef;
+}
+
+.checkbox-column input[type=checkbox] {
+  margin: 0;
+}
+
+.projects-table-meta {
+  min-width: 0;
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+@media (max-width: 1180px) {
+  .attendance-kpis-chart {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .attendance-chart {
+    min-height: 320px;
+  }
+
+  .projects-table-filters {
+    align-items: stretch;
+  }
+
+  .projects-table-meta {
+    width: 100%;
+    justify-content: space-between;
+  }
+}
+
+@media (max-width: 900px) {
+  .attendance-kpis-chart {
+    gap: 16px;
+    padding: 16px;
+  }
+
+  .attendance-kpis,
+  .attendance-chart {
+    width: 100%;
+  }
+
+  .projects-table-filters {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 12px;
+  }
+
+  .projects-table-filter-group,
+  .projects-table-filter-group.date-group,
+  .projects-table-filter-group.location-group,
+  .projects-table-meta {
+    width: 100%;
+  }
+
+  .projects-table-filter-group.date-group {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .date-separator {
+    display: none;
+  }
+
+  .export-buttons {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .export-buttons .dropdown-toggle {
+    width: 100%;
+    justify-content: center;
+  }
+
+  .projects-table-meta {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .projects-table-wrap {
+    width: 100%;
+    overflow-x: auto;
+  }
+
+  .projects-table-wrap table {
+    min-width: 850px;
+  }
+
+  .attendance-image-thumb {
+    width: 48px;
+    max-height: 48px;
+  }
+
+  .attendance-coords-cell {
+    flex-wrap: wrap;
+    gap: 8px;
+    white-space: normal;
+  }
+
+  .map-pin-btn {
+    padding: 6px;
+  }
+
+  .map-modal-frame {
+    min-height: 320px;
+  }
+
+  .members-modal-body,
+  .projects-table-meta {
+    width: 100%;
+    min-width: 0;
+  }
+
+  .projects-table-pagination {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 10px;
+  }
+
+  .pagination-summary {
+    width: 100%;
+  }
+
+  .pagination-actions {
+    justify-content: space-between;
+    flex-wrap: wrap;
+  }
+
+  .pagination-page-btn {
+    min-width: 36px;
+    padding: 8px 10px;
+  }
+}

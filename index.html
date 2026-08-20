@@ -1,0 +1,63 @@
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Cynosurejobs.net | Cynosure Corporate Solutions</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Sora:wght@300;400;500;600;700;800&family=DM+Sans:wght@300;400;500;600&display=swap" rel="stylesheet" />
+    <style>
+      /* Critical splash styles: full viewport, no flashes, and animation rules */
+      html,body { height: 100%; margin: 0; background: #f8fafc; }
+      #splash-screen{position:fixed;inset:0;z-index:99999;display:flex;align-items:center;justify-content:center;padding:24px;background:linear-gradient(135deg,#f8fbff 0%,#dee6f2 100%);color:#0f1720}
+      .splash-card{width:min(100%,420px);text-align:center;padding:28px;border-radius:20px;background:#ffffff;border:1px solid rgba(15,23,42,0.08);box-shadow:0 24px 60px rgba(15,23,42,0.08)}
+      .splash-brand{font-size:1.2rem;font-weight:800;letter-spacing:0.12em;text-transform:uppercase;margin-bottom:6px;color:#0f1720}
+      .splash-title{font-size:1.05rem;font-weight:700;margin-bottom:6px;color:#0f1720}
+      .splash-subtitle{font-size:0.95rem;color:rgba(15,23,42,0.68)}
+
+      /* Lottie player sizing */
+      .splash-card lottie-player{display:block;margin:0 auto 12px;width:260px;height:260px;max-width:100%;height:auto}
+
+      @keyframes ring-draw {
+        0% { stroke-dashoffset: 289; transform: rotate(0deg); }
+        50% { stroke-dashoffset: 72; transform: rotate(40deg); }
+        100% { stroke-dashoffset: 289; transform: rotate(360deg); }
+      }
+
+      @keyframes lid-open {
+        0% { transform: rotate(0deg); }
+        40% { transform: rotate(-18deg); }
+        70% { transform: rotate(-6deg); }
+        100% { transform: rotate(0deg); }
+      }
+
+      @keyframes papers-rise {
+        0% { transform: translateY(0) scale(0.98); opacity: 0.18 }
+        40% { transform: translateY(-10px) scale(1.02); opacity: 1 }
+        80% { transform: translateY(-6px) scale(1); opacity: 0.6 }
+        100% { transform: translateY(0) scale(0.98); opacity: 0.18 }
+      }
+
+      /* Make sure #root is hidden until app signals ready */
+      #root{opacity:0;transition:opacity .25s ease}
+      body.app-ready #root{opacity:1}
+      body.app-ready #splash-screen{opacity:0;pointer-events:none;transition:opacity .3s ease}
+    </style>
+    <script src="https://unpkg.com/@lottiefiles/lottie-player@latest/dist/lottie-player.js"></script>
+  </head>
+  <body>
+    <div id="splash-screen">
+      <div class="splash-card">
+        <!-- Lottie animation (user-selected) -->
+        <lottie-player src="https://lottie.host/380c41f9-c5f2-401f-8dec-0c623acc6d32/PlZKSAZdbk.json" background="transparent" speed="1" loop autoplay></lottie-player>
+        <div class="splash-brand">Cynosure</div>
+        <div class="splash-title">Loading your workspace</div>
+        <div class="splash-subtitle">Preparing everything for you...</div>
+      </div>
+    </div>
+    <div id="root"></div>
+    <script type="module" src="/src/main.jsx"></script>
+  </body>
+</html>
+

@@ -1,0 +1,130 @@
+/* Shared mobile-first helpers for recruiter pages */
+/* Keep selectors conservative to avoid breaking desktop layouts */
+
+/* General page layout */
+@media (max-width: 768px) {
+  :root {
+    --page-padding: 12px;
+  }
+
+  body {
+    font-size: 14px;
+    -webkit-font-smoothing:antialiased;
+  }
+
+  .page-container,
+  .container,
+  .content,
+  .page-content,
+  .main-content {
+    padding: var(--page-padding) !important;
+    margin: 0 auto !important;
+    max-width: 100% !important;
+  }
+
+  /* Stack grid columns */
+  .form-grid,
+  .grid,
+  .row,
+  .two-col,
+  .three-col,
+  .table-grid {
+    display: block !important;
+  }
+
+  .form-group,
+  .col,
+  .card,
+  .panel {
+    width: 100% !important;
+    box-sizing: border-box;
+    margin-bottom: 12px !important;
+  }
+
+  /* Make action buttons full width and stacked */
+  .action-row,
+  .actions {
+    display: flex !important;
+    flex-direction: column !important;
+    gap: 8px !important;
+  }
+
+  .btn,
+  button,
+  .btn-primary,
+  .btn-secondary {
+    width: 100% !important;
+    padding: 10px 12px !important;
+  }
+
+  /* Forms and inputs */
+  input[type="text"],
+  input[type="email"],
+  input[type="month"],
+  input[type="tel"],
+  select,
+  textarea,
+  .form-control {
+    width: 100% !important;
+    box-sizing: border-box !important;
+  }
+
+  /* Tables: allow horizontal scroll on small screens */
+  table {
+    width: 100% !important;
+    display: block !important;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  .table-responsive {
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch !important;
+  }
+
+  /* Hide desktop-only elements and ensure mobile alternatives can show */
+  .desktop-only { display: none !important; }
+  .mobile-only { display: block !important; }
+
+  /* Smaller text for helper/secondary info */
+  .helper-text,
+  .small-text {
+    font-size: 12px !important;
+  }
+
+  /* Header / top bar tweaks */
+  .header .actions,
+  .header .right {
+    display: flex !important;
+    flex-wrap: wrap !important;
+    gap: 8px !important;
+  }
+
+  /* Sidebar behavior on small screens */
+  .app-shell .sidebar {
+    position: fixed !important;
+    left: -320px !important;
+    top: 0 !important;
+    bottom: 0 !important;
+    width: 280px !important;
+    z-index: 1200 !important;
+    transition: left 0.2s ease !important;
+  }
+  .app-shell.sidebar-open .sidebar { left: 0 !important; }
+  .sidebar-overlay { display: block !important; }
+  .sidebar-overlay.show { opacity: 1 !important; pointer-events: auto !important; }
+
+  /* Modals and dialogs should respect viewport padding */
+  .modal-dialog,
+  .modal-content {
+    margin: 8px !important;
+    max-width: calc(100% - 16px) !important;
+  }
+}
+
+/* Very small devices */
+@media (max-width: 420px) {
+  .btn,
+  .action-row .btn { padding: 9px 10px !important; }
+  .page-title { font-size: 16px !important; }
+}

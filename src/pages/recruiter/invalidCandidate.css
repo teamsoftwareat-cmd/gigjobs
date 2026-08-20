@@ -1,0 +1,299 @@
+@import "./recruiter-mobile.css";
+/* validCandidate.css */
+
+*{
+box-sizing:border-box;
+}
+
+body{
+background:#f4f7fb;
+}
+
+.valid-candidate-wrapper{
+padding:30px;
+min-height:100vh;
+background:linear-gradient(to bottom,#f7fbff,#eef4fb);
+}
+
+.candidate-card{
+background:#fff;
+border-radius:18px;
+padding:28px;
+box-shadow:
+0 4px 20px rgba(20,40,80,.06),
+0 1px 3px rgba(0,0,0,.04);
+border:1px solid #edf1f7;
+}
+
+/* Header */
+.page-title{
+font-size:28px;
+font-weight:700;
+margin-bottom:25px;
+color:#1d2b53;
+letter-spacing:-.3px;
+}
+
+.action-cell {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  align-items: center;
+}
+
+.copy-link-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 6px;
+  padding: 0 12px;
+}
+
+/* top controls */
+.table-top{
+display:flex;
+justify-content:space-between;
+align-items:center;
+margin-bottom:24px;
+gap:20px;
+flex-wrap:wrap;
+}
+
+.entries-box,
+.search-box{
+font-size:14px;
+font-weight:500;
+color:#44546f;
+}
+
+.search-fields{
+display:flex;
+flex-wrap:wrap;
+gap:12px;
+align-items:flex-end;
+}
+
+.search-field{
+display:flex;
+flex-direction:column;
+gap:6px;
+min-width:200px;
+}
+
+.search-field label{
+font-size:13px;
+color:#475569;
+font-weight:600;
+}
+
+.entries-select{
+height:42px;
+padding:0 14px;
+margin:0 8px;
+border:1px solid #d9e3f0;
+border-radius:10px;
+background:#fff;
+outline:none;
+}
+
+.search-input{
+height:42px;
+width:280px;
+padding:0 16px;
+border:1px solid #d9e3f0;
+border-radius:12px;
+outline:none;
+transition:.25s;
+margin-left:8px;
+}
+
+.search-input:focus{
+border-color:#2c8ef8;
+box-shadow:0 0 0 4px rgba(44,142,248,.12);
+}
+
+/* table */
+.table-responsive{
+overflow:auto;
+border-radius:16px;
+}
+
+.candidate-table{
+width:100%;
+border-collapse:separate;
+border-spacing:0;
+font-size:14px;
+background:#fff;
+overflow:hidden;
+border-radius:14px;
+}
+
+.candidate-table thead th{
+background:var(--teal);
+color:#fff;
+padding:16px 14px;
+font-weight:600;
+border:none;
+white-space:nowrap;
+position:sticky;
+top:0;
+text-align: left;
+}
+
+.candidate-table thead th:first-child{
+border-top-left-radius:12px;
+}
+
+.candidate-table thead th:last-child{
+border-top-right-radius:12px;
+}
+
+.candidate-table tbody tr{
+transition:.2s;
+}
+
+.candidate-table tbody tr:nth-child(even){
+background:#f9fbff;
+}
+
+.candidate-table tbody tr:hover{
+background:#eef6ff;
+transform:scale(1.001);
+}
+
+.candidate-table td{
+padding:15px 14px;
+border-bottom:1px solid #edf1f7;
+color:#374151;
+}
+
+.candidate-table tbody tr:last-child td{
+border-bottom:none;
+}
+
+.name-link{
+color:#1976ff;
+font-weight:600;
+text-decoration:none;
+}
+
+.name-link:hover{
+text-decoration:underline;
+}
+
+/* bottom */
+.table-bottom{
+margin-top:22px;
+display:flex;
+justify-content:space-between;
+align-items:center;
+flex-wrap:wrap;
+gap:20px;
+}
+
+.record-info{
+font-size:14px;
+color:#667085;
+}
+
+/* pagination */
+.pagination{
+display:flex;
+align-items:center;
+gap:8px;
+flex-wrap:wrap;
+}
+
+.page-btn{
+min-width:38px;
+height:38px;
+padding:0 14px;
+border:none;
+border-radius:10px;
+background:#fff;
+box-shadow:0 1px 4px rgba(0,0,0,.06);
+cursor:pointer;
+font-weight:600;
+transition:.2s;
+}
+
+.page-btn:hover{
+transform:translateY(-2px);
+box-shadow:0 4px 12px rgba(0,0,0,.08);
+}
+
+.page-btn.active{
+background:var(--teal);
+color:#fff;
+}
+
+.page-btn:disabled{
+opacity:.45;
+cursor:not-allowed;
+transform:none;
+}
+
+/* status rows */
+.loading-row,
+.no-data{
+text-align:center;
+padding:45px;
+font-size:15px;
+font-weight:600;
+color:#667085;
+}
+
+/* optional badges if needed */
+.badge-pill{
+padding:6px 12px;
+border-radius:50px;
+font-size:12px;
+font-weight:600;
+background:#e9f3ff;
+color:#1976ff;
+}
+
+/* scrollbar */
+::-webkit-scrollbar{
+height:8px;
+width:8px;
+}
+
+::-webkit-scrollbar-thumb{
+background:#c7d4e7;
+border-radius:20px;
+}
+
+/* mobile */
+@media(max-width:768px){
+
+.valid-candidate-wrapper{
+padding:16px;
+}
+
+.candidate-card{
+padding:18px;
+border-radius:14px;
+}
+
+.page-title{
+font-size:22px;
+}
+
+.table-top,
+.table-bottom{
+flex-direction:column;
+align-items:flex-start;
+}
+
+.search-input{
+width:100%;
+margin-left:0;
+margin-top:8px;
+}
+
+.candidate-table{
+min-width:900px;
+}
+
+}

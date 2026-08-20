@@ -1,0 +1,96 @@
+.messenger-card {
+  border-radius: 16px;
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  padding: 18px;
+  box-shadow: 0 8px 24px rgba(15, 23, 42, 0.06);
+}
+
+.messenger-header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 18px;
+}
+
+.messenger-icon {
+  margin-right: 8px;
+  color: #2563eb;
+}
+
+.messenger-header h4 {
+  margin: 0 0 4px;
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.messenger-header p {
+  margin: 0;
+  color: #4b5563;
+  font-size: 13px;
+}
+
+.messenger-close {
+  background: transparent;
+  border: none;
+  color: #6b7280;
+  cursor: pointer;
+  font-size: 16px;
+  padding: 6px;
+}
+
+.messenger-field {
+  margin-bottom: 14px;
+}
+
+.messenger-field label {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 13px;
+  font-weight: 600;
+  color: #374151;
+}
+
+.messenger-field input,
+.messenger-field textarea {
+  width: 100%;
+  border: 1px solid #d1d5db;
+  border-radius: 10px;
+  padding: 12px 14px;
+  font-size: 14px;
+  color: #111827;
+  background: #f9fafb;
+}
+
+.messenger-field input:disabled {
+  opacity: 0.85;
+}
+
+.messenger-field textarea {
+  min-height: 140px;
+  resize: vertical;
+}
+
+.messenger-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.messenger-btn {
+  min-width: 120px;
+}
+
+.btn-outline {
+  background: transparent;
+  border: 1px solid #d1d5db;
+  color: #374151;
+}
+
+.btn-outline:hover:not(:disabled) {
+  background: #f3f4f6;
+}

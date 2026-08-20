@@ -1,0 +1,53 @@
+@import "./recruiter-mobile.css";
+/* Minimal styles for ValidCandidate layout (keeps parity with InvalidCandidate) */
+.recruiter-attendance-page {
+  padding: 16px;
+}
+
+.stats-grid {
+  display: grid;
+  gap: 12px;
+}
+
+.projects-table-filters {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.projects-table-filter-group {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.filter-search-icon { color: #6b7280; }
+
+.date-group { display: flex; align-items: center; gap: 8px; }
+.filter-label { font-size: 12px; color: #6b7280; margin-right: 8px; }
+.date-separator { margin: 0 8px; color: #6b7280; }
+
+.projects-table-meta { display: flex; align-items: center; gap: 12px; }
+.entries-selector label { display: block; font-size: 12px; margin-bottom: 4px; }
+
+.projects-table-wrap { overflow: auto; }
+
+.projects-table-pagination { display: flex; align-items: center; justify-content: space-between; }
+.pagination-summary { color: #374151; }
+.pagination-actions { display: flex; align-items: center; gap: 12px; }
+.pagination-page-btn { padding: 6px 10px; border: 1px solid #e5e7eb; background: white; cursor: pointer; }
+.pagination-page-btn.active { background: #111827; color: white; }
+
+.text-truncate { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.action-cell { display: flex; gap: 8px; }
+
+/* Small responsive tweaks */
+@media (max-width: 720px) {
+  .projects-table-filters { flex-direction: column; align-items: stretch; gap: 12px; }
+}
