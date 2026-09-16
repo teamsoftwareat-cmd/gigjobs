@@ -695,7 +695,7 @@ export const recruiterAPI = {
   getExpensesReport: (params = {}) => api.get(`${BASE}/employee/expenses-report`, { params }),
   getExpenseDetails: (expenseId) => api.get(`${BASE}/employee/expenses/${expenseId}`),
   updateExpenseStatus: (expenseId, data) => api.post(`${BASE}/employee/expenses/${expenseId}/status`, data),
-  exportExpensesToTiming: (data) => api.post(`${BASE}/employee/post-to-timing`, data),
+  exportExpensesToTiming: (data) => api.post(`${BASE}/employee-timing/post-to-timing`, data),
   grantExpenseAccess: (data) => api.post(`${BASE}/employee/expense-access`, data),
   revokeExpenseAccess: (data) => api.post(`${BASE}/employee/expense-deactivateExpenseAccess-list`, data),
   getCandidatesWithExpenseAccess: (params = {}) => api.get(`${BASE}/employee/expense-access-list`, { params }),
