@@ -51,7 +51,7 @@ import VerificationTeamDatabase from './pages/recruiter/VerificationTeamDatabase
 import VerifierChecklistPage from './pages/recruiter/VerifierChecklistPage'
 import VerificationDashboardPage from './pages/recruiter/VerificationDashboard'
 import ValidCandidate from './pages/recruiter/validCandidate'
-import InvalidCandidate from './pages/recruiter/InvalidCandidate'
+import InvalidCandidate from './pages/recruiter/invalidCandidate'
 import RegistrationKycStatus from './pages/attendance/RegistrationKycStatus'
 import Expenses from './pages/recruiter/Expenses'
 import CheckKYC from './pages/recruiter/CheckKYC'

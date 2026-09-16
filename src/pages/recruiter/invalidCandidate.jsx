@@ -4,7 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCopy, faEye, faSearch, faIdCard, faMobileAlt, faUsers, faInfoCircle, faFileCsv } from '@fortawesome/free-solid-svg-icons'
 import { recruiterAPI } from "../../api/axios";
 import { PageHeader, Card, DataTable, StatCard, Modal } from "../../components/ui";
-import "./InvalidCandidate.css";
+import "./invalidCandidate.css";
 
 const InvalidCandidate = () => {
 
