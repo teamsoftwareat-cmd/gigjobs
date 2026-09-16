@@ -64,7 +64,7 @@ export default function InternalLanding() {
             <span>Profiles Managed</span>
           </div>
           <div>
-            <strong>98%</strong>
+            <strong>99%</strong>
             <span>Compliance</span>
           </div>
         </div>
