@@ -9,6 +9,7 @@ import { step2ProfileSchema } from '../../schemas/validations'
 
 const isFilled = (value) => String(value || '').trim().length > 0
 const isValidEmail = (value) => /.+@.+\..+/.test(String(value || '').trim())
+const normalizeDigipin = (value) => String(value || '').replace(/[^a-zA-Z0-9]/g, '').slice(0, 10).toUpperCase()
 
 const INDIAN_STATES = [
   'Andaman and Nicobar Islands', 'Andhra Pradesh', 'Arunachal Pradesh', 'Assam',
@@ -994,9 +995,12 @@ const Step2Profile = ({ isActive, formData, updateFormData, onNext, onPrev, show
   }
 
   const handleContinue = () => {
-    if (!emailVerified && !emailVerificationSkipped) {
-      return showToast('⚠️', 'Please verify your email address or skip verification to continue')
+    if (!emailVerified) {
+      return showToast('⚠️', 'Please verify your email address to continue')
     }
+
+    const digipin = normalizeDigipin(formData.digipin)
+    if (digipin !== formData.digipin) updateFormData({ digipin })
 
     const result = step2ProfileSchema.safeParse({
       firstName: formData.firstName,
@@ -1010,6 +1014,7 @@ const Step2Profile = ({ isActive, formData, updateFormData, onNext, onPrev, show
       presentAddress: formData.presentAddress,
       permanentAddress: formData.permanentAddress,
       pincode: formData.pincode,
+      digipin,
       district: formData.district,
       state: formData.state,
       area: formData.area,
@@ -1126,10 +1131,8 @@ const Step2Profile = ({ isActive, formData, updateFormData, onNext, onPrev, show
             <EmailVerification 
               email={formData.email} 
               onVerify={handleEmailVerify} 
-              onSkipVerification={handleSkipEmailVerification}
               showToast={showToast} 
               isVerified={emailVerified} 
-              isSkipped={emailVerificationSkipped}
             />
           </div>
           <input
@@ -1180,7 +1183,7 @@ const Step2Profile = ({ isActive, formData, updateFormData, onNext, onPrev, show
           />
         </div>
         <div className="form-group">
-          <label className="form-label">Pincode *</label>
+          <label className="form-label">Pincode * (Present address)</label>
           <input
             className="form-control"
             type="tel"
@@ -1193,6 +1196,27 @@ const Step2Profile = ({ isActive, formData, updateFormData, onNext, onPrev, show
               // Attempt autofill immediately when user finishes entering a Bihar pincode
               if (val.length === 6) autofillFromPincode(val)
             }}
+          />
+        </div>
+        <div className="form-group">
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '6px' }}>
+            <label className="form-label" style={{ marginBottom: 0 }}>DIGIPIN</label>
+            <a
+              href="https://dac.indiapost.gov.in/mydigipin/home"
+              target="_blank"
+              rel="noreferrer"
+              style={{ color: 'var(--teal)', fontSize: '12px', fontWeight: 600 }}
+            >
+              Find your DIGIPIN
+            </a>
+          </div>
+          <input
+            className="form-control"
+            type="text"
+            placeholder="Enter your 10-character DIGIPIN"
+            value={formData.digipin || ''}
+            onChange={(e) => updateFormData({ digipin: normalizeDigipin(e.target.value) })}
+            required
           />
         </div>
         <div className="form-group">

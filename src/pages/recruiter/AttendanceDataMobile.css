@@ -1,0 +1,444 @@
+.attendance-mobile-list {
+  display: none;
+}
+
+.attendance-modal-mobile-list {
+  display: none;
+}
+
+@media (max-width: 768px) {
+  .recruiter-attendance-page .modal .projects-table-filters {
+    padding: 0 0 14px;
+  }
+
+  .recruiter-attendance-page .modal .projects-table-wrap.modal-desktop-table {
+    display: none;
+  }
+
+  .recruiter-attendance-page .attendance-modal-mobile-list {
+    display: grid;
+    gap: 10px;
+    width: 100%;
+  }
+
+  .recruiter-attendance-page .attendance-modal-card {
+    display: grid;
+    gap: 12px;
+    width: 100%;
+    min-width: 0;
+    padding: 13px;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    background: var(--card);
+  }
+
+  .recruiter-attendance-page .attendance-modal-card-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .recruiter-attendance-page .attendance-modal-card-heading strong,
+  .recruiter-attendance-page .attendance-modal-card-heading span {
+    display: block;
+  }
+
+  .recruiter-attendance-page .attendance-modal-card-heading strong {
+    color: var(--text);
+    font-size: 14px;
+  }
+
+  .recruiter-attendance-page .attendance-modal-card-heading span {
+    color: var(--text3);
+    font-size: 11px;
+  }
+
+  .recruiter-attendance-page .attendance-modal-card-grid {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px 12px;
+    padding: 11px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .recruiter-attendance-page .attendance-modal-card-grid span {
+    display: block;
+    color: var(--text3);
+    font-size: 10px;
+    text-transform: uppercase;
+  }
+
+  .recruiter-attendance-page .attendance-modal-card-grid strong {
+    display: block;
+    overflow: hidden;
+    color: var(--text2);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .recruiter-attendance-page .attendance-modal-card-media,
+  .recruiter-attendance-page .attendance-modal-card-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+  }
+
+  .recruiter-attendance-page .attendance-modal-card-media .attendance-image-button {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 3px;
+    color: var(--text3);
+    width: fit-content !important;
+    font-size: 10px;
+  }
+
+  .recruiter-attendance-page .attendance-modal-card-media .attendance-image-thumb {
+    width: 52px;
+    height: 40px;
+    border-radius: 5px;
+  }
+
+  .recruiter-attendance-page .attendance-modal-card-actions .btn {
+    flex: 1 1 auto;
+    min-width: 92px;
+    padding: 7px 8px !important;
+    font-size: 11px;
+  }
+
+  .recruiter-attendance-page .attendance-modal-card > .btn {
+    width: 100%;
+  }
+
+  .recruiter-attendance-page .attendance-modal-member-select {
+    display: inline-flex;
+    align-items: center;
+    min-width: 0;
+    gap: 7px;
+  }
+
+  .recruiter-attendance-page .attendance-modal-member-select strong {
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .recruiter-attendance-page .attendance-modal-danger-text {
+    color: var(--red) !important;
+    white-space: normal !important;
+  }
+
+  .recruiter-attendance-page .modal .projects-table-pagination {
+    padding: 12px 0 0;
+  }
+
+  .recruiter-attendance-page .page-header > div:last-child,
+  .recruiter-attendance-page .page-header > div:last-child > div {
+    width: 100%;
+  }
+
+  .recruiter-attendance-page .page-header > div:last-child > div {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 6px !important;
+  }
+
+  .recruiter-attendance-page .page-header > div:last-child .btn {
+    width: auto !important;
+    min-width: 0;
+    padding: 8px 6px !important;
+    font-size: 11px;
+  }
+
+  .recruiter-attendance-page .attendancedata-card {
+    padding: 0;
+  }
+
+  .recruiter-attendance-page .projects-table-project-title {
+    padding: 14px 14px 0;
+    font-size: 13px;
+  }
+
+  .recruiter-attendance-page .attendance-kpis-chart {
+    display: block;
+    padding: 14px;
+  }
+
+  .recruiter-attendance-page .attendance-kpis .stat-card {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .recruiter-attendance-page .attendance-chart {
+    min-height: 250px;
+    margin-top: 12px;
+  }
+
+  .recruiter-attendance-page .attendance-chart .chart-container {
+    height: 210px;
+  }
+
+  .recruiter-attendance-page .projects-table-filters {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 12px !important;
+    padding: 14px;
+    margin-bottom: 0 !important;
+    overflow: visible !important;
+  }
+
+  .recruiter-attendance-page .projects-table-filter-group,
+  .recruiter-attendance-page .projects-table-meta {
+    width: 100%;
+    min-width: 0 !important;
+    margin: 0 !important;
+  }
+
+  .recruiter-attendance-page .date-group {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px !important;
+  }
+
+  .recruiter-attendance-page .date-group .filter-label {
+    grid-column: 1 / -1;
+  }
+
+  .recruiter-attendance-page .date-separator {
+    display: none;
+  }
+
+  .recruiter-attendance-page .projects-table-meta {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px !important;
+    align-items: end;
+  }
+
+  .recruiter-attendance-page .entries-selector {
+    width: 100%;
+  }
+
+  .recruiter-attendance-page .export-buttons {
+    margin-left: 0;
+    position: relative;
+    z-index: 30;
+  }
+
+  .recruiter-attendance-page .export-buttons .dropdown-menu {
+    left: 0;
+    right: auto;
+    width: min(360px, calc(100vw - 32px));
+    max-width: calc(100vw - 32px);
+    overflow: visible;
+  }
+
+  .recruiter-attendance-page .export-buttons .dropdown-item {
+    white-space: normal;
+    overflow-wrap: anywhere;
+  }
+
+  .recruiter-attendance-page .projects-table-meta > .btn {
+    grid-column: 1 / -1;
+  }
+
+  .recruiter-attendance-page .attendance-main-table {
+    display: none;
+  }
+
+  .attendance-mobile-list {
+    display: grid;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .attendance-mobile-selection-bar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    min-height: 40px;
+    padding: 9px 11px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--bg);
+    color: var(--text3);
+    font-size: 11px;
+  }
+
+  .attendance-mobile-select-all,
+  .attendance-mobile-row-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    color: var(--text2);
+    font-size: 11px;
+  }
+
+  .attendance-mobile-row-select {
+    flex-shrink: 0;
+    color: var(--text3);
+  }
+
+  .attendance-mobile-card {
+    width: 100%;
+    min-width: 0;
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px;
+    background: var(--card);
+  }
+
+  .attendance-mobile-card-heading,
+  .attendance-mobile-card-footer {
+    display: flex;
+    justify-content: space-between;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .attendance-mobile-card-heading strong,
+  .attendance-mobile-card-heading span {
+    display: block;
+  }
+
+  .attendance-mobile-card-heading strong {
+    color: var(--text);
+    font-size: 14px;
+  }
+
+  .attendance-mobile-card-heading div span,
+  .attendance-mobile-card-heading > span {
+    color: var(--text3);
+    font-size: 12px;
+  }
+
+  .attendance-mobile-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 14px;
+    margin: 13px 0;
+    padding: 12px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .attendance-mobile-grid span {
+    display: block;
+    color: var(--text3);
+    font-size: 10px;
+    text-transform: uppercase;
+  }
+
+  .attendance-mobile-grid strong {
+    display: block;
+    overflow: hidden;
+    color: var(--text2);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .attendance-mobile-card-footer {
+    display: grid;
+    grid-template-columns: auto minmax(0, 1fr);
+    align-items: start;
+  }
+
+  .attendance-mobile-actions {
+    display: flex;
+    align-items: center;
+    justify-content: flex-end;
+    min-width: 0;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .attendance-mobile-select {
+    display: inline-flex;
+    align-items: center;
+    gap: 4px;
+    color: var(--text2);
+    font-size: 11px;
+  }
+
+  .attendance-mobile-image-button {
+    width: auto !important;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    color: var(--text3);
+    font-size: 10px;
+  }
+
+  .attendance-mobile-image-button .attendance-image-thumb {
+    width: 42px;
+    height: 32px;
+    border-radius: 5px;
+  }
+
+  .attendance-mobile-actions .btn {
+    width: auto !important;
+    padding: 7px 8px !important;
+    font-size: 11px;
+  }
+
+  .attendance-mobile-actions .map-pin-btn {
+    width: auto !important;
+    padding: 7px;
+  }
+
+  .recruiter-attendance-page .projects-table-pagination {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+    padding: 12px 14px;
+    overflow: hidden;
+  }
+
+  .recruiter-attendance-page .pagination-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    min-width: 0;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .recruiter-attendance-page .pagination-actions > .pagination-page-btn {
+    flex: 0 0 auto;
+  }
+
+  .recruiter-attendance-page .pagination-pages {
+    display: flex;
+    align-items: center;
+    justify-content: flex-start;
+    width: auto;
+    min-width: 0;
+    margin: 0;
+    flex: 0 1 auto;
+    overflow: visible;
+  }
+
+  .recruiter-attendance-page .pagination-page-btn {
+    min-width: 30px;
+    height: 30px;
+    padding: 0 7px;
+    flex: 0 0 auto;
+  }
+
+  .recruiter-attendance-page .modal .projects-table-wrap {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+}

@@ -1,5 +1,4 @@
 import React, { useState, useEffect, useRef } from 'react'
-import { useNavigate } from 'react-router-dom'
 import Step1Mobile from './Step1Mobile'
 import Step2Profile from './Step2Profile'
 import Step3Education from './Step3Education'
@@ -35,6 +34,7 @@ const isStep2Complete = (data) =>
     presentAddress: data.presentAddress,
     permanentAddress: data.permanentAddress,
     pincode: data.pincode,
+    digipin: data.digipin,
     area: data.area,
     customArea: data.customArea,
     languages: data.languages || [],
@@ -120,7 +120,6 @@ const appendField = (payload, key, value) => {
 }
 
 const RegistrationPage = ({ showToast }) => {
-  const navigate = useNavigate()
   const submitInFlightRef = useRef(false)
   const [currentStep, setCurrentStep] = useState(1)
   const [registrationId, setRegistrationId] = useState(null)
@@ -142,6 +141,7 @@ const RegistrationPage = ({ showToast }) => {
     whatsapp: '',
     address: '',
     pincode: '',
+    digipin: '',
     area: '',
     travelDistance: '',
     languages: [],
@@ -273,7 +273,7 @@ const RegistrationPage = ({ showToast }) => {
 
       await authAPI.completeRegistration(payload)
       localStorage.removeItem('registration_progress')
-      setTimeout(() => navigate('/landing'), 2000)
+      setTimeout(() => window.location.assign('https://cynosurejobs.net/gigjobs'), 2000)
     } catch (error) {
       console.error('Registration submission failed', error)
       submitInFlightRef.current = false

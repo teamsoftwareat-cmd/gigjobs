@@ -71,12 +71,14 @@ export const ROLES = {
           { icon: 'id-card', label: 'Aadhaar Invalid', page: '/app/recruiter/InvalidCandidate' },
           // { icon: 'qrcode', label: 'Registration / KYC', page: '/app/attendance/registration-kyc-status' },
           { icon: 'user-check', label: 'Check KYC', page: '/app/recruiter/check-kyc' },
-          {icon: 'profile', label: 'Face Matching', page: '/app/recruiter/face-matching' }
+          { icon: 'image-portrait', label: 'Face Matching', page: '/app/recruiter/face-matching' }
         ]
       },
       {
         section: 'More', items: [
           { icon: 'message', label: 'Campaigns', page: '/app/recruiter/campaigns' },
+          { icon: 'certificate', label: 'Certifications', page: '/app/recruiter/certifications' },
+          { icon: 'history', label: 'Document History', page: '/app/recruiter/document-history' },
           { icon: 'user', label: 'Applications', page: '/app/recruiter/applications' },
           { icon: 'headset', label: 'Support Tickets', page: '/app/recruiter/support-tickets' },
           { icon: 'check', label: 'Approve attendance', page: '/app/recruiter/approvals-tickets' }

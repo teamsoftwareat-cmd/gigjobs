@@ -1,0 +1,280 @@
+.expenses-page {
+  min-width: 0;
+}
+
+.expenses-page .expenses-content,
+.expenses-page .filter-controls,
+.expenses-page .stats-grid {
+  min-width: 0;
+}
+
+.expenses-page .expenses-list {
+  min-width: 0;
+  overflow-x: auto;
+  -webkit-overflow-scrolling: touch;
+}
+
+.expense-access-table-wrap,
+.paid-expenses-table-wrap {
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto !important;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-x;
+  scrollbar-width: auto;
+}
+
+.expense-access-table-wrap > .expenses-table,
+.paid-expenses-table-wrap > .expenses-table {
+  width: max-content !important;
+  max-width: none !important;
+}
+
+@media (max-width: 768px) {
+  .expenses-page {
+    width: 100%;
+    box-sizing: border-box;
+    padding: 12px !important;
+    gap: 16px;
+  }
+
+  .expenses-page .page-header {
+    align-items: stretch;
+  }
+
+  .expenses-page .page-header > div:last-child,
+  .expenses-page .page-header > div:last-child > div {
+    width: 100%;
+  }
+
+  .expenses-page .page-header > div:last-child .btn {
+    flex: 1 1 160px;
+    justify-content: center;
+  }
+
+  .expenses-page .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 10px !important;
+    margin-bottom: 16px !important;
+  }
+
+  .expenses-page .stats-grid > * {
+    min-width: 0;
+  }
+
+  .expenses-page .filter-controls {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+    padding: 10px !important;
+  }
+
+  .expenses-page .filter-group {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .expenses-page .expenses-tabs {
+    display: grid;
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    gap: 6px;
+  }
+
+  .expenses-page .expenses-tabs .tab-button {
+    min-width: 0;
+    padding: 9px 6px;
+    font-size: 12px;
+  }
+
+  .expenses-page .expenses-table {
+    min-width: 920px;
+  }
+
+  .expenses-page .pagination-footer {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .expenses-page .pagination-right {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .expenses-page .pagination-summary {
+    white-space: normal !important;
+  }
+
+  .expenses-page .pagination-controls,
+  .expenses-page .timing-pagination-controls {
+    justify-content: flex-start !important;
+    flex-wrap: nowrap !important;
+    max-width: 100%;
+    overflow-x: auto;
+    padding-bottom: 2px;
+  }
+
+  .expenses-page .pagination-controls .btn,
+  .expenses-page .timing-pagination-controls .btn {
+    flex: 0 0 auto;
+  }
+
+  .expenses-page .timing-pagination {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .expenses-page .timing-pagination .pagination-summary,
+  .expenses-page .timing-pagination-controls {
+    grid-column: auto !important;
+    grid-row: auto !important;
+  }
+
+  .expenses-page .timing-pagination-controls {
+    width: 100%;
+  }
+
+  .expenses-page .expense-details-footer {
+    width: 100%;
+    box-sizing: border-box;
+    flex-direction: column;
+    align-items: stretch !important;
+    gap: 10px !important;
+  }
+
+  .expenses-page .expense-details-footer > div:first-child {
+    width: 100%;
+    line-height: 1.4;
+  }
+
+  .expenses-page .expense-details-footer-actions {
+    width: 100%;
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 8px !important;
+  }
+
+  .expenses-page .expense-details-footer-actions .btn {
+    width: 100% !important;
+    min-width: 0 !important;
+    margin: 0;
+  }
+
+  .expenses-page .modal:has(.expense-access-modal-body),
+  .expenses-page .modal:has(.paid-expenses-modal-body) {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .expenses-page .modal:has(.expense-access-modal-body) .modal-body,
+  .expenses-page .modal:has(.paid-expenses-modal-body) .modal-body {
+    padding: 12px;
+  }
+
+  .expenses-page .expense-access-modal-body {
+    gap: 12px !important;
+    padding: 4px !important;
+  }
+
+  .expense-access-table-wrap,
+  .paid-expenses-table-wrap {
+    display: block;
+    width: 100%;
+    min-width: 0;
+    box-sizing: border-box;
+    max-width: 100%;
+    overflow-x: scroll;
+    overflow-y: hidden;
+    -webkit-overflow-scrolling: touch;
+    scrollbar-width: auto;
+  }
+
+  .expense-access-table-wrap .expenses-table {
+    width: max-content !important;
+    min-width: 720px !important;
+    max-width: none !important;
+  }
+
+  .expenses-page .paid-expenses-filter-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 10px !important;
+  }
+
+  .expenses-page .paid-expenses-selection {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 8px !important;
+    padding: 10px !important;
+  }
+
+  .expenses-page .paid-expenses-selection > div:empty {
+    display: none;
+  }
+
+  .paid-expenses-table-wrap .expenses-table {
+    width: max-content !important;
+    min-width: 760px !important;
+    max-width: none !important;
+    font-size: 11px;
+  }
+
+  .expenses-page .paid-expenses-table-wrap .expenses-table th,
+  .expenses-page .paid-expenses-table-wrap .expenses-table td {
+    padding: 6px !important;
+  }
+
+  .expenses-page .expense-access-footer {
+    display: grid !important;
+    grid-template-columns: repeat(2, minmax(0, 1fr)) !important;
+    gap: 8px !important;
+    width: 100%;
+    box-sizing: border-box;
+  }
+
+  .expenses-page .expense-access-footer > div:first-child {
+    grid-column: 1 / -1;
+    line-height: 1.35;
+  }
+
+  .expenses-page .expense-access-footer .btn {
+    width: 100% !important;
+    min-width: 0;
+  }
+}
+
+@media (max-width: 480px) {
+  .expenses-page {
+    padding: 8px !important;
+  }
+
+  .expenses-page .page-header > div:last-child .btn {
+    flex-basis: 100%;
+  }
+
+  .expenses-page .stats-grid {
+    gap: 8px !important;
+  }
+
+  .expenses-page .stats-grid > * {
+    padding: 12px 10px !important;
+  }
+
+  .expenses-page .expenses-tabs {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .expenses-page .expenses-tabs .tab-button {
+    width: 100%;
+  }
+
+  .expenses-page .expense-details-footer-actions {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .expenses-page .expense-access-footer {
+    grid-template-columns: minmax(0, 1fr) !important;
+  }
+
+  .expenses-page .expense-access-footer > div:first-child {
+    grid-column: auto;
+  }
+}

@@ -15,6 +15,7 @@ import JSZip from 'jszip'
 import { saveAs } from 'file-saver'
 import { useAuth } from '../../context/AuthContext'
 import './AttendanceData.css'
+import './AttendanceDataMobile.css'
 
 const LIMIT_OPTIONS = [10, 25, 50, 100, 250, 500]
 const NO_IMAGE_PLACEHOLDER = 'https://cdn-icons-png.flaticon.com/512/149/149071.png'
@@ -3127,7 +3128,7 @@ export default function RecruiterAttendance() {
           </div>
         </div>
 
-        <div className="projects-table-wrap" style={{ position: 'relative' }}>
+        <div className="projects-table-wrap attendance-main-table" style={{ position: 'relative' }}>
           {loading && (
             <div style={{
               position: 'absolute',
@@ -3158,6 +3159,106 @@ export default function RecruiterAttendance() {
             rows={rows}
             emptyMessage={loading ? 'Loading attendance...' : 'No attendance records found.'}
           />
+        </div>
+
+        <div className="attendance-mobile-list">
+          {loading ? (
+            <div className="attendance-mobile-state">Loading attendance...</div>
+          ) : attendance.length === 0 ? (
+            <div className="attendance-mobile-state">No attendance records found.</div>
+          ) : (
+            <>
+              <div className="attendance-mobile-selection-bar">
+                <label className="attendance-mobile-select-all">
+                  <input
+                    type="checkbox"
+                    checked={selectAll}
+                    onChange={(event) => handleSelectAll(event.target.checked)}
+                  />
+                  Select all on this page
+                </label>
+                <span>{selectedRows.size} selected</span>
+              </div>
+              {attendance.map((record, index) => {
+              const recordId = record.attendance_id || record.id || index
+              const candidateName = record.candidate_name || record.worker_name || record.worker || 'Unknown candidate'
+              const checkInImage = record.check_in_image || record.checkin_image || record.checkInImage || record.check_in_photo || record.check_in_img || ''
+              const checkOutImage = record.check_out_image || record.checkout_image || record.checkOutImage || record.check_out_photo || record.check_out_img || ''
+              const area = isWrittenExam
+                ? (record.district_name || record.district || '—')
+                : (record.location_name || record.location || '—')
+              const centre = record.centre_name || record.centre || record.centreName || record.center || record.center_name || record.centerName || ''
+              const projectLocationRaw = record.project_location || record.projectLocation || record.project
+              const checkInLocationRaw = record.checkin_location || record.check_in || record.checkin
+              const checkOutLocationRaw = record.checkout_location || record.check_out || record.checkout
+              const markers = []
+              const projectLocation = getCoords({ project_location: projectLocationRaw }, 'project_location') || getCoords(record, 'project')
+              const checkInLocation = getCoords({ checkin_location: checkInLocationRaw }, 'checkin_location') || getCoords(record, 'checkin')
+              const checkOutLocation = getCoords({ checkout_location: checkOutLocationRaw }, 'checkout_location') || getCoords(record, 'checkout')
+              if (projectLocation) markers.push({ ...projectLocation, label: 'Project location', type: 'project' })
+              if (checkInLocation) markers.push({ ...checkInLocation, label: 'Check-in location', type: 'checkin' })
+              if (checkOutLocation) markers.push({ ...checkOutLocation, label: 'Check-out location', type: 'checkout' })
+
+              return (
+                <article className="attendance-mobile-card" key={recordId}>
+                  <div className="attendance-mobile-card-heading">
+                    <div>
+                      <strong>{candidateName}</strong>
+                      <span>{record.mobile || record.phone || record.contact || 'No mobile number'}</span>
+                    </div>
+                    <label className="attendance-mobile-row-select">
+                      <input
+                        type="checkbox"
+                        checked={selectedRows.has(recordId)}
+                        onChange={(event) => handleRowSelect(recordId, event.target.checked)}
+                      />
+                      <span>#{offset + index + 1}</span>
+                    </label>
+                  </div>
+                  <div className="attendance-mobile-grid">
+                    <div><span>ID</span><strong>{recordId}</strong></div>
+                    <div><span>Date</span><strong>{record.date || '—'}</strong></div>
+                    <div><span>{isWrittenExam ? 'District' : 'Location'}</span><strong>{area}</strong></div>
+                    {isWrittenExam && <div><span>Centre</span><strong>{centre || '—'}</strong></div>}
+                    <div><span>Clock in</span><strong>{record.clock_in || '—'}</strong></div>
+                    <div><span>Clock out</span><strong>{record.clock_out || '—'}</strong></div>
+                    <div><span>Aadhaar</span><strong>{formatAadhaar(record.aadhar || record.aadhaar || '')}</strong></div>
+                  </div>
+                  <div className="attendance-mobile-card-footer">
+                    <Tag variant={statusVariant(record.status)}>{record.status || 'Unknown'}</Tag>
+                    <div className="attendance-mobile-actions">
+                      <button type="button" className="attendance-image-button attendance-mobile-image-button" onClick={() => openImageModal(checkInImage || NO_IMAGE_PLACEHOLDER, 'Check-in image', 'Check in')}>
+                        <img src={checkInImage || NO_IMAGE_PLACEHOLDER} alt="Check in" className="attendance-image-thumb" style={{ opacity: checkInImage ? 1 : 0.5 }} />
+                        <span>In</span>
+                      </button>
+                      <button type="button" className="attendance-image-button attendance-mobile-image-button" onClick={() => openImageModal(checkOutImage || NO_IMAGE_PLACEHOLDER, 'Check-out image', 'Check out')}>
+                        <img src={checkOutImage || NO_IMAGE_PLACEHOLDER} alt="Check out" className="attendance-image-thumb" style={{ opacity: checkOutImage ? 1 : 0.5 }} />
+                        <span>Out</span>
+                      </button>
+                      {markers.length > 0 && (
+                        <button type="button" className="map-pin-btn" onClick={() => openMapModal(markers, area || candidateName)} title="View locations">
+                          <FontAwesomeIcon icon={faMapMarkerAlt} />
+                        </button>
+                      )}
+                      <button
+                        type="button"
+                        className="btn btn-danger btn-sm"
+                        disabled={String(record.status).toLowerCase() === 'absent'}
+                        onClick={() => {
+                          setRecordToReject(record)
+                          setRejectionComment('')
+                          setIsRejectModalOpen(true)
+                        }}
+                      >
+                        Reject
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              )
+              })}
+            </>
+          )}
         </div>
 
         {/* Rejection Comment Modal */}
@@ -3358,7 +3459,7 @@ export default function RecruiterAttendance() {
               </button>
             </div>
 
-          <div className="projects-table-wrap">
+          <div className="projects-table-wrap modal-desktop-table">
             <DataTable
               columns={[
                 'ID',
@@ -3435,6 +3536,32 @@ export default function RecruiterAttendance() {
               ]})}
               emptyMessage={rejectedMembersLoading ? 'Loading rejected members...' : 'No rejected members found for this project.'}
             />
+          </div>
+
+          <div className="attendance-modal-mobile-list">
+            {rejectedMembersLoading ? <div className="attendance-mobile-state">Loading rejected members...</div> : rejectedMembers.length === 0 ? <div className="attendance-mobile-state">No rejected members found for this project.</div> : rejectedMembers.map((record) => {
+              const recordId = record.attendance_id || record.id
+              const checkInImage = record.check_in_image || record.checkin_image || record.checkInImage || record.check_in_photo || record.check_in_img || ''
+              const checkOutImage = record.check_out_image || record.checkout_image || record.checkOutImage || record.check_out_photo || record.check_out_img || ''
+              return (
+                <article className="attendance-modal-card" key={recordId}>
+                  <div className="attendance-modal-card-heading"><div><strong>{record.candidate_name || record.worker_name || record.worker || 'Unknown candidate'}</strong><span>{record.mobile || record.phone || 'No mobile number'}</span></div><span>#{recordId || '—'}</span></div>
+                  <div className="attendance-modal-card-grid">
+                    <div><span>Date</span><strong>{record.date || '—'}</strong></div>
+                    <div><span>{isWrittenExam ? 'District' : 'Location'}</span><strong>{isWrittenExam ? (record.district_name || record.district || '—') : (record.location_name || record.location || '—')}</strong></div>
+                    {isWrittenExam && <div><span>Centre</span><strong>{record.centre_name || record.centre || record.centreName || '—'}</strong></div>}
+                    <div><span>Clock in</span><strong>{record.clock_in || '—'}</strong></div>
+                    <div><span>Clock out</span><strong>{record.clock_out || '—'}</strong></div>
+                    <div><span>Reason</span><strong className="attendance-modal-danger-text">{record.rejection_reason || record.reason || 'Not specified'}</strong></div>
+                  </div>
+                  <div className="attendance-modal-card-media">
+                    {checkInImage && <button type="button" className="attendance-image-button" onClick={() => openImageModal(checkInImage, 'Check-in image', 'Check in')}><img src={checkInImage} alt="Check in" className="attendance-image-thumb" /><span>Check in</span></button>}
+                    {checkOutImage && <button type="button" className="attendance-image-button" onClick={() => openImageModal(checkOutImage, 'Check-out image', 'Check out')}><img src={checkOutImage} alt="Check out" className="attendance-image-thumb" /><span>Check out</span></button>}
+                  </div>
+                  <div className="attendance-modal-card-actions"><button type="button" className="btn btn-success btn-sm" disabled={acceptingAttendanceId === recordId} onClick={() => handleAcceptRejectedAttendance(record)}>{acceptingAttendanceId === recordId ? 'Accepting...' : 'Accept'}</button></div>
+                </article>
+              )
+            })}
           </div>
 
             <div className="projects-table-pagination" style={{ marginTop: 12 }}>
@@ -3650,7 +3777,7 @@ export default function RecruiterAttendance() {
               </div>
             </div>
 
-            <div className="projects-table-wrap" style={{ flex: '1 1 auto', minHeight: 0 }}>
+            <div className="projects-table-wrap modal-desktop-table" style={{ flex: '1 1 auto', minHeight: 0 }}>
               <DataTable
                 columns={[
                   'ID',
@@ -3773,6 +3900,46 @@ export default function RecruiterAttendance() {
                 })}
                 emptyMessage={fraudLoading ? 'Loading fraud attendance...' : 'No fraud attendance found.'}
               />
+            </div>
+
+            <div className="attendance-modal-mobile-list">
+              {fraudLoading ? <div className="attendance-mobile-state">Loading fraud attendance...</div> : fraudRecords.length === 0 ? <div className="attendance-mobile-state">No fraud attendance found.</div> : fraudRecords.map((record) => {
+                const recordId = record.attendance_id || record.id
+                const profileImage = getProfileImageUrl(record)
+                const checkInImage = getCheckInImageUrl(record)
+                const checkOutImage = getCheckOutImageUrl(record)
+                const markers = []
+                const projectLocation = getCoords({ project_location: record.project_location || record.projectLocation }, 'project_location') || getCoords(record, 'project')
+                const checkInLocation = getCoords({ checkin_location: record.checkin_location || record.checkInLocation }, 'checkin_location') || getCoords(record, 'checkin')
+                const checkOutLocation = getCoords({ checkout_location: record.checkout_location || record.checkOutLocation }, 'checkout_location') || getCoords(record, 'checkout')
+                if (projectLocation) markers.push({ ...projectLocation, label: 'Project location', type: 'project' })
+                if (checkInLocation) markers.push({ ...checkInLocation, label: 'Check-in location', type: 'checkin' })
+                if (checkOutLocation) markers.push({ ...checkOutLocation, label: 'Check-out location', type: 'checkout' })
+                return (
+                  <article className="attendance-modal-card" key={recordId}>
+                    <div className="attendance-modal-card-heading"><div><strong>{getRecordCandidateName(record)}</strong><span>{getRecordMobile(record)}</span></div><span>#{recordId || '—'}</span></div>
+                    <div className="attendance-modal-card-grid">
+                      <div><span>Date</span><strong>{record.date || record.day || record.attendance_date || '—'}</strong></div>
+                      <div><span>Status</span><strong>{record.status || 'Unknown'}</strong></div>
+                      <div><span>{isWrittenExam ? 'District' : 'Location'}</span><strong>{isWrittenExam ? getRecordDistrictName(record) : (record.location_name || record.location || 'Unknown location')}</strong></div>
+                      <div><span>Centre</span><strong>{getRecordCentreName(record)}</strong></div>
+                      <div><span>Clock in</span><strong>{record.check_in_time || record.clock_in || record.checkin_time || record.check_in || '—'}</strong></div>
+                      <div><span>Clock out</span><strong>{record.check_out_time || record.clock_out || record.checkout_time || record.check_out || '—'}</strong></div>
+                    </div>
+                    <div className="attendance-modal-card-media">
+                      {profileImage && <button type="button" className="attendance-image-button" onClick={() => openImageModal(profileImage, 'Profile Image', getRecordCandidateName(record))}><img src={profileImage} alt="Profile" className="attendance-image-thumb" /><span>Profile</span></button>}
+                      {checkInImage && <button type="button" className="attendance-image-button" onClick={() => openImageModal(checkInImage, 'Check In Image', getRecordCandidateName(record))}><img src={checkInImage} alt="Check in" className="attendance-image-thumb" /><span>Check in</span></button>}
+                      {checkOutImage && <button type="button" className="attendance-image-button" onClick={() => openImageModal(checkOutImage, 'Check Out Image', getRecordCandidateName(record))}><img src={checkOutImage} alt="Check out" className="attendance-image-thumb" /><span>Check out</span></button>}
+                      {markers.length > 0 && <button type="button" className="map-pin-btn" onClick={() => openMapModal(markers, getRecordCandidateName(record))} title="View locations"><FontAwesomeIcon icon={faMapMarkerAlt} /></button>}
+                    </div>
+                    <div className="attendance-modal-card-actions">
+                      <button type="button" className="btn btn-success btn-sm" disabled={acceptingFraudAttendanceId === recordId} onClick={() => { setRecordToAccept(record); setIsAcceptModalOpen(true) }}>{acceptingFraudAttendanceId === recordId ? 'Accepting...' : 'Accept'}</button>
+                      <button type="button" className="btn btn-danger btn-sm" disabled={isRejectingFraudAttendance === true} onClick={() => { setRecordToReject(record); setRejectionComment(''); setIsRejectModalOpen(true) }}>Reject</button>
+                      <button type="button" className="btn btn-outline btn-sm" onClick={() => { setCompareRecord(record); setIsCompareModalOpen(true) }}>Compare images</button>
+                    </div>
+                  </article>
+                )
+              })}
             </div>
 
             <div className="projects-table-pagination" style={{ marginTop: 12 }}>
@@ -4327,6 +4494,7 @@ export default function RecruiterAttendance() {
               </div>
             </div>
 
+            <div className="modal-desktop-table">
             <DataTable
               columns={[
                 <input type="checkbox" checked={membersSelectAll} onChange={(e) => handleMembersSelectAll(e.target.checked)} key="members-select-all" />,
@@ -4384,6 +4552,35 @@ export default function RecruiterAttendance() {
               })}
               emptyMessage={membersLoading ? 'Loading members…' : 'No members found.'}
             />
+            </div>
+
+            <div className="attendance-modal-mobile-list">
+              {membersLoading ? <div className="attendance-mobile-state">Loading members...</div> : projectMembers.length === 0 ? <div className="attendance-mobile-state">No members found.</div> : projectMembers.map((member, idx) => {
+                const id = getMemberId(member) || `m-${idx}`
+                const name = member.name || member.fullName || member.candidate_name || member.worker || '—'
+                const rawAadhaar = member.aadhar || member.aadhaar || member.aadhaarNumber || member.aadhaar_no || member.aadharNumber || ''
+                const area = isWrittenExam ? (member.district || member.district_name || member.districtName || '—') : (member.location || member.city || member.current_location || '—')
+                const centre = member.centre || member.centre_name || member.centreName || member.center || member.center_name || '—'
+                return (
+                  <article className="attendance-modal-card" key={id}>
+                    <div className="attendance-modal-card-heading"><label className="attendance-modal-member-select"><input type="checkbox" checked={selectedMembers.has(id)} onChange={(event) => handleMemberRowSelect(id, event.target.checked)} /><strong>{name}</strong></label><span>#{idx + 1}</span></div>
+                    <div className="attendance-modal-card-grid">
+                      <div><span>ID</span><strong>{id}</strong></div>
+                      <div><span>Aadhaar</span><strong>{rawAadhaar ? formatAadhaar(rawAadhaar) : '—'}</strong></div>
+                      <div><span>WhatsApp</span><strong>{extractPhone(member) || '—'}</strong></div>
+                      <div><span>Email</span><strong>{extractEmail(member) || '—'}</strong></div>
+                      <div><span>{isWrittenExam ? 'District' : 'Location'}</span><strong>{area}</strong></div>
+                      {isWrittenExam && <div><span>Centre</span><strong>{centre}</strong></div>}
+                    </div>
+                    {isWrittenExam && <button type="button" className="btn btn-outline btn-sm" onClick={async () => {
+                      const baseLink = `${window.location.origin}${window.location.pathname.replace(/\/?$/, '')}/#/attendance?id=${encodeURIComponent(selectedProject || '')}`
+                      const attendanceLink = `${baseLink}&candidate_id=${encodeURIComponent(id)}`
+                      try { await navigator.clipboard.writeText(attendanceLink); await alert('Attendance link copied to clipboard') } catch { window.prompt('Copy this attendance link:', attendanceLink) }
+                    }}>Copy link</button>}
+                  </article>
+                )
+              })}
+            </div>
 
             <div className="projects-table-pagination" style={{ marginTop: 12 }}>
               <div className="pagination-summary">

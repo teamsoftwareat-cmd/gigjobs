@@ -231,7 +231,7 @@ export default function InternalLoginModal({ onClose }) {
               </button>
 
               {/* remove later */}
-              {loginAsRecruiterDev && (
+              {/* {loginAsRecruiterDev && (
                 <button
                   className="btn btn-outline btn-full"
                   onClick={() => {
@@ -249,7 +249,7 @@ export default function InternalLoginModal({ onClose }) {
                 >
                   Quick Dev Login (Recruiter)
                 </button>
-              )}
+              )} */}
 
               <div className="login-footer" onClick={startForgotPassword} style={{ cursor: 'pointer' }}>
                 Forgot password?

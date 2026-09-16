@@ -584,6 +584,9 @@ export const candidateAPI = {
 }
 
 export const recruiterAPI = {
+  postCertificates: (data) => api.post(`${BASE}/recruiter/certificates/store`, data),
+  postCertificateHistory: (data) => api.post(`${BASE}/recruiter/certificates/history`, data),
+  getCertificateHistory: (params = {}) => api.get(`${BASE}/recruiter/certificates/history`, { params }),
   faceSearchAPI: (formData) => api.post('https://cynosurejobs.net/digilocker/face-indentification/upload1.php', formData),
   getDashboardKpis: (params = {}) => api.get(`${BASE}/dashboard-stats`, { params }),
   getAadharOverview: () => api.get(`${MOCK_BASE}/recruiter/dashboard/aadhar-overview`),
@@ -621,6 +624,22 @@ export const recruiterAPI = {
   getMandateRecords: (params = {}) => api.get(`${BASE}/project-summary`, { params }),
   getWrittenExamMandateRecords: (params = {}) => api.get(`${BASE}/project-summary-written`, { params }),
   getProjectSuggestions: (query = '', limit = 1000, projectType) => api.get(`${BASE}/project-suggestions`, { params: { q: query, limit, projectType } }),
+  getProjectDocumentTemplate: (projectId, documentType) => api.get(`${BASE}/recruiter/project-document-template`, {
+    params: { project_id: projectId, document_type: documentType },
+  }),
+  saveProjectDocumentTemplate: (projectId, documentType, data = {}) => api.post(`${BASE}/recruiter/project-documents`, {
+    project_id: projectId,
+    document_type: documentType,
+    ...data,
+  }),
+  saveDocumentExports: (projectId, documentType, candidates = [], exportPayload = {}) => api.post(`${BASE}/recruiter/project-candidate-documents`, {
+    project_id: projectId,
+    document_type: documentType,
+    candidates,
+    ...exportPayload,
+  }),
+  getDocumentExports: (params = {}) => api.get(`${BASE}/recruiter/document-exports`, { params }),
+  getDocumentExport: (exportId) => api.get(`${BASE}/recruiter/document-exports/${exportId}`),
   getDesignations: (projectId) => api.get(`${BASE}/designations`, { params: { projectId } })
     .then((response) => {
       const normalized = normalizeDesignationList(response?.data ?? {})
@@ -679,6 +698,9 @@ export const recruiterAPI = {
   grantExpenseAccess: (data) => api.post(`${BASE}/employee/expense-access`, data),
   revokeExpenseAccess: (data) => api.post(`${BASE}/employee/expense-deactivateExpenseAccess-list`, data),
   getCandidatesWithExpenseAccess: (params = {}) => api.get(`${BASE}/employee/expense-access-list`, { params }),
+  getTimingExpenseProjects: (params = {}) => api.get('https://cynosurejobs.net/gig_jobs_backend/gigjobs_cyno/public/api/employee-timing/projectstable', { params }),
+  getTimingExpenses: (params = {}) => api.get('https://cynosurejobs.net/gig_jobs_backend/gigjobs_cyno/public/api/employee-timing/expenseslist', { params }),
+  getTimingExpenseDetails: (expenseId, params = {}) => api.get(`https://cynosurejobs.net/gig_jobs_backend/gigjobs_cyno/public/api/employee-timing/expense/${expenseId}`, { params }),
 
   /* ===== CALLING TEAM ===== */
   // params: { search, from, to, offset, limit }

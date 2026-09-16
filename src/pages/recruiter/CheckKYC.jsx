@@ -1,4 +1,5 @@
-import { useMemo, useState, useRef, useContext } from 'react'
+import { useMemo, useState, useRef, useContext, useEffect } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faSearch, faUpload, faCheckCircle, faTimes, faSpinner, faFileCsv, faDownload, faFilter, faHistory, faFileArchive, faEye } from '@fortawesome/free-solid-svg-icons'
 import { Card, PageHeader, DataTable, LoadingOverlay, Tag, Tabs, StatCard, Modal } from '../../components/ui/index'
@@ -39,7 +40,59 @@ const getStatusCategory = (status) => {
   return 'not_registered'
 }
 
-const mapResultRow = (row, index) => {
+const isSupportedSheetFile = (file) => /\.(csv|xls|xlsx)$/i.test(file?.name || '')
+
+const normalizeSheetHeader = (header) => String(header || '')
+  .trim()
+  .toLowerCase()
+  .replace(/[^a-z0-9]+/g, '_')
+  .replace(/^_|_$/g, '')
+
+const normalizeSheetRow = (row, rowNumber) => {
+  const raw = { ...row }
+  const normalized = Object.entries(row).reduce((acc, [key, value]) => {
+    acc[normalizeSheetHeader(key)] = value
+    return acc
+  }, {})
+
+  return {
+    rowNumber,
+    raw,
+    data: {
+      district: normalized.district || '',
+      centre_code: normalized.centre_code || normalized.center_code || '',
+      centre: normalized.centre || normalized.center || '',
+      name: normalized.name || normalized.candidate_name || '',
+      mobile: normalized.mobileno || normalized.mobile || normalized.mobile_number || '',
+      aadhaar: normalized.aadharno || normalized.aadhaar || normalized.aadhaar_number || '',
+      designation: normalized.designation || '',
+      location: normalized.location || '',
+    },
+  }
+}
+
+const getCandidateSheetKey = (candidate = {}) => {
+  const value = candidate.id || candidate.candidate_id || candidate.candidateId || candidate.s_no
+  return value === undefined || value === null ? '' : String(value).trim()
+}
+
+const findUploadedSheetRow = (candidate, sheetRows, index) => {
+  const candidateId = getCandidateSheetKey(candidate)
+  const candidateMobile = String(candidate.mobile || candidate.mobileno || candidate.mobile_number || '').replace(/\D/g, '')
+  const candidateAadhaar = String(candidate.aadhaar || candidate.aadhar || candidate.aadhar_number || candidate.aadhaar_number || '').replace(/\D/g, '')
+
+  return sheetRows.find((sheetRow) => {
+    const data = sheetRow.data
+    const rowId = getCandidateSheetKey(data)
+    const rowMobile = String(data.mobile || '').replace(/\D/g, '')
+    const rowAadhaar = String(data.aadhaar || '').replace(/\D/g, '')
+    return (candidateId && rowId && candidateId === rowId) ||
+      (candidateMobile && rowMobile && candidateMobile === rowMobile) ||
+      (candidateAadhaar && rowAadhaar && candidateAadhaar === rowAadhaar)
+  }) || sheetRows[index]
+}
+
+const mapResultRow = (row, index, uploadedData = {}) => {
   const source = row || {}
 
   return {
@@ -55,6 +108,7 @@ const mapResultRow = (row, index) => {
     centre: source.centre || source.center || source.centre_name || '',
     centreCode: source.centre_code || source.centerid || source.centre_id || source.centerId || '',
     designation: source.designation || source.Designation || source.designation_name || source['Designation'] || '',
+    uploadedData,
   }
 }
 
@@ -311,6 +365,13 @@ const formatPdfDate = (value) => {
   const mm = String(date.getMonth() + 1).padStart(2, '0')
   const yyyy = String(date.getFullYear())
   return `${dd}-${mm}-${yyyy}`
+}
+
+const formatPersonName = (value) => {
+  if (!value) return ''
+  const name = String(value).trim()
+  if (!name || /^_+$/.test(name)) return name
+  return name.toLowerCase().replace(/(^|[\s'-])([a-z])/g, (_, separator, letter) => `${separator}${letter.toUpperCase()}`)
 }
 
 // Helper function to get formatted file name
@@ -1527,7 +1588,131 @@ const AgreementPageLayout = ({ candidate = {}, agreementData = {}, ocrData = nul
   )
 }
 
-const generateAgreementPDF = async (candidateId, agreementData = {}, rowData = null) => {
+const OfferLetterPageLayout = ({ candidate = {}, offerData = {}, pageNumber = 1, totalPages = 3, editable = false, onChange = () => {} }) => {
+  const inputStyle = { border: 'none', borderBottom: '1px dashed #1687ad', background: 'rgba(22, 135, 173, 0.06)', color: '#075b78', font: 'inherit', fontWeight: 700, padding: '0 2px', minWidth: 80, maxWidth: '100%' }
+  const value = (key, fallback = '__________') => editable ? <input aria-label={key} value={offerData[key] || ''} placeholder={fallback} onChange={(event) => onChange(key, event.target.value)} style={inputStyle} /> : (offerData[key] || fallback)
+  const personNameValue = (key, fallback = '__________') => editable ? value(key, fallback) : (formatPersonName(offerData[key]) || fallback)
+  const dateValue = (key) => editable ? <input aria-label={key} type="date" value={offerData[key] || ''} onChange={(event) => onChange(key, event.target.value)} style={inputStyle} /> : formatPdfDate(value(key))
+  const address = candidate.district || '__________'
+  const candidateName = formatPersonName(candidate.name) || '__________'
+  const sectionStyle = { marginBottom: 14 }
+  const headingStyle = { fontSize: '12pt', fontWeight: 700, marginBottom: 6 }
+  const itemStyle = { marginBottom: 5 }
+  const pageContent = pageNumber === 1 ? (
+    <>
+      <div style={{ display: 'flex', justifyContent: 'flex-end', paddingBottom: 12, marginBottom: 18 }}>
+        <img src={`${import.meta.env.BASE_URL}cyno-logo.png`} alt="Cynosure Corporate Solutions" width="220" height="110" style={{ display: 'block', width: 220, height: 110, maxWidth: '45%', objectFit: 'contain' }} />
+      </div>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: 18 }}>
+        <div>To,<br /><strong>{candidateName}</strong><br />{address}</div>
+        <div style={{ textAlign: 'right' }}>Date: {dateValue('offerDate')}</div>
+      </div>
+      <div style={{ marginBottom: 14 }}><strong>Subject: Offer for {value('assignmentType', 'Short-Term Project')} Assignment - {value('projectLocation', 'Uttar Pradesh')}</strong></div>
+      <div style={{ marginBottom: 12 }}>Dear {candidateName},</div>
+      <div style={{ fontWeight: 700, marginBottom: 12 }}>Congratulations!</div>
+      <p style={{ margin: '0 0 10px' }}>We are pleased to inform you that you have been shortlisted for a {value('assignmentType', 'short-term project')} assignment in {value('projectLocation', 'Uttar Pradesh')}. Based on the project requirements, you will initially undergo training in {value('trainingLocation', 'Lucknow, Uttar Pradesh')} and, upon successful completion of the training, you will be deputed to any one of the designated districts in {value('projectLocation', 'Uttar Pradesh')}.</p>
+      <p style={{ margin: '0 0 20px' }}>Please find below the terms and conditions of your project assignment:</p>
+      <div style={sectionStyle}>
+        <div style={headingStyle}>1. Project Details</div>
+        <div style={itemStyle}><strong>Nature of Assignment:</strong> {value('assignmentType', 'Short-Term Project')}</div>
+        <div style={itemStyle}><strong>Project Location:</strong> {value('projectLocation', 'Uttar Pradesh')}</div>
+        <div style={itemStyle}><strong>Project Start Date:</strong> {dateValue('projectStartDate')}</div>
+        <div style={itemStyle}><strong>Project Duration:</strong> {value('projectDuration', 'Till 2nd October 2026')}</div>
+        <div style={itemStyle}><strong>Reserve Day:</strong> {value('reserveDay', '2nd October 2026')}</div>
+        <div style={itemStyle}><strong>Project Reporting Time:</strong> {value('projectReportingTime', '4:00 AM')} at the assigned project location</div>
+        <div style={itemStyle}><strong>District Deployment:</strong> {value('districtDeployment', 'Any one of the 15 districts in Uttar Pradesh, based on project requirements.')}</div>
+      </div>
+      <div style={sectionStyle}>
+        <div style={headingStyle}>2. Initial Training</div>
+        <div style={itemStyle}><strong>Training Location:</strong> {value('trainingLocation', 'Lucknow, Uttar Pradesh')}</div>
+        <div style={itemStyle}><strong>Training Reporting Date:</strong> {dateValue('trainingReportingDate')}</div>
+        <div style={itemStyle}><strong>Training Start Date:</strong> {dateValue('trainingStartDate')}</div>
+        <div style={itemStyle}><strong>Training Reporting Time:</strong> {value('trainingReportingTime', '9:00 AM')}</div>
+        <div style={itemStyle}><strong>Training Duration:</strong> {value('trainingDuration', '4 days')}</div>
+        <p style={{ margin: '8px 0 0' }}>Successful completion of the training is mandatory for further deployment to the assigned project location.</p>
+        <p style={{ margin: '8px 0 0' }}>The company reserves the right to assign the candidate to any one of the 15 districts in {value('projectLocation', 'Uttar Pradesh')} based on operational and project requirements.</p>
+      </div>
+    </>
+  ) : pageNumber === 2 ? (
+    <>
+      <div style={sectionStyle}><div style={headingStyle}>3. Travel from Hometown to {value('trainingLocation', 'Lucknow')}</div><p style={{ margin: '0 0 8px' }}>The candidate will be required to make their own travel arrangements from their current location/hometown to {value('trainingLocation', 'Lucknow')} for the initial training.</p><p style={{ margin: '0 0 6px' }}>The company will reimburse the eligible travel expenses subject to the following conditions:</p><ul style={{ margin: 0, paddingLeft: 20 }}><li style={itemStyle}>Maximum approved travel reimbursement: {value('travelReimbursement', '₹1,800')}</li><li style={itemStyle}>The candidate must book the train ticket within the approved limit.</li><li style={itemStyle}>Any amount exceeding the approved limit will not be reimbursed.</li><li style={itemStyle}>The candidate must submit the valid train ticket and/or required proof of travel after reaching {value('trainingLocation', 'Lucknow')}.</li><li style={itemStyle}>Reimbursement will be subject to verification and applicable company/project guidelines.</li></ul><p style={{ margin: '8px 0 0' }}>Candidates are advised to verify the ticket fare before booking their journey.</p></div>
+      <div style={sectionStyle}><div style={headingStyle}>4. Accommodation</div><p style={{ margin: 0 }}>Accommodation will be provided by the company during the training and project period, as per the project arrangements. Candidates are not required to make independent accommodation arrangements unless specifically instructed by the company.</p></div>
+      <div style={sectionStyle}><div style={headingStyle}>5. Food Allowance</div><p style={{ margin: '0 0 6px' }}>Food arrangements/food allowance will be provided as per the applicable project terms.</p><ul style={{ margin: 0, paddingLeft: 20 }}><li style={itemStyle}>Maximum Food Allowance: Up to {value('foodAllowance', '₹400 per day')}, subject to the meals provided.</li><li style={itemStyle}>Where breakfast and lunch are provided at the workplace, the applicable food allowance will be {value('dinnerAllowance', '₹100 per day')} towards dinner.</li><li style={itemStyle}>The actual food allowance will depend on the meals provided at the assigned project location.</li><li style={itemStyle}>Food allowance will be paid once every 15 days, subject to eligibility and applicable project guidelines.</li></ul></div>
+      <div style={sectionStyle}><div style={headingStyle}>6. Daily Stipend</div><p style={{ margin: '0 0 6px' }}>The candidate will be eligible for:</p><ul style={{ margin: 0, paddingLeft: 20 }}><li style={itemStyle}><strong>Daily Stipend:</strong> {value('dailyStipend', '₹600 per day')}</li><li style={itemStyle}><strong>Food Allowance:</strong> Up to {value('foodAllowance', '₹400 per day')}, as applicable.</li></ul><p style={{ margin: '8px 0 0' }}>Payment will be subject to attendance, actual days of engagement, project requirements, and applicable company policies.</p></div>
+      <div style={sectionStyle}><div style={headingStyle}>7. Travel During the Project</div><p style={{ margin: 0 }}>Travel required for official project activities will be arranged by the company or reimbursed as per the applicable project guidelines. Personal travel or travel undertaken without prior approval will not be eligible for reimbursement.</p></div>
+    </>
+  ) : (
+    <>
+      <div style={sectionStyle}><div style={headingStyle}>8. Candidate Responsibilities</div><p style={{ margin: '0 0 6px' }}>As this is a short-term project assignment, the candidate is required to:</p><ul style={{ margin: 0, paddingLeft: 20 }}>{['Report to the training location on the training reporting date as instructed.', 'Attend and successfully complete the mandatory 4-day training.', `Be willing to work at any one of the 15 districts in ${value('projectLocation', 'Uttar Pradesh')}.`, `Stay in ${value('projectLocation', 'Uttar Pradesh')} for the complete project duration.`, 'Follow the assigned work timings and reporting instructions.', 'Maintain regular attendance throughout the project.', 'Follow all company, client, project, safety, and operational guidelines.', 'Submit required documents, travel tickets, and proofs for reimbursement wherever applicable.', 'Remain available for the complete project duration up to the project end date.', 'Comply with any reasonable instructions issued by the company/project team.'].map((item) => <li key={item} style={itemStyle}>{item}</li>)}</ul></div>
+      <div style={sectionStyle}><div style={headingStyle}>9. Nature and Duration of Assignment</div><p style={{ margin: '0 0 8px' }}>This offer is specifically for a short-term project assignment and is limited to the project duration mentioned above.</p><p style={{ margin: 0 }}>The assignment does not constitute a permanent employment commitment. Any extension beyond the stated project duration will be subject to project requirements and separate communication from the company.</p></div>
+      <div style={sectionStyle}><div style={headingStyle}>10. Acceptance of Offer</div><p style={{ margin: '0 0 8px' }}>By accepting this offer, you confirm that you have read, understood, and agreed to the above terms and conditions, including the requirement to travel to {value('trainingLocation', 'Lucknow')}, undergo training, stay in {value('projectLocation', 'Uttar Pradesh')}, and work at any assigned district during the project period.</p><p style={{ margin: 0 }}>Please sign and return a copy of this offer letter as confirmation of your acceptance.</p></div>
+      <p style={{ margin: '0 0 20px' }}>We welcome you to the project and wish you a successful assignment.</p>
+      <div style={{ marginBottom: 22 }}><strong>For {value('companyName', 'Cynosure Corporate Solutions')}</strong><br /><br />Authorized Signatory<br />Name: {personNameValue('authorizedSignatoryName')}<br />Designation: {value('authorizedSignatoryDesignation')}<br />Date: {dateValue('authorizedSignatoryDate')}</div>
+      <div style={{ borderTop: '1px solid #000', paddingTop: 12 }}><div style={headingStyle}>CANDIDATE ACCEPTANCE</div><p style={{ margin: '0 0 12px' }}>I, {candidateName}, hereby confirm that I have read and understood the terms and conditions mentioned in this Offer Letter and willingly accept the short-term project assignment in {value('projectLocation', 'Uttar Pradesh')}.</p><div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 12 }}> <div>Candidate Name: {candidateName}</div><div>Signature: __________________</div><div>Date: __________________</div></div></div>
+    </>
+  )
+
+  return <div data-offer-letter-page-root style={{ width: '794px', height: '1123px', padding: '42px 52px', boxSizing: 'border-box', overflow: 'hidden', background: '#fff', color: '#000', fontFamily: 'Arial, sans-serif', fontSize: '10.5pt', lineHeight: 1.35, position: 'relative' }}><div style={{ minHeight: 'calc(100% - 24px)' }}>{pageNumber > 1 && <div style={{ display: 'flex', justifyContent: 'flex-end', paddingBottom: 8, marginBottom: 16 }}><img src={`${import.meta.env.BASE_URL}cyno-logo.png`} alt="Cynosure Corporate Solutions" width="220" height="110" style={{ width: 220, height: 110, maxWidth: '100%', objectFit: 'contain' }} /></div>}{pageContent}</div><div style={{ position: 'absolute', bottom: 24, left: 52, right: 52, textAlign: 'center', fontSize: '7pt', color: '#555' }}>Door No 5, 42, 2nd St, Navarathna Garden, Ekkatuthangal, Chennai, Tamil Nadu 600032</div></div>
+}
+
+const OfferLetterEditor = ({ candidate = {}, offerData = {}, editable = false, onChange = () => {} }) => (
+  <div style={{ background: '#eef2f4', padding: '18px', overflow: 'auto' }}>
+    <div style={{ maxWidth: 794, margin: '0 auto 18px', color: 'var(--text2)', fontSize: 13 }}>
+      {editable ? 'Edit the highlighted fields directly in the letter. Candidate name and address are populated from the selected candidate.' : 'Review the completed offer letter. Candidate name and address are populated from the selected candidate.'}
+    </div>
+    {[1, 2, 3].map((pageNumber) => (
+      <div key={pageNumber} style={{ width: '794px', maxWidth: '100%', margin: '0 auto 18px', boxShadow: '0 4px 16px rgba(15, 23, 42, 0.14)' }}>
+        <OfferLetterPageLayout candidate={candidate} offerData={offerData} pageNumber={pageNumber} editable={editable} onChange={onChange} />
+      </div>
+    ))}
+  </div>
+)
+
+export const generateOfferLetterPDF = async (candidateId, offerData = {}, rowData = null) => {
+  try {
+    window.dispatchEvent(new CustomEvent('apiMessage', { detail: { type: 'info', icon: '📄', message: `Start Offer Letter PDF: ${candidateId}`, duration: 0 } }))
+    const candidateResult = await recruiterAPI.getCandidateById(candidateId, { silent: true })
+    const apiCandidate = normalizePoliceCandidateResponse(candidateResult) || {}
+    const candidate = { ...apiCandidate, name: apiCandidate.name || rowData?.name || '', district: rowData?.district || rowData?.district_name || apiCandidate.district || '', presentAddress: apiCandidate.presentAddress || rowData?.address || rowData?.location || '', permanentAddress: apiCandidate.permanentAddress || rowData?.permanentAddress || '', location: apiCandidate.location || rowData?.location || '' }
+    const tempContainer = document.createElement('div')
+    tempContainer.style.position = 'fixed'
+    tempContainer.style.left = '-9999px'
+    tempContainer.style.top = '-9999px'
+    tempContainer.style.width = '794px'
+    tempContainer.style.backgroundColor = '#fff'
+    document.body.appendChild(tempContainer)
+    const pdf = new jsPDF({ orientation: 'portrait', unit: 'mm', format: 'a4', compress: true })
+    const pdfWidth = pdf.internal.pageSize.getWidth()
+    const pdfHeight = pdf.internal.pageSize.getHeight()
+    for (let pageIndex = 0; pageIndex < 3; pageIndex += 1) {
+      const pageContainer = document.createElement('div')
+      tempContainer.appendChild(pageContainer)
+      const pageRoot = ReactDOM.createRoot(pageContainer)
+      pageRoot.render(<OfferLetterPageLayout candidate={candidate} offerData={offerData} pageNumber={pageIndex + 1} totalPages={3} />)
+      let pageElement = pageContainer.querySelector('[data-offer-letter-page-root]')
+      let waited = 0
+      while (!pageElement && waited < 15000) {
+        await new Promise((resolve) => setTimeout(resolve, 100))
+        waited += 100
+        pageElement = pageContainer.querySelector('[data-offer-letter-page-root]')
+      }
+      if (!pageElement) throw new Error(`Failed to render offer letter page ${pageIndex + 1}`)
+      await Promise.all(Array.from(pageElement.querySelectorAll('img')).map((image) => image.complete ? Promise.resolve() : new Promise((resolve) => { image.onload = resolve; image.onerror = resolve })))
+      const canvas = await html2canvas(pageElement, { scale: HTML2CANVAS_SCALE, backgroundColor: '#fff', logging: false, width: 794, height: 1123, windowWidth: 794, windowHeight: 1123 })
+      if (pageIndex > 0) pdf.addPage()
+      pdf.addImage(canvas.toDataURL('image/jpeg', 0.8), PDF_IMAGE_FORMAT, 0, 0, pdfWidth, pdfHeight)
+      pageRoot.unmount()
+      pageContainer.remove()
+    }
+    tempContainer.remove()
+    return { blob: pdf.output('blob') }
+  } catch (err) {
+    console.error('generateOfferLetterPDF error:', err)
+    return { error: err?.message || 'offer_letter_generation_failed' }
+  }
+}
+
+export const generateAgreementPDF = async (candidateId, agreementData = {}, rowData = null) => {
   try {
     window.dispatchEvent(new CustomEvent('apiMessage', { detail: { type: 'info', icon: '📄', message: `Start Agreement PDF: ${candidateId}`, duration: 0 } }))
     const [candidateResult, ocrResult] = await Promise.allSettled([
@@ -1734,7 +1919,7 @@ const generateAgreementPDF = async (candidateId, agreementData = {}, rowData = n
   }
 }
 
-const generateAgreementWithPolicePDF = async (candidateId, agreementData = {}, rowData = null) => {
+export const generateAgreementWithPolicePDF = async (candidateId, agreementData = {}, rowData = null) => {
   try {
     window.dispatchEvent(new CustomEvent('apiMessage', { detail: { type: 'info', icon: '📄', message: `Start Agreement with Police PDF: ${candidateId}`, duration: 0 } }))
     const [candidateResult, ocrResult] = await Promise.allSettled([
@@ -1981,20 +2166,22 @@ const bulkExportAsZip = async (selectedRowIds = [], results = [], rawApiData = [
     const failedDetails = []
     let profileImageExportItems = []
 
-    const CONCURRENCY_LIMIT = exportMode === 'report' || exportMode === 'police_report' || exportMode === 'kyc_report' || exportMode === 'agreement' || exportMode === 'agreement_with_police' ? PDF_CONCURRENCY : IMAGE_CONCURRENCY
+    const CONCURRENCY_LIMIT = exportMode === 'report' || exportMode === 'police_report' || exportMode === 'kyc_report' || exportMode === 'agreement' || exportMode === 'agreement_with_police' || exportMode === 'offer_letter' ? PDF_CONCURRENCY : IMAGE_CONCURRENCY
     let lastProgressUpdate = 0
 
     // Processor for report (PDF)
-    if (exportMode === 'report' || exportMode === 'police_report' || exportMode === 'kyc_report' || exportMode === 'agreement' || exportMode === 'agreement_with_police') {
+    if (exportMode === 'report' || exportMode === 'police_report' || exportMode === 'kyc_report' || exportMode === 'agreement' || exportMode === 'agreement_with_police' || exportMode === 'offer_letter') {
       const progressLabel = exportMode === 'police_report'
         ? 'Generating Police Report PDFs...'
         : exportMode === 'kyc_report'
           ? 'Generating KYC Report PDFs...'
           : exportMode === 'agreement'
             ? 'Generating Agreement PDFs...'
-            : exportMode === 'agreement_with_police'
+              : exportMode === 'agreement_with_police'
               ? 'Generating Agreement with Police Report PDFs...'
-              : 'Generating PDF reports...'
+                : exportMode === 'offer_letter'
+                  ? 'Generating Offer Letter PDFs...'
+                  : 'Generating PDF reports...'
       window.dispatchEvent(new CustomEvent('apiMessage', { detail: { type: 'info', icon: '📥', message: progressLabel, duration: 0 } }))
 
       await processConcurrently(validRowIds, async (rowId) => {
@@ -2030,7 +2217,9 @@ const bulkExportAsZip = async (selectedRowIds = [], results = [], rawApiData = [
               ? await generateAgreementPDF(candidateId, enrichedAgreementData, row)
               : exportMode === 'agreement_with_police'
                 ? await generateAgreementWithPolicePDF(candidateId, enrichedAgreementData, row)
-                : await generateCandidatePDF(candidateId)
+                : exportMode === 'offer_letter'
+                  ? await generateOfferLetterPDF(candidateId, agreementData, row)
+                  : await generateCandidatePDF(candidateId)
         processedCount++
         if (!pdfData || pdfData.error) {
           failedCount++
@@ -2189,6 +2378,8 @@ const bulkExportAsZip = async (selectedRowIds = [], results = [], rawApiData = [
           ? 'kyc_reports'
           : exportMode === 'agreement'
             ? 'agreements'
+            : exportMode === 'offer_letter'
+              ? 'offer_letters'
             : exportMode
     saveAs(zipBlob, `candidate_${suffix}_${timestamp}.zip`)
 
@@ -2207,6 +2398,7 @@ const bulkExportAsZip = async (selectedRowIds = [], results = [], rawApiData = [
 }
 
 export default function CheckKYC() {
+  const navigate = useNavigate()
   const [file, setFile] = useState(null)
   const [results, setResults] = useState([])
   const [rawApiData, setRawApiData] = useState([])
@@ -2228,7 +2420,13 @@ export default function CheckKYC() {
   const [selectedExportStructure, setSelectedExportStructure] = useState('hierarchical')
   const [selectedExportMode, setSelectedExportMode] = useState('report')
   const [showAgreementFormModal, setShowAgreementFormModal] = useState(false)
+  const [showOfferLetterFormModal, setShowOfferLetterFormModal] = useState(false)
+  const [showOfferLetterPreviewModal, setShowOfferLetterPreviewModal] = useState(false)
   const [showPoliceReportConfirmModal, setShowPoliceReportConfirmModal] = useState(false)
+  const [agreementProjectId, setAgreementProjectId] = useState('')
+  const [offerProjectId, setOfferProjectId] = useState('')
+  const [projectOptions, setProjectOptions] = useState([])
+  const [projectTemplateLoading, setProjectTemplateLoading] = useState(false)
   const [agreementFormData, setAgreementFormData] = useState({
     dateOfAgreement: new Date().toISOString().split('T')[0],
     recruitmentFor: '',
@@ -2246,8 +2444,233 @@ export default function CheckKYC() {
     bpsscConsent: 'BPSSC',
     companyConsent: 'CYNOSURE CORPORATE SOLUTIONS',
   })
+  const [offerLetterFormData, setOfferLetterFormData] = useState({
+    companyName: '',
+    assignmentType: '',
+    projectLocation: '',
+    offerDate: '',
+    projectStartDate: '',
+    projectDuration: '',
+    reserveDay: '',
+    projectReportingTime: '',
+    districtDeployment: '',
+    trainingLocation: '',
+    trainingReportingDate: '',
+    trainingStartDate: '',
+    trainingReportingTime: '',
+    trainingDuration: '',
+    travelReimbursement: '',
+    foodAllowance: '',
+    dinnerAllowance: '',
+    dailyStipend: '',
+    authorizedSignatoryName: '',
+    authorizedSignatoryDesignation: '',
+    authorizedSignatoryDate: new Date().toISOString().split('T')[0],
+  })
   const exportAbortController = useRef({ isCancelled: false })
   const candidateInfoRef = useRef(null)
+
+  const normalizeProjectOption = (item) => {
+    if (!item || typeof item !== 'object') return null
+
+    const id = item.id ?? item.project_id ?? item.projectId ?? item.value ?? item.project ?? ''
+    if (!id && id !== 0) return null
+
+    const label = item.name || item.project_name || item.projectName || item.title || `Project ${id}`
+    return { id: String(id), label: String(label).trim() || `Project ${id}` }
+  }
+
+  const loadProjectOptions = async () => {
+    try {
+      const [projectsResponse, suggestionsResponse] = await Promise.allSettled([
+        recruiterAPI.getProjects({ limit: 1000 }),
+        recruiterAPI.getProjectSuggestions('', 1000),
+      ])
+
+      const merged = []
+      const seen = new Set()
+
+      const addItems = (payload) => {
+        const items = Array.isArray(payload)
+          ? payload
+          : Array.isArray(payload?.data)
+            ? payload.data
+            : Array.isArray(payload?.data?.data)
+              ? payload.data.data
+              : []
+
+        items.forEach((item) => {
+          const normalized = normalizeProjectOption(item)
+          if (!normalized) return
+          if (seen.has(normalized.id)) return
+          seen.add(normalized.id)
+          merged.push(normalized)
+        })
+      }
+
+      if (projectsResponse.status === 'fulfilled') addItems(projectsResponse.value?.data || projectsResponse.value)
+      if (suggestionsResponse.status === 'fulfilled') addItems(suggestionsResponse.value?.data || suggestionsResponse.value)
+
+      setProjectOptions(merged)
+    } catch (err) {
+      console.warn('Failed to load projects for template dropdowns', err)
+      setProjectOptions([])
+    }
+  }
+
+  const normalizeTemplateData = (payload = {}, fieldMap = {}) => {
+    const source = payload && typeof payload === 'object' ? payload : {}
+    const flattened = {
+      ...(source.data || {}),
+      ...(source.template || {}),
+      ...(source.result || {}),
+      ...(source.form || {}),
+      ...source,
+    }
+
+    return Object.entries(fieldMap).reduce((acc, [key, candidates]) => {
+      const value = candidates
+        .map((candidate) => flattened[candidate])
+        .find((item) => item !== undefined && item !== null && String(item).trim() !== '')
+
+      if (value !== undefined && value !== null) {
+        acc[key] = value
+      }
+      return acc
+    }, {})
+  }
+
+  const applyProjectTemplate = async (projectId, templateType, setter) => {
+    if (!projectId) return
+
+    setProjectTemplateLoading(true)
+    try {
+      const response = await recruiterAPI.getProjectDocumentTemplate(projectId, templateType)
+      const payload = response?.data?.data ?? response?.data ?? response ?? {}
+      const source = payload?.data ?? payload?.template ?? payload?.result ?? payload?.form ?? payload
+      const fieldMap = templateType === 'agreement'
+        ? {
+            dateOfAgreement: ['dateOfAgreement', 'date_of_agreement'],
+            recruitmentFor: ['recruitmentFor', 'recruitment_for'],
+            recruitmentInfo: ['recruitmentInfo', 'recruitment_info'],
+            numberOfVenues: ['numberOfVenues', 'number_of_venues'],
+            reportingTimeFrom: ['reportingTimeFrom', 'reporting_time_from'],
+            reportingTimeTo: ['reportingTimeTo', 'reporting_time_to'],
+            projectEndDate: ['projectEndDate', 'project_end_date'],
+            witnessName: ['witnessName', 'witness_name'],
+            witnessDesignation: ['witnessDesignation', 'witness_designation'],
+            inrPerDay: ['inrPerDay', 'inr_per_day'],
+            governingState: ['governingState', 'governing_state'],
+            bpsscConsent: ['bpsscConsent', 'bpssc_consent'],
+            companyConsent: ['companyConsent', 'company_consent'],
+          }
+        : {
+            companyName: ['companyName', 'company_name'],
+            assignmentType: ['assignmentType', 'assignment_type'],
+            projectLocation: ['projectLocation', 'project_location'],
+            offerDate: ['offerDate', 'offer_date'],
+            projectStartDate: ['projectStartDate', 'project_start_date'],
+            projectDuration: ['projectDuration', 'project_duration'],
+            reserveDay: ['reserveDay', 'reserve_day'],
+            projectReportingTime: ['projectReportingTime', 'project_reporting_time'],
+            districtDeployment: ['districtDeployment', 'district_deployment'],
+            trainingLocation: ['trainingLocation', 'training_location'],
+            trainingReportingDate: ['trainingReportingDate', 'training_reporting_date'],
+            trainingStartDate: ['trainingStartDate', 'training_start_date'],
+            trainingReportingTime: ['trainingReportingTime', 'training_reporting_time'],
+            trainingDuration: ['trainingDuration', 'training_duration'],
+            travelReimbursement: ['travelReimbursement', 'travel_reimbursement'],
+            foodAllowance: ['foodAllowance', 'food_allowance'],
+            dinnerAllowance: ['dinnerAllowance', 'dinner_allowance'],
+            dailyStipend: ['dailyStipend', 'daily_stipend'],
+            authorizedSignatoryName: ['authorizedSignatoryName', 'authorized_signatory_name'],
+            authorizedSignatoryDesignation: ['authorizedSignatoryDesignation', 'authorized_signatory_designation'],
+            authorizedSignatoryDate: ['authorizedSignatoryDate', 'authorized_signatory_date'],
+          }
+
+      const templateValues = normalizeTemplateData(source, fieldMap)
+      if (Object.keys(templateValues).length > 0) {
+        setter((current) => ({ ...current, ...templateValues }))
+      }
+    } catch (err) {
+      if (err?.response?.status !== 404) {
+        console.warn(`Could not load ${templateType} template`, err)
+      }
+    } finally {
+      setProjectTemplateLoading(false)
+    }
+  }
+
+  const persistProjectTemplate = async (projectId, templateType, payload = {}) => {
+    if (!projectId) return
+
+    const sanitizedPayload = Object.fromEntries(
+      Object.entries(payload).filter(([key, value]) => {
+        if (['venueName', 'centreCode'].includes(key)) return false
+        if (value === undefined || value === null) return false
+        if (typeof value === 'string' && !value.trim()) return false
+        return true
+      })
+    )
+
+    try {
+      await recruiterAPI.saveProjectDocumentTemplate(projectId, templateType, sanitizedPayload)
+    } catch (err) {
+      console.warn(`Could not save ${templateType} template`, err)
+    }
+  }
+
+  const saveDocumentExportRecords = async (rowIds, projectId, documentType, documentPayload = {}, failedIds = []) => {
+    if (!projectId) {
+      console.warn(`[saveDocumentExportRecords] Missing projectId for ${documentType} export`)
+      return
+    }
+
+    const failedIdSet = new Set((failedIds || []).map((id) => String(id)))
+    const candidates = rowIds.flatMap((rowId) => {
+      const candidateRow = results.find((row) => String(row.id) === String(rowId))
+      const candidateId = candidateRow?.candidateId || rowId
+      if (!candidateRow || failedIdSet.has(String(candidateId))) return []
+      const sheetData = candidateRow.uploadedData?.data || {}
+
+      return [{
+        candidate_id: candidateId,
+        candidate_snapshot: {
+          ...sheetData,
+          candidate_id: candidateId,
+          name: candidateRow.name || sheetData.name || '',
+          mobile: candidateRow.mobile || sheetData.mobile || '',
+          aadhaar_number: candidateRow.aadhaar || sheetData.aadhaar || '',
+          district: candidateRow.district || sheetData.district || '',
+          centre: candidateRow.centre || sheetData.centre || '',
+          centre_code: candidateRow.centreCode || sheetData.centre_code || '',
+          location: candidateRow.location || sheetData.location || '',
+          designation: candidateRow.designation || sheetData.designation || '',
+          status: candidateRow.status || '',
+        },
+        sheet_context: {
+          parsed: sheetData,
+        },
+        document_payload: documentPayload,
+        status: 'generated',
+        template_version: 'v1.0',
+      }]
+    })
+
+    if (candidates.length === 0) return
+
+    try {
+      console.log(`[saveDocumentExportRecords] Saving ${candidates.length} ${documentType} export records in one request`, candidates)
+      const response = await recruiterAPI.saveDocumentExports(projectId, documentType, candidates)
+      console.log(`[saveDocumentExportRecords] Successfully saved ${candidates.length} ${documentType} export records`, response)
+    } catch (err) {
+      console.error(`[saveDocumentExportRecords] Error saving ${documentType} export records:`, err)
+    }
+  }
+
+  useEffect(() => {
+    loadProjectOptions()
+  }, [])
 
   const filteredResults = useMemo(() => {
     const term = String(searchTerm || '').trim().toLowerCase()
@@ -2283,8 +2706,8 @@ export default function CheckKYC() {
       return
     }
 
-    if (!selected.name.toLowerCase().endsWith('.csv')) {
-      setError('Please upload a CSV file only.')
+    if (!isSupportedSheetFile(selected)) {
+      setError('Please upload a CSV, XLS, or XLSX file.')
       setFile(null)
       setResults([])
       setRawApiData([])
@@ -2316,8 +2739,8 @@ export default function CheckKYC() {
     const files = e.dataTransfer.files
     if (files && files.length > 0) {
       const selected = files[0]
-      if (!selected.name.toLowerCase().endsWith('.csv')) {
-        setError('Please upload a CSV file only.')
+      if (!isSupportedSheetFile(selected)) {
+        setError('Please upload a CSV, XLS, or XLSX file.')
         setFile(null)
         setResults([])
         setRawApiData([])
@@ -2343,6 +2766,10 @@ export default function CheckKYC() {
 
     setLoading(true)
     try {
+      const workbook = XLSX.read(await file.arrayBuffer(), { type: 'array' })
+      const firstSheet = workbook.Sheets[workbook.SheetNames[0]]
+      const parsedSheetData = XLSX.utils.sheet_to_json(firstSheet, { defval: '' })
+        .map((row, index) => normalizeSheetRow(row, index + 2))
       const formData = new FormData()
       formData.append('file', file)
       const apiResponse = await recruiterAPI.checkKYCStatus(formData)
@@ -2354,7 +2781,10 @@ export default function CheckKYC() {
           : []
 
       setRawApiData(apiData)
-      const mappedApiRows = apiData.map((item, index) => mapResultRow(item, index))
+      const mappedApiRows = apiData.map((item, index) => {
+        const uploadedRow = findUploadedSheetRow(item, parsedSheetData, index)
+        return mapResultRow(item, index, uploadedRow || {})
+      })
       setResults(mappedApiRows)
 
       if (mappedApiRows.length === 0) {
@@ -2430,6 +2860,12 @@ export default function CheckKYC() {
       return
     }
 
+    if (selectedExportMode === 'offer_letter') {
+      setShowExportStructureModal(false)
+      setShowOfferLetterFormModal(true)
+      return
+    }
+
     // Handle Profile Image Only (Excel) export
     if (selectedExportMode === 'profile_image_excel') {
       setShowExportStructureModal(false)
@@ -2492,20 +2928,64 @@ export default function CheckKYC() {
   }
 
   const handleAgreementFormSubmit = async () => {
-    // Validate form data
     const requiredFields = ['dateOfAgreement', 'recruitmentInfo', 'numberOfVenues', /* venueName and centreCode optional */ 'projectEndDate', 'reportingTimeFrom', 'reportingTimeTo', 'witnessName', 'witnessDesignation', 'inrPerDay', 'governingState', 'bpsscConsent', 'companyConsent']
     const missingFields = requiredFields.filter(field => !agreementFormData[field])
-    
+
     if (missingFields.length > 0) {
       window.dispatchEvent(new CustomEvent('apiMessage', { detail: { type: 'warning', icon: '⚠️', message: `Please fill in all required fields: ${missingFields.join(', ')}`, duration: 4000 } }))
       return
     }
 
-    // Close agreement form modal first, then show police report confirmation
+    await persistProjectTemplate(agreementProjectId, 'agreement', agreementFormData)
+
     setShowAgreementFormModal(false)
     setTimeout(() => {
       setShowPoliceReportConfirmModal(true)
     }, 100)
+  }
+
+  const handleOfferLetterFormSubmit = async () => {
+    const requiredFields = ['companyName', 'assignmentType', 'projectLocation', 'offerDate', 'projectStartDate', 'projectDuration', 'reserveDay', 'projectReportingTime', 'districtDeployment', 'trainingLocation', 'trainingReportingDate', 'trainingStartDate', 'trainingReportingTime', 'trainingDuration', 'travelReimbursement', 'foodAllowance', 'dinnerAllowance', 'dailyStipend', 'authorizedSignatoryName', 'authorizedSignatoryDesignation', 'authorizedSignatoryDate']
+    const missingFields = requiredFields.filter((field) => !String(offerLetterFormData[field] || '').trim())
+    if (missingFields.length > 0) {
+      window.dispatchEvent(new CustomEvent('apiMessage', { detail: { type: 'warning', icon: '⚠️', message: `Please fill in all required offer letter fields: ${missingFields.join(', ')}`, duration: 4000 } }))
+      return
+    }
+
+    await persistProjectTemplate(offerProjectId, 'offer_letter', offerLetterFormData)
+
+    setShowOfferLetterFormModal(false)
+    setExportingZip(true)
+    exportAbortController.current.isCancelled = false
+    try {
+      const selectedRowIds = Array.from(selectedCandidates)
+      console.log('[handleOfferLetterFormSubmit] Starting export with selectedRowIds:', selectedRowIds, 'projectId:', offerProjectId)
+      const result = await bulkExportAsZip(selectedRowIds, results, rawApiData, exportAbortController.current, selectedExportStructure, 'offer_letter', offerLetterFormData)
+      console.log('[handleOfferLetterFormSubmit] bulkExportAsZip result:', result)
+      if (result.success) {
+        console.log('[handleOfferLetterFormSubmit] Export successful, saving export records for', selectedRowIds.length, 'candidates')
+        // Save export records for each candidate that was successfully exported
+        await saveDocumentExportRecords(selectedRowIds, offerProjectId, 'offer_letter', offerLetterFormData, result.failedIds)
+        setSelectedCandidates(new Set())
+        if (result.failedIds?.length > 0) {
+          setExportFailedIds(result.failedIds)
+          setExportFailedDetails(result.failedDetails || [])
+          setShowFailedModal(true)
+        }
+        if (result.omittedDetails?.length > 0) {
+          setExportOmittedDetails(result.omittedDetails)
+          setShowOmittedModal(true)
+        }
+      } else if (!result.cancelled) {
+        alert('Failed to generate Offer Letter ZIP file. Please try again.')
+      }
+    } catch (err) {
+      console.error('Offer Letter export error:', err)
+      alert('An error occurred during Offer Letter export. Please try again.')
+    } finally {
+      setExportingZip(false)
+      exportAbortController.current.isCancelled = false
+    }
   }
 
   const handlePoliceReportConfirmation = async (includePoliceReport) => {
@@ -2517,8 +2997,14 @@ export default function CheckKYC() {
       const selectedRowIds = Array.from(selectedCandidates)
       const selectedRows = results.filter((r) => selectedRowIds.includes(String(r.id)))
       const exportModeToUse = includePoliceReport ? 'agreement_with_police' : selectedExportMode
+      console.log('[handlePoliceReportConfirmation] Starting export with selectedRowIds:', selectedRowIds, 'projectId:', agreementProjectId, 'mode:', exportModeToUse)
       const result = await bulkExportAsZip(selectedRowIds, results, rawApiData, exportAbortController.current, selectedExportStructure, exportModeToUse, agreementFormData)
+      console.log('[handlePoliceReportConfirmation] bulkExportAsZip result:', result)
       if (result.success) {
+        console.log('[handlePoliceReportConfirmation] Export successful, saving export records for', selectedRowIds.length, 'candidates')
+        // Save export records for each candidate that was successfully exported
+        const documentType = includePoliceReport ? 'agreement_with_police' : 'agreement'
+        await saveDocumentExportRecords(selectedRowIds, agreementProjectId, documentType, agreementFormData, result.failedIds)
         setSelectedCandidates(new Set())
         
         if (result.failedIds && result.failedIds.length > 0) {
@@ -2901,17 +3387,27 @@ export default function CheckKYC() {
     setViewingCandidateId(candidateId)
   }
 
+  const offerPreviewCandidate = results.find((row) => selectedCandidates.has(String(row.id))) || results[0] || {}
+
   return (
     <div className="check-kyc-page">
       <PageHeader
         title="Check KYC"
         subtitle="Upload a candidate CSV and review KYC verification status for each record."
         action={
-          (file || results.length > 0) && (
-            <button type="button" className="btn btn-outline btn-sm" onClick={clearFile}>
-              <FontAwesomeIcon icon={faHistory} /> New Check
+          <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', justifyContent: 'flex-end' }}>
+            <button type="button" className="btn btn-outline btn-sm" onClick={() => navigate('/app/recruiter/document-history?type=offer_letter')}>
+              <FontAwesomeIcon icon={faFileArchive} /> Offers History
             </button>
-          )
+            <button type="button" className="btn btn-outline btn-sm" onClick={() => navigate('/app/recruiter/document-history?type=agreement')}>
+              <FontAwesomeIcon icon={faFileArchive} /> Agreements History
+            </button>
+            {(file || results.length > 0) && (
+              <button type="button" className="btn btn-outline btn-sm" onClick={clearFile}>
+                <FontAwesomeIcon icon={faHistory} /> New Check
+              </button>
+            )}
+          </div>
         }
       />
 
@@ -2966,7 +3462,7 @@ export default function CheckKYC() {
               >
                 <input
                   type="file"
-                  accept=".csv"
+                  accept=".csv,.xls,.xlsx"
                   onChange={handleFileChange}
                   style={{ display: 'none' }}
                   id="file-input"
@@ -3372,6 +3868,7 @@ export default function CheckKYC() {
                   <option value="police_report">Police Reports (PDF)</option>
                   <option value="kyc_report">KYC Reports (PDF)</option>
                   <option value="agreement">Agreement (PDF)</option>
+                  <option value="offer_letter">Offer Letter (PDF)</option>
                   <option value="all_images">All Images (Profile + Aadhaar)</option>
                   <option value="profile">Profile Image Only</option>
                   <option value="aadhaar_front">Aadhaar Front Image Only</option>
@@ -3388,6 +3885,74 @@ export default function CheckKYC() {
                 <FontAwesomeIcon icon={selectedExportMode === 'profile_image_excel' ? faFileCsv : faFileArchive} /> {selectedExportMode === 'profile_image_excel' ? 'Export as Excel' : 'Export as ZIP'}
               </button>
             </div>
+          </div>
+        </Modal>
+      )}
+
+      {showOfferLetterFormModal && (
+        <Modal
+          isOpen={showOfferLetterFormModal}
+          onClose={() => !exportingZip && setShowOfferLetterFormModal(false)}
+          title="Offer Letter Details"
+          closeOnBackdropClick={!exportingZip}
+          maxWidth="900px"
+          style={{ zIndex: 9998 }}
+        >
+          <div style={{ display: 'grid', gap: '12px', padding: '16px 0', maxHeight: '72vh', overflowY: 'auto' }}>
+            <div style={{ padding: '12px', background: 'var(--blue-light)', borderRadius: 8, color: 'var(--text2)', fontSize: 13 }}>
+              Enter the common project details below. Candidate name and address are populated automatically for each selected candidate.
+            </div>
+            <div style={{ display: 'grid', gap: '8px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text2)' }}>
+                Project <span style={{ color: 'red' }}>*</span>
+              </label>
+              <select
+                value={offerProjectId}
+                onChange={async (event) => {
+                  const nextProjectId = event.target.value
+                  setOfferProjectId(nextProjectId)
+                  if (nextProjectId) {
+                    await applyProjectTemplate(nextProjectId, 'offer_letter', setOfferLetterFormData)
+                  }
+                }}
+                style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 14, background: '#fff' }}
+                disabled={projectTemplateLoading}
+              >
+                <option value="">Select project</option>
+                {projectOptions.map((project) => (
+                  <option key={project.id} value={project.id}>{project.label}</option>
+                ))}
+              </select>
+            </div>
+            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(2, minmax(0, 1fr))', gap: 12 }}>
+              {[
+                ['companyName', 'Company Name', 'text', 'CYNOSURE CORPORATE SOLUTIONS'], ['assignmentType', 'Assignment Type', 'text', 'Short-Term Project'], ['projectLocation', 'Project Location', 'text', 'Uttar Pradesh'],
+                ['offerDate', 'Offer Date', 'date', 'Select offer date'], ['projectStartDate', 'Project Start Date', 'date', 'Select project start date'], ['projectDuration', 'Project Duration', 'text', 'Till 2nd October 2026'],
+                ['reserveDay', 'Reserve Day', 'text', '2nd October 2026'], ['projectReportingTime', 'Project Reporting Time', 'text', '4:00 AM'], ['districtDeployment', 'District Deployment', 'text', 'Any one of the 15 districts in Uttar Pradesh'],
+                ['trainingLocation', 'Training Location', 'text', 'Lucknow, Uttar Pradesh'], ['trainingReportingDate', 'Training Reporting Date', 'date', 'Select training reporting date'], ['trainingStartDate', 'Training Start Date', 'date', 'Select training start date'],
+                ['trainingReportingTime', 'Training Reporting Time', 'text', '9:00 AM'], ['trainingDuration', 'Training Duration', 'text', '4 days'], ['travelReimbursement', 'Maximum Travel Reimbursement', 'text', '₹1,800'],
+                ['foodAllowance', 'Maximum Food Allowance', 'text', '₹400 per day'], ['dinnerAllowance', 'Dinner Allowance', 'text', '₹100 per day'], ['dailyStipend', 'Daily Stipend', 'text', '₹600 per day'],
+                ['authorizedSignatoryName', 'Authorized Signatory Name', 'text', 'Enter authorized signatory name'], ['authorizedSignatoryDesignation', 'Authorized Signatory Designation', 'text', 'Enter designation'], ['authorizedSignatoryDate', 'Authorized Signatory Date', 'date', 'Select signatory date'],
+              ].map(([field, label, type, placeholder]) => (
+                <label key={field} style={{ display: 'grid', gap: 6, fontSize: 13, fontWeight: 600, color: 'var(--text2)' }}>
+                  <span>{label} <span style={{ color: 'red' }}>*</span></span>
+                  <input type={type} value={offerLetterFormData[field]} placeholder={placeholder} onChange={(event) => setOfferLetterFormData((current) => ({ ...current, [field]: event.target.value }))} style={{ padding: '8px 12px', borderRadius: 6, border: '1px solid var(--border)', fontSize: 14, fontWeight: 400 }} />
+                </label>
+              ))}
+            </div>
+            <div style={{ display: 'flex', gap: 12, justifyContent: 'flex-end', borderTop: '1px solid var(--border)', paddingTop: 16 }}>
+              <button type="button" className="btn btn-outline" onClick={() => setShowOfferLetterFormModal(false)} disabled={exportingZip}>Cancel</button>
+              <button type="button" className="btn btn-outline" onClick={() => setShowOfferLetterPreviewModal(true)} disabled={exportingZip}><FontAwesomeIcon icon={faEye} /> Preview Offer Letter</button>
+              <button type="button" className="btn btn-primary" onClick={handleOfferLetterFormSubmit} disabled={exportingZip}><FontAwesomeIcon icon={faFileArchive} /> Export Offer Letters</button>
+            </div>
+          </div>
+        </Modal>
+      )}
+
+      {showOfferLetterPreviewModal && (
+        <Modal isOpen={true} onClose={() => setShowOfferLetterPreviewModal(false)} title="Offer Letter Preview" fullScreen>
+          <div style={{ height: '100%', overflowY: 'auto' }}>
+            <OfferLetterEditor candidate={offerPreviewCandidate} offerData={offerLetterFormData} editable={false} />
           </div>
         </Modal>
       )}
@@ -3558,6 +4123,29 @@ export default function CheckKYC() {
           style={{ zIndex: 9998 }}
         >
           <div style={{ display: 'grid', gap: '12px', padding: '16px 0', maxHeight: '70vh', overflowY: 'auto' }}>
+            <div style={{ display: 'grid', gap: '8px' }}>
+              <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text2)' }}>
+                Project <span style={{ color: 'red' }}>*</span>
+              </label>
+              <select
+                value={agreementProjectId}
+                onChange={async (event) => {
+                  const nextProjectId = event.target.value
+                  setAgreementProjectId(nextProjectId)
+                  if (nextProjectId) {
+                    await applyProjectTemplate(nextProjectId, 'agreement', setAgreementFormData)
+                  }
+                }}
+                style={{ padding: '8px 12px', borderRadius: '6px', border: '1px solid var(--border)', fontSize: '14px', background: '#fff' }}
+                disabled={projectTemplateLoading}
+              >
+                <option value="">Select project</option>
+                {projectOptions.map((project) => (
+                  <option key={project.id} value={project.id}>{project.label}</option>
+                ))}
+              </select>
+            </div>
+
             <div style={{ display: 'grid', gap: '8px' }}>
               <label style={{ fontSize: '13px', fontWeight: 600, color: 'var(--text2)' }}>
                 Date of Agreement <span style={{ color: 'red' }}>*</span>

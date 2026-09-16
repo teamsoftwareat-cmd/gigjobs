@@ -625,6 +625,67 @@ export function ProjectLocationChart({ data = [] }) {
   )
 }
 
+export function ProjectMonthlyChart({ data = [] }) {
+  const { text, grid } = useChartColors()
+  const currentDate = new Date()
+  const currentYear = currentDate.getFullYear()
+  const currentMonth = currentDate.getMonth()
+  const monthMap = data.reduce((acc, project) => {
+    const dateValue = project.startDate || project.createdAt
+    const date = dateValue ? new Date(dateValue) : null
+    if (!date || Number.isNaN(date.getTime()) || date.getFullYear() !== currentYear || date.getMonth() > currentMonth) return acc
+
+    const key = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`
+    acc[key] = (acc[key] || 0) + 1
+    return acc
+  }, {})
+
+  const months = Array.from({ length: currentMonth + 1 }, (_, monthIndex) => {
+    const key = `${currentYear}-${String(monthIndex + 1).padStart(2, '0')}`
+    return {
+      label: new Date(currentYear, monthIndex, 1).toLocaleDateString('en-US', { month: 'short' }),
+      count: monthMap[key] || 0,
+    }
+  })
+  const labels = months.map(({ label }) => label)
+  const values = months.map(({ count }) => count)
+
+  return (
+    <div className="chart-container" style={{ height: '320px' }}>
+      <Bar
+        data={{
+          labels: labels.length ? labels : ['No Data'],
+          datasets: [{
+            label: 'Projects',
+            data: values.length ? values : [0],
+            backgroundColor: '#0E7C86',
+            borderRadius: 8,
+            maxBarThickness: 26,
+          }]
+        }}
+        options={{
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: { bodyColor: text, titleColor: text }
+          },
+          scales: {
+            y: {
+              ticks: { color: text, beginAtZero: true, precision: 0 },
+              grid: { color: grid }
+            },
+            x: {
+              ticks: { color: text },
+              grid: { display: false }
+            }
+          }
+        }}
+      />
+    </div>
+  )
+}
+
 /* ============================= */
 /* ===== AADHAAR CITY BAR ===== */
 /* ============================= */

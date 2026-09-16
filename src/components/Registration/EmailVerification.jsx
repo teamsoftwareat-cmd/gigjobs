@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react'
 import { authAPI } from '../../api/axios'
 import { Modal } from '../ui'
 
-const EmailVerification = ({ email, onVerify, onSkipVerification, showToast, isVerified, isSkipped }) => {
+const EmailVerification = ({ email, onVerify, showToast, isVerified }) => {
   const [modalOpen, setModalOpen] = useState(false)
   const [otpSent, setOtpSent] = useState(false)
   const [otp, setOtp] = useState(Array(6).fill(''))
@@ -25,12 +25,6 @@ const EmailVerification = ({ email, onVerify, onSkipVerification, showToast, isV
 
   const openModal = () => setModalOpen(true)
   const closeModal = () => setModalOpen(false)
-
-  const handleSkipVerification = () => {
-    showToast('ℹ️', 'You can verify your email later. Please complete other steps.')
-    onSkipVerification?.()
-    closeModal()
-  }
 
   const sendOTP = async () => {
     if (!isEmailValid) {
@@ -135,9 +129,6 @@ const EmailVerification = ({ email, onVerify, onSkipVerification, showToast, isV
         >
           {buttonLabel}
         </button>
-        {isSkipped && (
-          <span className="email-verify-skip-note">Email verification skipped for now.</span>
-        )}
       </div>
 
       <Modal
@@ -152,13 +143,6 @@ const EmailVerification = ({ email, onVerify, onSkipVerification, showToast, isV
         maxWidth="520px"
         footer={
           <div className="email-verify-modal-footer" style={{width: '100%', gap: '12px'}}>
-            <button
-              type="button"
-              className="btn btn-secondary"
-              onClick={handleSkipVerification}
-            >
-              Skip verification
-            </button>
             <button
               type="button"
               className="btn btn-primary btn-sm"
@@ -231,7 +215,7 @@ const EmailVerification = ({ email, onVerify, onSkipVerification, showToast, isV
             </>
           ) : (
             <div className="email-verification-note" style={{ marginTop: '18px', textAlign: 'center' }}>
-              Please confirm that <strong>{email}</strong> is your active email address. You can also skip for now and verify later.
+              Please confirm that <strong>{email}</strong> is your active email address. Verification is required to continue.
             </div>
           )}
         </div>

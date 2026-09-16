@@ -15,7 +15,9 @@ import * as XLSX from 'xlsx'
 import { PageHeader, Card, StatCard, Modal, Tag } from '../../components/ui'
 import { recruiterAPI } from '../../api/axios'
 import { useAlert } from '../../context/AlertContext'
+import { useAuth } from '../../context/AuthContext'
 import './Payments.css'
+import './Expenses.css'
 
 const EXPENSE_CATEGORIES = [
   'Hotel',
@@ -27,8 +29,230 @@ const EXPENSE_CATEGORIES = [
   'Other',
 ]
 
+const TIMING_EXPENSE_CATEGORIES = ['Hotel', 'Travel', 'Food', 'Supplies', 'Rental', 'Others']
+
+function TimingExpensesView({ onSwitchToGigjobs }) {
+  const { user } = useAuth()
+  const { alert } = useAlert()
+  const [expenses, setExpenses] = useState([])
+  const [projects, setProjects] = useState([])
+  const [search, setSearch] = useState('')
+  const [project, setProject] = useState('')
+  const [category, setCategory] = useState('')
+  const [location, setLocation] = useState('')
+  const [fromDate, setFromDate] = useState('')
+  const [toDate, setToDate] = useState('')
+  const [page, setPage] = useState(1)
+  const [limit, setLimit] = useState(5)
+  const [total, setTotal] = useState(0)
+  const [kpis, setKpis] = useState({
+    pending: { count: 0, amount: 0 },
+    approved: { count: 0, amount: 0 },
+    rejected: { count: 0, amount: 0 },
+    paid: { count: 0, amount: 0 },
+  })
+  const [loading, setLoading] = useState(false)
+  const [detailsLoading, setDetailsLoading] = useState(false)
+  const [selectedExpense, setSelectedExpense] = useState(null)
+  const [detailsOpen, setDetailsOpen] = useState(false)
+  const [attachment, setAttachment] = useState(null)
+
+  const userId = user?.userId || 1
+
+  const fetchTimingProjects = useCallback(async () => {
+    try {
+      const response = await recruiterAPI.getTimingExpenseProjects({ offset: 0, limit: 10, user_id: userId })
+      const payload = response?.data?.data || response?.data || {}
+      const items = Array.isArray(payload) ? payload : payload.projects || payload.items || payload.data || []
+      setProjects(items)
+    } catch (error) {
+      setProjects([])
+      alert('error', 'Failed to load timing expense projects')
+    }
+  }, [alert, userId])
+
+  const fetchTimingExpenses = useCallback(async (requestedPage = 1) => {
+    setLoading(true)
+    try {
+      const params = {
+        offset: (requestedPage - 1) * limit,
+        limit,
+        status: 'pending',
+        user_id: userId,
+        ...(search.trim() ? { search: search.trim() } : {}),
+        ...(category ? { category } : {}),
+        ...(project ? { project_id: project } : {}),
+        ...(location.trim() ? { location: location.trim() } : {}),
+        ...(fromDate ? { from_date: fromDate } : {}),
+        ...(toDate ? { to_date: toDate } : {}),
+      }
+      const response = await recruiterAPI.getTimingExpenses(params)
+      const payload = response?.data?.data || response?.data || {}
+      const items = Array.isArray(payload) ? payload : payload.expenses || payload.items || []
+      const pagination = payload.pagination || {}
+      setExpenses(items)
+      setTotal(Number(pagination.total ?? payload.total ?? 0))
+      setKpis(payload.kpis || {})
+      setPage(Number(pagination.current_page || requestedPage))
+    } catch (error) {
+      setExpenses([])
+      setTotal(0)
+      alert('error', 'Failed to load timing expenses')
+    } finally {
+      setLoading(false)
+    }
+  }, [alert, category, fromDate, limit, location, project, search, toDate, userId])
+
+  useEffect(() => {
+    fetchTimingProjects()
+  }, [fetchTimingProjects])
+
+  useEffect(() => {
+    fetchTimingExpenses(1)
+  }, [fetchTimingExpenses])
+
+  const openDetails = async (expense) => {
+    setDetailsOpen(true)
+    setSelectedExpense(expense)
+    setDetailsLoading(true)
+    try {
+      const response = await recruiterAPI.getTimingExpenseDetails(expense.id, { user_id: userId })
+      setSelectedExpense(response?.data?.data?.expense || response?.data?.expense || response?.data || expense)
+    } catch (error) {
+      alert('error', 'Failed to load timing expense details')
+    } finally {
+      setDetailsLoading(false)
+    }
+  }
+
+  const totalPages = Math.ceil(total / limit)
+  const getProjectLabel = (item) => item.name || item.project_name || item.title || item.project || item.id
+  const getLocationValues = (item) => {
+    const rawLocations = item.locations || item.location_names || item.location || item.location_name || []
+    const values = Array.isArray(rawLocations) ? rawLocations : [rawLocations]
+
+    return values
+      .map((value) => {
+        if (typeof value === 'string' || typeof value === 'number') return String(value)
+        return value?.name || value?.location_name || value?.location || value?.title || value?.id
+      })
+      .filter(Boolean)
+  }
+  const timingLocations = [...new Set(
+    projects
+      .filter((item) => !project || String(item.id || item.project_id) === String(project))
+      .flatMap(getLocationValues)
+  )]
+  const attachments = selectedExpense?.attachments || []
+
+  return (
+    <div className="payments-page expenses-page expenses-timing-page">
+      <PageHeader
+        title="Timing Expenses"
+        subtitle="View timing project expense submissions"
+        action={<button className="btn btn-secondary btn-sm" onClick={onSwitchToGigjobs}>Switch to Gigjobs Expenses</button>}
+      />
+
+      <div className="stats-grid" style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(210px, 1fr))', gap: '16px', marginBottom: '24px' }}>
+        {[
+          ['Pending Expenses', kpis.pending, faUsers, 'var(--yellow-light)', 'var(--saffron)'],
+          ['Approved Expenses', kpis.approved, faCheck, 'var(--green-light)', 'var(--green)'],
+          ['Rejected Expenses', kpis.rejected, faTimes, 'var(--red-light)', 'var(--red)'],
+          ['Paid Expenses', kpis.paid, faIndianRupee, 'var(--blue-light)', 'var(--primary)'],
+        ].map(([label, kpi, icon, background, color]) => (
+          <StatCard
+            key={label}
+            label={label}
+            value={`${kpi?.count || 0} · ₹ ${Number(kpi?.amount || 0).toLocaleString('en-IN')}`}
+            icon={<FontAwesomeIcon icon={icon} />}
+            iconStyle={{ background, color }}
+          />
+        ))}
+      </div>
+
+      <div className="filter-controls" style={{ marginBlock: '2px', background: 'white', padding: '12px', borderRadius: '8px', display: 'grid', gridTemplateColumns: 'repeat(5, minmax(140px, 1fr))', gap: '12px' }}>
+        <select className="form-control" value={category} onChange={(event) => { setCategory(event.target.value); setPage(1) }}>
+          <option value="">All Categories</option>
+          {TIMING_EXPENSE_CATEGORIES.map((item) => <option key={item} value={item}>{item}</option>)}
+        </select>
+        <select className="form-control" value={project} onChange={(event) => { setProject(event.target.value); setPage(1) }}>
+          <option value="">All Projects</option>
+          {projects.map((item) => <option key={item.id || item.project_id} value={item.id || item.project_id}>{getProjectLabel(item)}</option>)}
+        </select>
+        <select className="form-control" value={location} onChange={(event) => { setLocation(event.target.value); setPage(1) }}>
+          <option value="">All Locations</option>
+          {timingLocations.map((item) => <option key={item} value={item}>{item}</option>)}
+        </select>
+        <input className="form-control" type="date" value={fromDate} aria-label="From date" onChange={(event) => { setFromDate(event.target.value); setPage(1) }} />
+        <input className="form-control" type="date" value={toDate} aria-label="To date" onChange={(event) => { setToDate(event.target.value); setPage(1) }} />
+        <input className="form-control" value={search} placeholder="Search candidate or expense" onChange={(event) => { setSearch(event.target.value); setPage(1) }} onKeyDown={(event) => event.key === 'Enter' && fetchTimingExpenses(1)} />
+        <button className="btn btn-primary btn-sm" onClick={() => fetchTimingExpenses(1)} disabled={loading}>{loading ? 'Loading...' : 'Search'}</button>
+      </div>
+
+      <div className="expenses-content" style={{ background: 'white' }}>
+        {loading ? <Card className="loading-state">Loading timing expenses...</Card> : expenses.length === 0 ? <Card className="empty-state">No timing expenses found</Card> : (
+          <div className="expenses-list"><table className="expenses-table">
+            <thead><tr><th>Expense</th><th>Category</th><th>Project</th><th>Location</th><th>Amount</th><th>Status</th><th>Attachment</th></tr></thead>
+            <tbody>{expenses.map((expense, index) => <tr key={expense.id}>
+              <td><div className="expense-main"><h4>{expense.title || '—'}</h4><p className="expense-description">{expense.name || '—'}{expense.mobile ? ` · ${expense.mobile}` : ''} · {expense.date || '—'}</p></div></td>
+              <td>{expense.category || '—'}</td><td>{expense.project_name || expense.project || expense.project_id || '—'}</td><td>{expense.location_name || expense.location || '—'}</td><td>₹ {Number(expense.amount || 0).toLocaleString('en-IN')}</td><td><Tag>{expense.status || 'pending'}</Tag></td><td><button className="btn btn-outline btn-sm" onClick={() => openDetails(expense)}>Details · View</button></td>
+            </tr>)}</tbody>
+          </table></div>
+        )}
+        <div className="pagination-footer timing-pagination" style={{ marginTop: 0 }}>
+          <label className="timing-pagination-size">
+            Show
+            <select
+              className="form-control form-control-sm"
+              value={limit}
+              onChange={(event) => { setLimit(Number(event.target.value)); setPage(1) }}
+            >
+              <option value={5}>5</option>
+              <option value={10}>10</option>
+              <option value={25}>25</option>
+              <option value={50}>50</option>
+            </select>
+            entries
+          </label>
+          <div className="pagination-summary">Showing {total ? (page - 1) * limit + 1 : 0} to {Math.min(page * limit, total)} of {total} entries</div>
+          <div className="pagination-controls timing-pagination-controls">
+            <button className="btn btn-outline btn-sm timing-pagination-wide" disabled={page <= 1 || loading} onClick={() => fetchTimingExpenses(page - 1)}>Previous</button>
+            {Array.from({ length: Math.min(5, totalPages) }, (_, index) => { const pageNumber = Math.max(1, Math.min(totalPages - 4, page - 2)) + index; return <button key={pageNumber} className={`btn ${page === pageNumber ? 'btn-primary' : 'btn-outline'} btn-sm timing-pagination-number`} onClick={() => fetchTimingExpenses(pageNumber)}>{pageNumber}</button> })}
+            <button className="btn btn-outline btn-sm timing-pagination-wide" disabled={page >= totalPages || loading} onClick={() => fetchTimingExpenses(page + 1)}>Next</button>
+          </div>
+        </div>
+      </div>
+
+      <style>{`
+        .timing-pagination { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 16px; }
+        .timing-pagination-size { display: inline-flex; align-items: center; gap: 8px; white-space: nowrap; font-size: 13px; color: var(--text-secondary); }
+        .timing-pagination-size select { width: 64px; }
+        .timing-pagination-controls { display: flex; justify-content: flex-end; gap: 6px; flex-wrap: nowrap; }
+        .timing-pagination-controls .timing-pagination-wide { width: 84px; min-width: 84px; }
+        .timing-pagination-controls .timing-pagination-number { width: 36px; min-width: 36px; padding-inline: 0; }
+        @media (max-width: 700px) {
+          .timing-pagination { grid-template-columns: 1fr 1fr; }
+          .timing-pagination .pagination-summary { grid-column: 1 / -1; grid-row: 1; }
+          .timing-pagination-controls { grid-column: 1 / -1; grid-row: 3; justify-content: flex-start; overflow-x: auto; padding-bottom: 2px; }
+        }
+      `}</style>
+
+      <Modal title="Timing Expense Details" isOpen={detailsOpen} onClose={() => { setDetailsOpen(false); setSelectedExpense(null) }} maxWidth="700px">
+        {detailsLoading ? <Card className="loading-state">Loading expense details...</Card> : selectedExpense && <div style={{ display: 'grid', gap: '12px' }}>
+          <h3 style={{ margin: 0 }}>{selectedExpense.title || selectedExpense.description || 'Expense details'}</h3>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(150px, 1fr))', gap: '12px' }}>{['name', 'category', 'amount', 'location', 'travel_from', 'travel_to', 'transport_mode', 'purpose_of_travel', 'ticket_status', 'date', 'status'].map((key) => selectedExpense[key] !== null && selectedExpense[key] !== undefined && selectedExpense[key] !== '' && <div key={key} style={{ padding: '12px', background: 'var(--bg)', border: '1px solid var(--border-light)', borderRadius: '8px' }}><strong style={{ display: 'block', fontSize: '11px', textTransform: 'uppercase', color: 'var(--text3)' }}>{key.replaceAll('_', ' ')}</strong>{key === 'amount' ? `₹ ${Number(selectedExpense[key]).toLocaleString('en-IN')}` : selectedExpense[key]}</div>)}</div>
+          <p style={{ margin: 0 }}>{selectedExpense.description || 'No description provided.'}</p>
+          {attachments.length > 0 && <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>{attachments.map((file, index) => <button key={file.url || index} className="btn btn-outline btn-sm" onClick={() => setAttachment(file.url || file)}>{file.name || `Attachment ${index + 1}`}</button>)}</div>}
+        </div>}
+      </Modal>
+      <Modal title="Attachment Preview" isOpen={Boolean(attachment)} onClose={() => setAttachment(null)} maxWidth="90vw">{attachment && (/\.pdf($|\?)/i.test(attachment) ? <iframe src={attachment} title="Expense attachment" style={{ width: '100%', height: '70vh', border: 0 }} /> : <img src={attachment} alt="Expense attachment" style={{ maxWidth: '100%', maxHeight: '70vh', display: 'block', margin: 'auto' }} />)}</Modal>
+    </div>
+  )
+}
+
 export default function Expenses() {
   const { alert } = useAlert()
+  const [expenseMode, setExpenseMode] = useState('gigjobs')
 
   // Tab state
   const [activeTab, setActiveTab] = useState('pending')
@@ -676,8 +900,9 @@ export default function Expenses() {
 
   // Re-fetch whenever the active tab, page, or filters change
   useEffect(() => {
+    if (expenseMode === 'timing') return
     fetchExpenses(pagination.page, filters)
-  }, [fetchExpenses, activeTab, pagination.page, filters])
+  }, [expenseMode, fetchExpenses, activeTab, pagination.page, filters])
 
   // Fetch projects for filter dropdown
   const fetchProjects = useCallback(async () => {
@@ -796,8 +1021,9 @@ export default function Expenses() {
 
   // Fetch projects on component mount
   useEffect(() => {
+    if (expenseMode === 'timing') return
     fetchProjects()
-  }, [fetchProjects])
+  }, [expenseMode, fetchProjects])
 
   // Handle page change
   const handlePageChange = (newPage) => {
@@ -947,24 +1173,23 @@ export default function Expenses() {
       
       const fullExpenses = await Promise.all(fullExpensesPromises)
 
-      // Helper function to extract attachment URL
-      const getAttachmentUrl = (expense) => {
-        if (expense.attachments) {
-          if (Array.isArray(expense.attachments) && expense.attachments.length > 0) {
-            const first = expense.attachments[0]
-            return typeof first === 'string' ? first : (first.url || first.path || '—')
-          }
-          if (typeof expense.attachments === 'string') {
-            return expense.attachments
-          }
+      // Helper function to extract all attachment URLs
+      const getAttachmentUrls = (expense) => {
+        if (Array.isArray(expense.attachments)) {
+          return expense.attachments
+            .map((attachment) => typeof attachment === 'string' ? attachment : (attachment.url || attachment.path || ''))
+            .filter(Boolean)
         }
+        if (typeof expense.attachments === 'string') return [expense.attachments]
         if (expense.attachment) {
-          if (typeof expense.attachment === 'string') return expense.attachment
-          return expense.attachment.url || expense.attachment.path || '—'
+          const attachmentUrl = typeof expense.attachment === 'string'
+            ? expense.attachment
+            : expense.attachment.url || expense.attachment.path || ''
+          return attachmentUrl ? [attachmentUrl] : []
         }
-        if (expense.attachment_url) return expense.attachment_url
-        if (expense.bill_url) return expense.bill_url
-        return '—'
+        if (expense.attachment_url) return [expense.attachment_url]
+        if (expense.bill_url) return [expense.bill_url]
+        return []
       }
 
       // Helper function to extract filename from URL
@@ -1008,6 +1233,10 @@ export default function Expenses() {
       Object.keys(groupedByCategory).sort().forEach((category) => {
         const categoryExpenses = groupedByCategory[category]
         const categoryLower = String(category).toLowerCase()
+        const attachmentColumnCount = Math.max(
+          1,
+          ...categoryExpenses.map((expense) => getAttachmentUrls(expense).length)
+        )
         
         // Define columns based on category
         let headers = ['Sl.No', 'P.id', 'Date', 'Type', 'Name', 'Mobile', 'Aadhaar', 'Project', 'Amount', 'Expense']
@@ -1026,6 +1255,12 @@ export default function Expenses() {
           headers = ['Sl.No', 'P.id', 'Date', 'Type', 'Name', 'Mobile', 'Units', 'Cost Per Unit', 'Amount', 'Expense']
           colWidths = [8, 12, 12, 12, 20, 15, 10, 15, 12, 25]
         }
+
+        headers.splice(-1, 1, ...Array.from(
+          { length: attachmentColumnCount },
+          (_, index) => `Attachment ${index + 1}`
+        ))
+        colWidths.splice(-1, 1, ...Array.from({ length: attachmentColumnCount }, () => 25))
         
         // Prepare data for this category
         const sheetData = []
@@ -1041,8 +1276,10 @@ export default function Expenses() {
             expense.mobileNumber || expense.phone || '—'
           ]
 
-          const attachmentUrl = getAttachmentUrl(expense)
-          const attachmentFilename = getFilenameFromUrl(attachmentUrl)
+          const attachmentUrls = getAttachmentUrls(expense)
+          const attachmentFilenames = attachmentUrls.length
+            ? attachmentUrls.map(getFilenameFromUrl)
+            : ['—']
 
           if (categoryLower === 'travel') {
             rowData = rowData.concat([
@@ -1051,7 +1288,7 @@ export default function Expenses() {
               expense.transport_mode || '—',
               expense.purpose_of_travel || '—',
               expense.amount || 0,
-              attachmentFilename
+              ...attachmentFilenames
             ])
           } else if (categoryLower === 'hotel') {
             rowData = rowData.concat([
@@ -1062,33 +1299,33 @@ export default function Expenses() {
               expense.num_days || '—',
               expense.num_persons || '—',
               expense.amount || 0,
-              attachmentFilename
+              ...attachmentFilenames
             ])
           } else if (categoryLower === 'food') {
             rowData = rowData.concat([
               expense.food_from_date || '—',
               expense.food_to_date || '—',
               expense.amount || 0,
-              attachmentFilename
+              ...attachmentFilenames
             ])
           } else if (['stationary', 'electronics', 'rental'].includes(categoryLower)) {
             rowData = rowData.concat([
               expense.units || '—',
               expense.cost_per_unit || '—',
               expense.amount || 0,
-              attachmentFilename
+              ...attachmentFilenames
             ])
           } else {
             // Generic category
             rowData = rowData.concat([
               expense.aadhaar || '—',
               expense.amount || 0,
-              attachmentFilename
+              ...attachmentFilenames
             ])
           }
 
-          // Store the URL for this row (last column is always the attachment)
-          rowData._attachmentUrl = attachmentUrl
+          // Store all URLs for this row so every attachment remains available in the export.
+          rowData._attachmentUrls = attachmentUrls
 
           sheetData.push(rowData)
         })
@@ -1103,11 +1340,12 @@ export default function Expenses() {
             const cellAddress = XLSX.utils.encode_col(C) + XLSX.utils.encode_row(R)
             if (!ws[cellAddress]) continue
             
-            // Add hyperlink if this is the last column (attachment) and has a URL
-            if (C === range.e.c && R > 0 && sheetData[R]) {
-              const rowData = sheetData[R]
-              if (rowData._attachmentUrl && rowData._attachmentUrl !== '—') {
-                ws[cellAddress].l = { Target: rowData._attachmentUrl }
+            if (R > 0 && sheetData[R]?._attachmentUrls?.length) {
+              const attachmentStartColumn = range.e.c - attachmentColumnCount + 1
+              const attachmentIndex = C - attachmentStartColumn
+              const attachmentUrl = sheetData[R]._attachmentUrls[attachmentIndex]
+              if (attachmentUrl) {
+                ws[cellAddress].l = { Target: attachmentUrl }
               }
             }
             
@@ -1155,8 +1393,12 @@ export default function Expenses() {
     }
   }, [currentExpenses])
 
+  if (expenseMode === 'timing') {
+    return <TimingExpensesView onSwitchToGigjobs={() => setExpenseMode('gigjobs')} />
+  }
+
   return (
-    <div className="payments-page">
+    <div className="payments-page expenses-page">
       <PageHeader
         title="Expenses Management"
         subtitle="Validate, approve, and reject candidate expenses"
@@ -1168,6 +1410,12 @@ export default function Expenses() {
               onClick={() => setAllocateAccessModalOpen(true)}
             >
               Allocate Expense Access
+            </button>
+            <button
+              className="btn btn-secondary btn-sm"
+              onClick={() => setExpenseMode('timing')}
+            >
+              Switch to Timing Expenses
             </button>
             <button
               className="btn btn-secondary btn-sm"
@@ -1773,7 +2021,7 @@ export default function Expenses() {
         }}
         maxWidth="min(90vw, 900px)"
         footer={
-          <div style={{
+          <div className="expense-access-footer" style={{
             display: 'grid',
             gridTemplateColumns: '1fr auto auto',
             gap: '12px',
@@ -1818,7 +2066,7 @@ export default function Expenses() {
           </div>
         }
       >
-        <div style={{
+        <div className="expense-access-modal-body" style={{
           display: 'grid',
           gap: '16px',
           padding: '12px',
@@ -1912,7 +2160,7 @@ export default function Expenses() {
                   : accessInfoMessage}
               </div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
+              <div className="expense-access-table-wrap" style={{ overflowX: 'auto' }}>
                 <table className="expenses-table" style={{ width: '100%', margin: 0 }}>
                   <thead>
                     <tr>
@@ -2013,8 +2261,8 @@ export default function Expenses() {
           </div>
         }
       >
-        <div style={{ display: 'grid', gap: '18px', padding: '12px 0' }}>
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px' }}>
+        <div className="paid-expenses-modal-body" style={{ display: 'grid', gap: '18px', padding: '12px 0' }}>
+          <div className="paid-expenses-filter-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr 1fr', gap: '12px' }}>
             <div>
               <label className="form-label">Search</label>
               <input
@@ -2104,7 +2352,7 @@ export default function Expenses() {
 
           {/* Paid Expenses Selection and Export */}
           {paidExpenses.length > 0 && (
-            <div style={{
+            <div className="paid-expenses-selection" style={{
               display: 'grid',
               gridTemplateColumns: 'auto 1fr auto',
               justifyContent: 'space-between',
@@ -2150,7 +2398,7 @@ export default function Expenses() {
             ) : paidExpenses.length === 0 ? (
               <div style={{ color: 'var(--text3)' }}>No paid expenses found for this filter.</div>
             ) : (
-              <div style={{ overflowX: 'auto' }}>
+              <div className="paid-expenses-table-wrap" style={{ overflowX: 'auto' }}>
                 <table className="expenses-table" style={{ width: '100%', margin: 0 }}>
                   <thead>
                     <tr>
@@ -2355,7 +2603,7 @@ export default function Expenses() {
         }}
         maxWidth="700px"
         footer={
-          <div style={{
+          <div className="expense-details-footer" style={{
             display: 'flex',
             justifyContent: 'space-between',
             alignItems: 'center',
@@ -2367,7 +2615,7 @@ export default function Expenses() {
             <div style={{ fontSize: '14px', color: 'var(--text3)' }}>
               {actionReason ? `Reason: ${actionReason.substring(0, 40)}${actionReason.length > 40 ? '...' : ''}` : isRejectedTab ? 'This expense has already been rejected. Approve it to restore.' : 'Provide a reason if rejecting'}
             </div>
-            <div style={{ display: 'flex', gap: '12px' }}>
+            <div className="expense-details-footer-actions" style={{ display: 'flex', gap: '12px' }}>
               <button
                 className="btn btn-outline btn-sm"
                 onClick={() => setDetailsModalOpen(false)}

@@ -14,6 +14,7 @@ import { MapModal } from '../../components/ui/MapModal'
 import { ImageModal } from '../../components/ui/ImageModal'
 import './AttendanceData.css'
 import './AttendanceSummaryModal.css'
+import './AttendanceSummary.css'
 
 const LIMIT_OPTIONS = [10, 20, 50]
 const NO_IMAGE_PLACEHOLDER = 'https://cdn-icons-png.flaticon.com/512/149/149071.png'
@@ -208,6 +209,7 @@ export default function RecruiterAttendanceSummary() {
         district: activeTab === 'written' ? (row.district || row.district_name || row.location || row.location_name || 'Unknown') : undefined,
         location: activeTab !== 'written' ? (row.location || row.location_name || 'Unknown') : undefined,
         centre: activeTab === 'written' ? (row.centre || row.centre_name || 'Unknown') : undefined,
+        locations: Number(row.locations ?? row.locationCount ?? row.location_count ?? 0),
         startDate: row.startDate || row.start_date || row.date || '',
         endDate: row.endDate || row.end_date || row.date || '',
         resources: Number(row.resources ?? row.resourceCount ?? row.resource_count ?? 0),
@@ -239,6 +241,7 @@ export default function RecruiterAttendanceSummary() {
           district,
           location,
           centre: activeTab === 'written' ? centre : undefined,
+          locations: new Set(location ? [location] : []),
           startDate: date,
           endDate: date,
           resources: new Set(),
@@ -252,6 +255,7 @@ export default function RecruiterAttendanceSummary() {
         if (!group.endDate || date > group.endDate) group.endDate = date
       }
       if (candidate) group.resources.add(candidate)
+      if (location) group.locations.add(location)
       group.mandaysWorked += mandays
 
       return groups
@@ -1402,6 +1406,86 @@ export default function RecruiterAttendanceSummary() {
     ]
   })
 
+  const outsideCandidateMobileCards = outsideCandidates.map((candidate, index) => {
+    const candidateId = String(candidate.attendance_id ?? candidate.id ?? candidate.candidateId ?? candidate._id ?? index)
+    const name = candidate.candidate_name || candidate.name || candidate.fullName || candidate.worker_name || 'Unknown'
+    const mobile = candidate.mobile || candidate.phone || candidate.whatsapp || candidate.contact || '—'
+    const assignment = assignments[candidateId] || {}
+    const projectValue = assignment.project || ''
+    const locationValue = assignment.location || ''
+    const centreValue = activeTab === 'written' ? (assignment.centre || '') : undefined
+    const locationOptions = locationOptionsByProject[projectValue] || []
+    const centreOptions = activeTab === 'written' ? (centreOptionsByLocation[locationValue] || []) : []
+    const candidateDate = candidate.date || candidate.created_at || candidate.createdAt || candidate.added || ''
+    const clockIn = candidate.clock_in || candidate.clockIn || candidate.check_in_time || candidate.checkin_time || candidate.check_in || candidate.checkin || '—'
+    const clockOut = candidate.clock_out || candidate.clockOut || candidate.check_out_time || candidate.checkout_time || candidate.check_out || candidate.checkout || '—'
+    const checkInImage = candidate.check_in_image || candidate.checkInImage || candidate.checkin_image || candidate.photo || candidate.profile_image || NO_IMAGE_PLACEHOLDER
+    const checkOutImage = candidate.check_out_image || candidate.checkOutImage || candidate.checkout_image || candidate.checkout_photo || NO_IMAGE_PLACEHOLDER
+    const checkinLoc = parseCoords(candidate.checkin_location ?? candidate.checkInLocation ?? candidate.checkin ?? candidate.checkin_location_raw)
+    const checkoutLoc = parseCoords(candidate.checkout_location ?? candidate.checkOutLocation ?? candidate.checkout ?? candidate.checkout_location_raw)
+    const markers = []
+    if (checkinLoc) markers.push({ ...checkinLoc, label: 'Check-in location', type: 'checkin' })
+    if (checkoutLoc) markers.push({ ...checkoutLoc, label: 'Check-out location', type: 'checkout' })
+
+    return (
+      <article className="outside-candidate-mobile-card" key={candidateId}>
+        <div className="outside-candidate-mobile-heading">
+          <div>
+            <strong>{name}</strong>
+            <span>{mobile}</span>
+          </div>
+          <span>#{outsideOffset + index + 1}</span>
+        </div>
+        <div className="outside-candidate-mobile-meta">
+          <div><span>Date</span><strong>{candidateDate ? new Date(candidateDate).toLocaleDateString('en-IN') : '—'}</strong></div>
+          <div><span>Clock in</span><strong>{clockIn}</strong></div>
+          <div><span>Clock out</span><strong>{clockOut}</strong></div>
+          <div><span>Status</span><strong>{candidate.status || (assignment.saved ? 'Assigned' : 'Unassigned')}</strong></div>
+        </div>
+        <div className="outside-candidate-mobile-fields">
+          <label>
+            <span>Project</span>
+            <ProjectDropdown value={projectValue} onSelect={(projectId) => handleProjectSelect(candidateId, projectId)} placeholder="Select project" />
+          </label>
+          <label>
+            <span>{activeTab === 'written' ? 'District / location' : 'Location'}</span>
+            <select className="form-control" value={locationValue} onChange={(event) => handleLocationSelect(candidateId, event.target.value)} disabled={!projectValue || locationOptions.length === 0}>
+              <option value="">Select location</option>
+              {locationOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+            </select>
+          </label>
+          {activeTab === 'written' && (
+            <label>
+              <span>Centre</span>
+              <select className="form-control" value={centreValue} onChange={(event) => handleCentreSelect(candidateId, event.target.value)} disabled={!locationValue || centreOptions.length === 0}>
+                <option value="">Select centre</option>
+                {centreOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
+              </select>
+            </label>
+          )}
+        </div>
+        <div className="outside-candidate-mobile-actions">
+          <button type="button" className="attendance-image-button" onClick={() => openImageModal(checkInImage, 'Check-in image', 'Check in')}>
+            <img src={checkInImage} alt="Check in" className="attendance-image-thumb" />
+            <span>Check in</span>
+          </button>
+          <button type="button" className="attendance-image-button" onClick={() => openImageModal(checkOutImage, 'Check-out image', 'Check out')}>
+            <img src={checkOutImage} alt="Check out" className="attendance-image-thumb" />
+            <span>Check out</span>
+          </button>
+          {markers.length > 0 && <button type="button" className="map-pin-btn" onClick={() => openMapModal(markers, name)} title="View locations"><FontAwesomeIcon icon={faMapMarkerAlt} /></button>}
+          {assignment.saved ? (
+            <span className="tag tag-green outside-candidate-assigned">Assigned</span>
+          ) : (
+            <button type="button" className="btn btn-primary btn-sm outside-candidate-save" disabled={!projectValue || !locationValue || (activeTab === 'written' && !centreValue) || assignment.saving} onClick={() => handleSaveAssignment(candidateId)}>
+              {assignment.saving ? 'Saving...' : 'Save assignment'}
+            </button>
+          )}
+        </div>
+      </article>
+    )
+  })
+
   const summaryRows = paginatedGroups.map((group, index) => [
     offset + index + 1,
     (() => {
@@ -1418,7 +1502,7 @@ export default function RecruiterAttendanceSummary() {
         </div>
       )
     })(),
-    activeTab === 'written' ? (group.district || group.location) : group.location,
+    activeTab === 'written' ? (group.district || group.location) : `${group.locations?.size || group.locations || 0} locations`,
     ...(activeTab === 'written' ? [group.centre] : []),
     group.startDate ? new Date(group.startDate).toLocaleDateString('en-IN') : '—',
     group.endDate ? new Date(group.endDate).toLocaleDateString('en-IN') : '—',
@@ -1518,7 +1602,7 @@ export default function RecruiterAttendanceSummary() {
   ])
 
   return (
-    <div className="recruiter-attendance-page">
+    <div className="recruiter-attendance-page attendance-summary-page">
       <PageHeader
         title="Recruiter Attendance"
         subtitle="Review mandays worked by project before drilling into candidate-level attendance."
@@ -1633,15 +1717,85 @@ export default function RecruiterAttendanceSummary() {
 
         <div className="summary-table-section">
           <div className="projects-table-wrap">
-            <DataTable
-              columns={activeTab === 'written' ? ['S.No', 'Project', 'District', 'Centre', 'Start Date', 'End Date', 'Resources', 'Mandays Worked', 'Action'] : ['S.No', 'Project', 'Location', 'Start Date', 'End Date', 'Resources', 'Mandays Worked', 'Action']}
+              <DataTable
+              columns={activeTab === 'written' ? ['S.No', 'Project', 'District', 'Centre', 'Start Date', 'End Date', 'Resources', 'Mandays Worked', 'Action'] : ['S.No', 'Project', 'Locations', 'Start Date', 'End Date', 'Resources', 'Mandays Worked', 'Action']}
               rows={summaryRows}
               emptyMessage={loading ? 'Loading summary...' : 'No project summary available.'}
             />
           </div>
+          <div className="attendance-summary-mobile-list">
+            {loading ? (
+              <div className="attendance-mobile-state">Loading summary...</div>
+            ) : paginatedGroups.length === 0 ? (
+              <div className="attendance-mobile-state">No project summary available.</div>
+            ) : (
+              paginatedGroups.map((group, index) => {
+                const projectTitle = group.project || group.projectName || group.name || '-'
+                const area = activeTab === 'written' ? (group.district || group.location || '—') : `${group.locations?.size || group.locations || 0} locations`
+                const projectKey = group.id || group.projectId || group.project || ''
+                const projectTypeParam = activeTab === 'written' ? 'written' : 'regular'
+                const navigateToDetails = () => {
+                  const params = group.id != null
+                    ? `id=${group.id}&projectType=${activeTab === 'written' ? 'writtenExam' : 'regular'}`
+                    : activeTab === 'written'
+                      ? `id=${group.projectId || group.project}&districtId=${group.districtId || group.district || group.location || ''}&centreId=${group.centreId || group.centre}&projectType=writtenExam`
+                      : `id=${group.projectId || group.project}&locationId=${group.locationId || group.location}&projectType=regular`
+                  navigate(`/app/recruiter/attendance/details?${params}`, {
+                    state: { projectTitle: group.project, startDate: group.startDate, endDate: group.endDate, projectType: activeTab === 'written' ? 'writtenExam' : 'regular' }
+                  })
+                }
+
+                return (
+                  <article className="attendance-summary-mobile-card" key={group.id || `${projectTitle}-${index}`}>
+                    <div className="attendance-summary-mobile-heading">
+                      <div>
+                        <strong>{projectTitle}</strong>
+                        {group.clientName && <span>{group.clientName}</span>}
+                      </div>
+                      <span>#{offset + index + 1}</span>
+                    </div>
+                    <div className="attendance-summary-mobile-grid">
+                      <div><span>{activeTab === 'written' ? 'District' : 'Locations'}</span><strong>{area}</strong></div>
+                      {activeTab === 'written' && <div><span>Centre</span><strong>{group.centre || '—'}</strong></div>}
+                      <div><span>Start</span><strong>{group.startDate ? new Date(group.startDate).toLocaleDateString('en-IN') : '—'}</strong></div>
+                      <div><span>End</span><strong>{group.endDate ? new Date(group.endDate).toLocaleDateString('en-IN') : '—'}</strong></div>
+                      <div><span>Resources</span><strong>{group.resources?.size || group.resources || 0}</strong></div>
+                      <div><span>Mandays</span><strong>{Math.round(group.mandaysWorked)}</strong></div>
+                    </div>
+                    <div className="attendance-summary-mobile-actions">
+                      <button className="btn btn-outline btn-sm" type="button" onClick={navigateToDetails}>View details</button>
+                      <button className="btn btn-outline btn-sm" type="button" onClick={() => navigate(`/app/recruiter/project-stats?projectId=${encodeURIComponent(projectKey)}&projectType=${projectTypeParam}`)}>Stats</button>
+                      <button
+                        className="btn btn-outline btn-sm"
+                        type="button"
+                        onClick={async () => {
+                          const attendanceLink = activeTab === 'written'
+                            ? `${window.location.origin}${window.location.pathname.replace(/\/?$/, '')}/#/attendance?id=${encodeURIComponent(group.id || group.projectId || '')}`
+                            : 'https://cynosurejobs.net/gigjobs/#/attendance'
+                          try { await navigator.clipboard.writeText(attendanceLink); alert('Attendance link copied to clipboard') } catch { window.prompt('Copy this attendance link:', attendanceLink) }
+                        }}
+                      >
+                        Copy link
+                      </button>
+                      {activeTab === 'written' && (
+                        <button
+                          className="btn btn-outline btn-sm"
+                          type="button"
+                          disabled={projectStatusLoading[projectKey] || !projectKey}
+                          onClick={() => handleToggleProjectStatus(group)}
+                        >
+                          {projectStatusLoading[projectKey] ? 'Saving...' : deriveActiveStatus(group.status) ? 'Deactivate' : 'Activate'}
+                        </button>
+                      )}
+                    </div>
+                  </article>
+                )
+              })
+            )}
+          </div>
         </div>
 
-        <div className="projects-table-pagination">
+        <div className="projects-table-pagination attendance-summary-pagination">
           <div className="pagination-summary">
             Showing {Math.min(total, offset + 1)}–{Math.min(total, offset + limit)} of {total} records
           </div>
@@ -1654,6 +1808,7 @@ export default function RecruiterAttendanceSummary() {
             >
               Prev
             </button>
+            <span className="pagination-current-label">Page {currentPage} of {totalPages}</span>
             <div className="pagination-pages">
               {pageStart > 1 && (
                 <>
@@ -1907,7 +2062,7 @@ export default function RecruiterAttendanceSummary() {
           </div>
         )}
       >
-        <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
+        <div className="outside-location-modal-content" style={{ display: 'flex', justifyContent: 'space-between', gap: 12, flexWrap: 'wrap', marginBottom: 18 }}>
           <div>
             <div style={{ fontWeight: 700, marginBottom: 4 }}>Current assignments</div>
             <div style={{ color: 'var(--text2)', fontSize: '0.95rem' }}>
@@ -1982,18 +2137,21 @@ export default function RecruiterAttendanceSummary() {
 
         {modalError && <div className="attendance-message error" style={{ marginBottom: 16 }}>{modalError}</div>}
 
-        <div className="projects-table-wrap">
+        <div className="projects-table-wrap outside-candidate-table">
           <DataTable
             columns={activeTab === 'written' ? ['ID', 'Date', 'Candidate', 'Aadhaar', 'Mobile', 'Project', 'Location', 'Centre', 'Clock In', 'Clock Out', 'Check In Image', 'Check Out Image', 'Map', 'Status', 'Action'] : ['ID', 'Date', 'Candidate', 'Aadhaar', 'Mobile', 'Project', 'Location', 'Clock In', 'Clock Out', 'Check In Image', 'Check Out Image', 'Map', 'Status', 'Action']}
             rows={isModalLoading ? [] : outsideCandidateRows}
             emptyMessage={isModalLoading ? 'Loading candidates...' : 'No candidates available.'}
           />
         </div>
+        <div className="outside-candidate-mobile-list">
+          {isModalLoading ? <div className="attendance-mobile-state">Loading candidates...</div> : outsideCandidates.length === 0 ? <div className="attendance-mobile-state">No candidates available.</div> : outsideCandidateMobileCards}
+        </div>
 
         <MapModal isOpen={isMapOpen} onClose={closeMapModal} markers={mapMarkers} title={mapTitle} />
         <ImageModal isOpen={imagePreview.isOpen} onClose={closeImageModal} imageUrl={imagePreview.src} title={imagePreview.title} alt={imagePreview.alt} />
 
-        <div className="projects-table-pagination" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: 16 }}>
+        <div className="projects-table-pagination outside-location-pagination" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 12, marginTop: 16 }}>
           <div className="pagination-summary" style={{ minWidth: 0 }}>
             Showing {outsideTotal === 0 ? 0 : outsideOffset + 1}–{Math.min(outsideTotal, outsideOffset + outsideLimit)} of {outsideTotal} candidates
           </div>
@@ -2006,6 +2164,7 @@ export default function RecruiterAttendanceSummary() {
             >
               Prev
             </button>
+            <span className="pagination-current-label">Page {outsideCurrentPage} of {outsideTotalPages}</span>
             {outsidePageStart > 1 && (
               <>
                 <button className="pagination-page-btn" type="button" onClick={() => setOutsideOffset(0)}>1</button>

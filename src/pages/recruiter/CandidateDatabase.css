@@ -1,0 +1,220 @@
+.candidate-mobile-list {
+  display: none;
+}
+
+.candidate-mobile-actions {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+@media (max-width: 768px) {
+  .candidate-database-page .page-header {
+    gap: 14px;
+    margin-bottom: 14px;
+  }
+
+  .candidate-database-page .page-header > div:last-child,
+  .candidate-page-actions {
+    width: 100%;
+  }
+
+  .candidate-page-actions .btn {
+    flex: 1 1 0;
+    min-width: 0;
+    width: auto;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .candidate-database-page .card {
+    padding: 12px;
+    border-radius: 12px;
+  }
+
+  .candidate-database-page .projects-table-filters {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 12px !important;
+    padding: 0;
+  }
+
+  .candidate-database-page .projects-table-filter-group,
+  .candidate-database-page .projects-table-filter-group.search-group,
+  .candidate-database-page .projects-table-meta {
+    width: 100%;
+    min-width: 0;
+    padding: 0;
+  }
+
+  .candidate-database-page .search-group {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px !important;
+  }
+
+  .candidate-database-page .search-group > div {
+    min-width: 0;
+  }
+
+  .candidate-database-page .search-group > .btn {
+    grid-column: 1 / -1;
+    width: 100%;
+  }
+
+  .candidate-database-page .location-group,
+  .candidate-database-page .date-group {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    align-items: end;
+    gap: 8px !important;
+  }
+
+  .candidate-database-page .location-group .filter-label {
+    grid-column: 1 / -1;
+  }
+
+  .candidate-database-page .date-group .filter-label {
+    margin-bottom: -2px;
+  }
+
+  .candidate-database-page .date-group .form-control {
+    min-width: 0;
+  }
+
+  .candidate-database-page .projects-table-meta {
+    display: grid !important;
+    grid-template-columns: 1fr auto;
+    align-items: center;
+    gap: 10px !important;
+  }
+
+  .candidate-database-page .entries-selector {
+    width: auto;
+  }
+
+  .candidate-database-page .filter-badge-list {
+    grid-column: 1 / -1;
+  }
+
+  .candidate-database-page .projects-table-wrap {
+    display: none;
+  }
+
+  .candidate-mobile-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .candidate-mobile-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px;
+    background: var(--card);
+  }
+
+  .candidate-mobile-card-header,
+  .candidate-mobile-card-footer {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .candidate-mobile-index {
+    color: var(--text3);
+    font-size: 12px;
+    flex-shrink: 0;
+  }
+
+  .candidate-mobile-details {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 14px;
+    margin: 14px 0;
+    padding: 12px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .candidate-mobile-details div {
+    min-width: 0;
+  }
+
+  .candidate-mobile-details span {
+    display: block;
+    margin-bottom: 2px;
+    color: var(--text3);
+    font-size: 10px;
+    text-transform: uppercase;
+    letter-spacing: 0.4px;
+  }
+
+  .candidate-mobile-details strong {
+    display: block;
+    overflow: hidden;
+    color: var(--text2);
+    font-size: 12px;
+    font-weight: 600;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .candidate-mobile-card-footer {
+    align-items: center;
+  }
+
+  .candidate-mobile-actions .btn {
+    width: auto;
+    padding: 7px 9px;
+    font-size: 11px;
+  }
+
+  .candidate-database-page .projects-table-pagination {
+    display: grid;
+    gap: 12px;
+    padding: 14px 0 2px;
+  }
+
+  .candidate-database-page .pagination-actions {
+    justify-content: space-between;
+    gap: 6px;
+  }
+
+  .candidate-database-page .pagination-pages {
+    min-width: 0;
+    overflow: hidden;
+  }
+
+  .candidate-database-page .pagination-page-btn {
+    min-width: 30px;
+  }
+
+  .candidate-database-page .candidate-aadhaar-images {
+    grid-template-columns: 1fr !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .candidate-database-page .search-group {
+    grid-template-columns: 1fr;
+  }
+
+  .candidate-database-page .search-group > .btn {
+    grid-column: auto;
+  }
+
+  .candidate-page-actions .btn {
+    font-size: 11px;
+  }
+
+  .candidate-mobile-actions {
+    gap: 5px;
+  }
+
+  .candidate-mobile-actions .btn {
+    padding-left: 7px;
+    padding-right: 7px;
+  }
+}

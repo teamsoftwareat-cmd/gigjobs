@@ -55,9 +55,11 @@ import InvalidCandidate from './pages/recruiter/InvalidCandidate'
 import RegistrationKycStatus from './pages/attendance/RegistrationKycStatus'
 import Expenses from './pages/recruiter/Expenses'
 import CheckKYC from './pages/recruiter/CheckKYC'
+import DocumentExportHistory from './pages/recruiter/DocumentExportHistory'
 import RecruiterAttendanceApprovals from './pages/recruiter/AttendanceApprovals'
 import RecruiterApplications from './pages/recruiter/Applications'
 import FaceMatching from './pages/recruiter/FaceSearch'
+import Certifications from './pages/recruiter/Certifications'
 
 /* Client */
 import { ClientDashboard, ClientAttendance } from './pages/client/index'
@@ -151,8 +153,10 @@ function AppRoutes({ showToast }) {
         <Route path="recruiter/validCandidate" element={<MaintenanceGate enabled={false}><ValidCandidate /></MaintenanceGate>} />
         <Route path="recruiter/InvalidCandidate" element={<MaintenanceGate enabled={false}><InvalidCandidate /></MaintenanceGate>} />
         <Route path="recruiter/check-kyc" element={<MaintenanceGate enabled={false}><CheckKYC /></MaintenanceGate>} />
+        <Route path="recruiter/document-history" element={<MaintenanceGate enabled={false}><DocumentExportHistory /></MaintenanceGate>} />
         <Route path="recruiter/expenses" element={<MaintenanceGate enabled={false}><Expenses /></MaintenanceGate>} />
         <Route path="recruiter/applications" element={<MaintenanceGate enabled={false}><RecruiterApplications /></MaintenanceGate>} />
+        <Route path="recruiter/certifications" element={<MaintenanceGate enabled={false}><Certifications /></MaintenanceGate>} />
         <Route path="recruiter/face-matching" element={<MaintenanceGate enabled={false}><FaceMatching /></MaintenanceGate>} />
 
         {/* Client */}

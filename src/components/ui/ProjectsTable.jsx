@@ -55,24 +55,10 @@ export default function ProjectsTable({
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [updatingStatus, setUpdatingStatus] = useState(null)
-  const [locationOptions, setLocationOptions] = useState(['All'])
   const didMountRef = useRef(false)
   const isMobile = useIsMobile()
 
-  useEffect(() => {
-    const fetchMainLocations = async () => {
-      try {
-        const response = await recruiterAPI.getProjectMainLocation()
-        const locations = response?.data?.data || response?.data || []
-        if (Array.isArray(locations)) {
-          setLocationOptions(['All', ...locations])
-        }
-      } catch (error) {
-        console.error('Failed to fetch main locations:', error)
-      }
-    }
-    fetchMainLocations()
-  }, [])
+  const locationOptions = ['All', ...new Set((data || []).map((project) => project.location).filter(Boolean))]
 
   useEffect(() => {
     if (!didMountRef.current) {
@@ -87,6 +73,7 @@ export default function ProjectsTable({
 
   const handleLocationChange = (e) => {
     const value = e.target.value
+    setLocationFilter(value)
     onLocationFilter?.(value)
   }
 

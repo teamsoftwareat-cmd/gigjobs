@@ -12,6 +12,7 @@ import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/dist/style.css'
 import './PaymentSheet.css' // Import the new CSS file
 import './AttendanceData.css'
+import './PaymentSheetMobile.css'
 
 const LIMIT_OPTIONS = [10, 20, 50, 100, 250, 500, 1000, 2000]
 const ALLOWANCE_TYPES = [
@@ -2422,7 +2423,7 @@ export default function RecruiterPaymentSheet() {
   for (let i = pageStart; i <= pageEnd; i += 1) pageNumbers.push(i)
 
   return (
-    <div className="recruiter-attendance-page">
+    <div className="recruiter-attendance-page payment-sheet-page">
       <LoadingOverlay active={generatingExcel} message="Generating Excel, please wait..." />
 
             <button className="btn btn-outline btn-sm" style={{width: 'fit-content'}} onClick={() => navigate(-1)}>

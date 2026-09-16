@@ -7,6 +7,10 @@ ChartJS.register(CategoryScale, LinearScale, BarElement, ArcElement, Tooltip, Le
 export default function ProjectStatsViz({ rows = [], totals = { required: 0, available: 0, unfilled: 0 }, viewMode = 'location', currentDistrict = null, onDrill = () => {} }) {
   const [isNarrow, setIsNarrow] = useState(typeof window !== 'undefined' ? window.innerWidth < 720 : false)
   const barRef = useRef(null)
+  const themeStyles = typeof window !== 'undefined' ? getComputedStyle(document.documentElement) : null
+  const chartText = themeStyles?.getPropertyValue('--text').trim() || '#1A2740'
+  const chartTextSecondary = themeStyles?.getPropertyValue('--text2').trim() || '#4A5568'
+  const chartGrid = themeStyles?.getPropertyValue('--chart-grid').trim() || 'rgba(26,39,64,0.12)'
 
   useEffect(() => {
     const onResize = () => setIsNarrow(window.innerWidth < 720)
@@ -37,10 +41,13 @@ export default function ProjectStatsViz({ rows = [], totals = { required: 0, ava
     responsive: true,
     maintainAspectRatio: false,
     plugins: {
-      legend: { position: 'top' },
+      legend: { position: 'top', labels: { color: chartText } },
       tooltip: { mode: 'index', intersect: false }
     },
-    scales: { x: { stacked: true, beginAtZero: true }, y: { stacked: true } },
+    scales: {
+      x: { stacked: true, beginAtZero: true, ticks: { color: chartTextSecondary }, grid: { color: chartGrid } },
+      y: { stacked: true, ticks: { color: chartTextSecondary }, grid: { color: chartGrid } }
+    },
     onClick: (evt, elements) => {
       if (!elements || elements.length === 0) return
       const idx = elements[0].index
@@ -56,27 +63,27 @@ export default function ProjectStatsViz({ rows = [], totals = { required: 0, ava
   return (
     <div style={{ display: 'flex', flexDirection: isNarrow ? 'column' : 'row', gap: 10, alignItems: 'stretch' }}>
       <div style={{ flex: '0 0 240px', display: 'grid', gap: 8, alignItems: 'start' }}>
-        <div style={{ padding: 10, borderRadius: 10, background: '#fff', border: '1px solid rgba(15,23,42,0.06)' }}>
+        <div style={{ padding: 10, borderRadius: 10, background: 'var(--card)', border: '1px solid var(--border)' }}>
           <div style={{ fontSize: 11, color: 'var(--text2)', marginBottom: 4 }}>Project Fill Rate</div>
           <div style={{ fontSize: 20, fontWeight: 700 }}>{totals.available} / {totals.required}</div>
           <div style={{ marginTop: 6, fontSize: 13, color: (totals.required > 0 ? Math.round((totals.available / totals.required) * 100) : 0) >= 80 ? 'green' : (totals.required > 0 ? Math.round((totals.available / totals.required) * 100) : 0) >= 50 ? 'orange' : 'red' }}>{totals.required > 0 ? Math.round((totals.available / totals.required) * 100) : 0}%</div>
         </div>
 
-        <div style={{ padding: 10, borderRadius: 10, background: '#fff', border: '1px solid rgba(15,23,42,0.06)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
+        <div style={{ padding: 10, borderRadius: 10, background: 'var(--card)', border: '1px solid var(--border)', display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 6 }}>
           <div style={{ fontSize: 11, color: 'var(--text2)' }}>Present</div>
           <div style={{ fontWeight: 700, textAlign: 'right' }}>{totals.available}</div>
           <div style={{ fontSize: 11, color: 'var(--text2)' }}>Absent</div>
           <div style={{ fontWeight: 700, textAlign: 'right' }}>{totals.unfilled}</div>
         </div>
 
-        <div style={{ padding: 8, borderRadius: 10, background: '#fff', border: '1px solid rgba(15,23,42,0.06)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
+        <div style={{ padding: 8, borderRadius: 10, background: 'var(--card)', border: '1px solid var(--border)', display: 'flex', justifyContent: 'center', alignItems: 'center' }}>
           <div style={{ width: 120, height: 120 }}>
-            <Doughnut data={doughnutData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 8 } } } }} />
+            <Doughnut data={doughnutData} options={{ responsive: true, maintainAspectRatio: false, plugins: { legend: { position: 'bottom', labels: { boxWidth: 8, color: chartText } } } }} />
           </div>
         </div>
       </div>
 
-      <div style={{ flex: 1, minHeight: 220, background: '#fff', borderRadius: 12, padding: 12, border: '1px solid rgba(15,23,42,0.06)' }}>
+      <div style={{ flex: 1, minHeight: 220, background: 'var(--card)', borderRadius: 12, padding: 12, border: '1px solid var(--border)' }}>
         <div style={{ height: isNarrow ? 320 : Math.max(220, rows.length * 36) }}>
           <Bar ref={barRef} data={barData} options={barOptions} />
         </div>

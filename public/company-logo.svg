@@ -1,0 +1,11 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 720 180" role="img" aria-labelledby="title desc">
+  <title id="title">Cynosure Corporate Solutions</title>
+  <desc id="desc">Cynosure Corporate Solutions company logo</desc>
+  <g fill="none" stroke="#08a4d8" stroke-width="6">
+    <path d="M30 145h270M420 145h270M30 165h660" />
+    <path d="M360 18c-38 2-73 35-84 68-9 28 7 51 35 53 31 2 61-21 79-49 18-29 23-57-1-72-15-9-35-10-50 0 29-3 54 8 66 25 10 15 11 30 6 45" />
+    <path d="M370 82c33-9 64 5 72 28 8 25-8 52-32 63-24 11-53 5-64-14-10-18-1-42 20-58" />
+  </g>
+  <circle cx="357" cy="82" r="23" fill="#e51d2a" />
+  <text x="360" y="132" text-anchor="middle" fill="#08a4d8" font-family="cursive" font-size="42" font-style="italic">Cynosure Corporate Solutions</text>
+</svg>

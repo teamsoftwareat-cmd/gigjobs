@@ -1,13 +1,14 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faSearch, faUpload, faUserPlus, faEye, faImages, faCheckCircle, faCopy, faMagnifyingGlass } from '@fortawesome/free-solid-svg-icons'
+import { faSearch, faUpload, faUserPlus, faEye, faImages, faCheckCircle, faCopy, faMagnifyingGlass, faCheck } from '@fortawesome/free-solid-svg-icons'
 import { Card, PageHeader, Tag, Modal } from '../../components/ui/index'
 import { recruiterAPI } from '../../api/axios'
 import AddCandidateModal from './AddCandidateModal'
 import BulkImportModal from './BulkImportModal'
 import CheckRegisterModal from './CheckRegisterModal'
 import NotifyNotRegisteredModal from './NotifyNotRegisteredModal'
+import './CandidateDatabase.css'
 
 const LOCATION_OPTIONS = ['All', 'Tambaram', 'Velachery', 'Guindy', 'OMR', 'Anna Nagar']
 const PAGE_SIZE_OPTIONS = [10, 25, 50, 100]
@@ -52,6 +53,7 @@ function CandidateDatabase() {
   const [aadhaarModalLoading, setAadhaarModalLoading] = useState(false)
   const [aadhaarModalError, setAadhaarModalError] = useState('')
   const [sendAadhaarIdLoading, setSendAadhaarIdLoading] = useState(false)
+  const [copiedKey, setCopiedKey] = useState('')
   const [zoomLens, setZoomLens] = useState({
     imageKey: null,
     left: 0,
@@ -62,6 +64,22 @@ function CandidateDatabase() {
   })
   const zoomLensRef = useRef(zoomLens)
   const zoomAnimationFrameRef = useRef(null)
+  const copyResetTimeoutRef = useRef(null)
+
+  const handleCopyText = useCallback(async (key, text) => {
+    if (!text || text === '—') return
+
+    try {
+      await navigator.clipboard.writeText(String(text))
+      setCopiedKey(key)
+      if (copyResetTimeoutRef.current) {
+        clearTimeout(copyResetTimeoutRef.current)
+      }
+      copyResetTimeoutRef.current = setTimeout(() => setCopiedKey(''), 1400)
+    } catch (error) {
+      console.error('Copy failed', error)
+    }
+  }, [])
 
   const getCandidateUrl = (candidateId) => {
     const basePath = window.location.pathname.includes('/gigjobs') ? '/gigjobs' : ''
@@ -238,6 +256,14 @@ function CandidateDatabase() {
   }
 
   useEffect(() => {
+    return () => {
+      if (copyResetTimeoutRef.current) {
+        clearTimeout(copyResetTimeoutRef.current)
+      }
+    }
+  }, [])
+
+  useEffect(() => {
     if (!isAadhaarModalOpen) return undefined
 
     const handleAadhaarModalKeyDown = (event) => {
@@ -378,19 +404,19 @@ function CandidateDatabase() {
                 <button
                   onClick={(e) => {
                     e.stopPropagation()
-                    navigator.clipboard.writeText(email)
+                    handleCopyText(`email-${id || index}`, email)
                   }}
                   style={{
                     background: 'none',
                     border: 'none',
                     cursor: 'pointer',
                     padding: 0,
-                    color: 'var(--text-secondary)',
+                    color: copiedKey === `email-${id || index}` ? 'var(--success)' : 'var(--text-secondary)',
                     fontSize: 12
                   }}
-                  title="Copy email"
+                  title={copiedKey === `email-${id || index}` ? 'Copied email' : 'Copy email'}
                 >
-                  <FontAwesomeIcon icon={faCopy} />
+                  <FontAwesomeIcon icon={copiedKey === `email-${id || index}` ? faCheck : faCopy} />
                 </button>
               )}
             </div>
@@ -403,19 +429,19 @@ function CandidateDatabase() {
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  navigator.clipboard.writeText(String(displayId))
+                  handleCopyText(`id-${id || index}`, String(displayId))
                 }}
                 style={{
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',
                   padding: 0,
-                  color: 'var(--text-secondary)',
+                  color: copiedKey === `id-${id || index}` ? 'var(--success)' : 'var(--text-secondary)',
                   fontSize: 12
                 }}
-                title="Copy New ID"
+                title={copiedKey === `id-${id || index}` ? 'Copied New ID' : 'Copy New ID'}
               >
-                <FontAwesomeIcon icon={faCopy} />
+                <FontAwesomeIcon icon={copiedKey === `id-${id || index}` ? faCheck : faCopy} />
               </button>
             )}
           </div>
@@ -429,19 +455,19 @@ function CandidateDatabase() {
               <button
                 onClick={(e) => {
                   e.stopPropagation()
-                  navigator.clipboard.writeText(aadhaarNumber)
+                  handleCopyText(`aadhaar-${id || index}`, aadhaarNumber)
                 }}
                 style={{
                   background: 'none',
                   border: 'none',
                   cursor: 'pointer',
                   padding: 0,
-                  color: 'var(--text-secondary)',
+                  color: copiedKey === `aadhaar-${id || index}` ? 'var(--success)' : 'var(--text-secondary)',
                   fontSize: 12
                 }}
-                title="Copy Aadhaar"
+                title={copiedKey === `aadhaar-${id || index}` ? 'Copied Aadhaar' : 'Copy Aadhaar'}
               >
-                <FontAwesomeIcon icon={faCopy} />
+                <FontAwesomeIcon icon={copiedKey === `aadhaar-${id || index}` ? faCheck : faCopy} />
               </button>
             )}
           </div>
@@ -490,12 +516,12 @@ function CandidateDatabase() {
             onClick={(e) => {
               e.stopPropagation()
               const url = getAadhaarUploadUrl(candidate)
-              navigator.clipboard.writeText(url)
+              handleCopyText(`upload-${id || index}`, url)
             }}
             style={{ display: 'flex', alignItems: 'center', gap: 6 }}
-            title="Copy Aadhaar upload link"
+            title={copiedKey === `upload-${id || index}` ? 'Copied upload link' : 'Copy Aadhaar upload link'}
           >
-            <FontAwesomeIcon icon={faUpload} /> Copy Upload Link
+            <FontAwesomeIcon icon={copiedKey === `upload-${id || index}` ? faCheck : faUpload} /> {copiedKey === `upload-${id || index}` ? 'Copied' : 'Copy Upload Link'}
           </button>
         </div>
         </td>
@@ -504,12 +530,12 @@ function CandidateDatabase() {
   })
 
   return (
-    <div>
+    <div className="candidate-database-page">
       <PageHeader
         title="Candidate Database"
         subtitle="Search, filter and manage your talent pool"
         action={
-          <div className="flex gap-3" style={{ gap: '8px' }}>
+          <div className="flex gap-3 candidate-page-actions" style={{ gap: '8px' }}>
             <button
               className="btn btn-secondary btn-sm"
               onClick={() => setShowCheckRegisterModal(true)}
@@ -719,6 +745,85 @@ function CandidateDatabase() {
           </table>
         </div>
 
+        <div className="candidate-mobile-list">
+          {loading ? (
+            <div className="candidate-mobile-state">Loading candidates...</div>
+          ) : error ? (
+            <div className="candidate-mobile-state candidate-mobile-state-error">{error}</div>
+          ) : candidates.length === 0 ? (
+            <div className="candidate-mobile-state">No candidates found for the selected filters.</div>
+          ) : (
+            candidates.map((candidate, index) => {
+              const name = candidate.name || candidate.fullName || 'Unknown'
+              const newId = candidate.new_id ?? candidate.newId ?? candidate.id ?? candidate.candidateId ?? '—'
+              const id = candidate.id
+              const displayId = newId === '—' ? '—' : `CYN${new Date().getFullYear()}TEMP${newId}`
+              const email = candidate.email || '—'
+              const mobile = candidate.mobile || candidate.phone || '—'
+              const whatsapp = candidate.whatsapp || candidate.phone || candidate.mobile || '—'
+              const aadhaarNumber = candidate.aadhaarNumber || '—'
+              const aadhaarStatus = candidate.aadhaarVerificationStatus || candidate.kyc || 'Unknown'
+              const location = candidate.location || candidate.city || '—'
+              const joinDate = candidate.dateOfJoining || candidate.createdAt || candidate.joined || ''
+
+              return (
+                <article className="candidate-mobile-card" key={id || index}>
+                  <div className="candidate-mobile-card-header">
+                    <div>
+                      <div className="project-name-cell">{name}</div>
+                      <div className="project-subtext">{email}</div>
+                    </div>
+                    <span className="candidate-mobile-index">#{offset + index + 1}</span>
+                  </div>
+                  <div className="candidate-mobile-details">
+                    <div><span>Joined</span><strong>{formatDate(joinDate)}</strong></div>
+                    <div><span>Mobile</span><strong>{mobile}</strong></div>
+                    <div><span>WhatsApp</span><strong>{whatsapp}</strong></div>
+                    <div><span>Location</span><strong>{location}</strong></div>
+                    <div><span>Temp ID</span><strong>{displayId}</strong></div>
+                    <div><span>Aadhaar</span><strong>{aadhaarNumber}</strong></div>
+                  </div>
+                  <div className="candidate-mobile-card-footer">
+                    <Tag
+                      variant={
+                        aadhaarStatus === 'Valid' || aadhaarStatus === 'Verified'
+                          ? 'green'
+                          : aadhaarStatus === 'Invalid' || aadhaarStatus === 'Rejected'
+                          ? 'red'
+                          : aadhaarStatus === 'Pending'
+                          ? 'yellow'
+                          : 'gray'
+                      }
+                    >
+                      {aadhaarStatus}
+                    </Tag>
+                    <div className="candidate-mobile-actions">
+                      <button
+                        className="btn btn-outline btn-sm"
+                        onClick={() => window.open(getCandidateUrl(id), '_blank')}
+                      >
+                        <FontAwesomeIcon icon={faEye} /> View
+                      </button>
+                      <button
+                        className="btn btn-outline btn-sm"
+                        onClick={() => openAadhaarModal(candidate, index)}
+                      >
+                        <FontAwesomeIcon icon={faImages} /> Aadhaar
+                      </button>
+                      <button
+                        className="btn btn-secondary btn-sm"
+                        onClick={() => handleCopyText(`mobile-upload-${id || index}`, getAadhaarUploadUrl(candidate))}
+                      >
+                        <FontAwesomeIcon icon={copiedKey === `mobile-upload-${id || index}` ? faCheck : faUpload} /> {copiedKey === `mobile-upload-${id || index}` ? 'Copied' : 'Upload link'}
+                      </button>
+                    </div>
+                  </div>
+                </article>
+              )
+            })
+          )}
+        </div>
+
         <div className="projects-table-pagination">
           <div className="pagination-summary">
             Showing <strong>{firstRow}</strong> - <strong>{lastRow}</strong> of <strong>{totalCandidates}</strong> | <strong>offset:</strong> {offset} | <strong>limit:</strong> {pageSize}
@@ -808,7 +913,7 @@ function CandidateDatabase() {
             {aadhaarModalError}
           </div>
         ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
+          <div className="candidate-aadhaar-images" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 16, marginBottom: 20 }}>
             <div style={{ display: 'grid', gap: 12 }}>
               <div style={{ fontSize: 14, fontWeight: 700 }}>Aadhaar Front</div>
               {getAadhaarFrontUrl(selectedAadhaarCandidate) ? (

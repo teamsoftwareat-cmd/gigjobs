@@ -1,0 +1,343 @@
+.attendance-summary-mobile-list {
+  display: none;
+}
+
+.outside-candidate-mobile-list {
+  display: none;
+}
+
+.pagination-current-label {
+  display: none;
+  color: var(--text2);
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .attendance-summary-page .stats-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .attendance-summary-page .page-header > div:last-child,
+  .attendance-summary-page .page-header > div:last-child > div {
+    width: 100%;
+  }
+
+  .attendance-summary-page .page-header > div:last-child .btn {
+    width: auto !important;
+    flex: 1 1 0;
+  }
+
+  .attendance-summary-page .attendance-kpis-chart {
+    display: block;
+    padding: 14px;
+  }
+
+  .attendance-summary-page .attendance-kpis .stat-card {
+    flex-direction: row;
+    align-items: center;
+  }
+
+  .attendance-summary-page .attendance-chart {
+    min-height: 260px;
+    margin-top: 14px;
+  }
+
+  .attendance-summary-page .attendance-chart .chart-container {
+    height: 220px;
+  }
+
+  .attendance-summary-page .summary-table-section > .projects-table-wrap {
+    display: none;
+  }
+
+  .attendance-summary-mobile-list {
+    display: grid;
+    gap: 10px;
+  }
+
+  .attendance-summary-mobile-card {
+    border: 1px solid var(--border);
+    border-radius: 10px;
+    padding: 13px;
+    background: var(--card);
+  }
+
+  .attendance-summary-mobile-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .attendance-summary-mobile-heading strong,
+  .attendance-summary-mobile-heading span {
+    display: block;
+  }
+
+  .attendance-summary-mobile-heading strong {
+    color: var(--text);
+    font-size: 14px;
+  }
+
+  .attendance-summary-mobile-heading div span {
+    margin-top: 3px;
+    color: var(--text3);
+    font-size: 12px;
+  }
+
+  .attendance-summary-mobile-heading > span {
+    color: var(--text3);
+    font-size: 12px;
+  }
+
+  .attendance-summary-mobile-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 10px 14px;
+    margin: 13px 0;
+    padding: 12px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .attendance-summary-mobile-grid span {
+    display: block;
+    color: var(--text3);
+    font-size: 10px;
+    text-transform: uppercase;
+  }
+
+  .attendance-summary-mobile-grid strong {
+    display: block;
+    overflow: hidden;
+    color: var(--text2);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .attendance-summary-mobile-actions {
+    display: flex;
+    gap: 6px;
+    flex-wrap: wrap;
+  }
+
+  .attendance-summary-mobile-actions .btn {
+    width: auto !important;
+    flex: 1 1 110px;
+    padding: 7px 8px;
+    font-size: 11px;
+  }
+
+  .attendance-summary-page .attendance-summary-pagination {
+    display: grid;
+    grid-template-columns: auto 1fr auto;
+    align-items: center;
+    gap: 6px;
+    padding: 10px 12px;
+  }
+
+  .attendance-summary-page .attendance-summary-pagination .pagination-summary {
+    grid-column: 1 / -1;
+  }
+
+  .attendance-summary-page .attendance-summary-pagination .pagination-actions {
+    display: contents;
+  }
+
+  .attendance-summary-page .attendance-summary-pagination .pagination-pages {
+    display: none;
+  }
+
+  .attendance-summary-page .attendance-summary-pagination .pagination-current-label {
+    display: block;
+    min-width: 82px;
+    text-align: center;
+  }
+
+  .attendance-summary-page .attendance-summary-pagination .pagination-page-btn {
+    min-width: 30px;
+    flex-shrink: 0;
+  }
+
+  .outside-location-modal-content {
+    width: 100%;
+  }
+
+  .outside-location-modal-content + .projects-table-filters {
+    width: 100%;
+  }
+
+  .outside-location-modal-content ~ .outside-candidate-table {
+    display: none;
+  }
+
+  .outside-candidate-mobile-list {
+    display: grid;
+    width: 100%;
+    gap: 10px;
+  }
+
+  .outside-candidate-mobile-card {
+    width: 100%;
+    min-width: 0;
+    padding: 14px;
+    border: 1px solid var(--border);
+    border-radius: 12px;
+    background: var(--card);
+    box-shadow: 0 3px 12px rgba(15, 23, 42, 0.05);
+  }
+
+  .outside-candidate-mobile-heading {
+    display: flex;
+    justify-content: space-between;
+    gap: 10px;
+  }
+
+  .outside-candidate-mobile-heading strong,
+  .outside-candidate-mobile-heading span {
+    display: block;
+  }
+
+  .outside-candidate-mobile-heading strong {
+    color: var(--text);
+    font-size: 14px;
+  }
+
+  .outside-candidate-mobile-heading div span,
+  .outside-candidate-mobile-heading > span {
+    margin-top: 3px;
+    color: var(--text3);
+    font-size: 11px;
+  }
+
+  .outside-candidate-mobile-meta {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 9px 12px;
+    margin: 12px 0;
+    padding: 10px 0;
+    border-top: 1px solid var(--border);
+    border-bottom: 1px solid var(--border);
+  }
+
+  .outside-candidate-mobile-meta span,
+  .outside-candidate-mobile-fields label > span {
+    display: block;
+    margin-bottom: 3px;
+    color: var(--text3);
+    font-size: 10px;
+    text-transform: uppercase;
+  }
+
+  .outside-candidate-mobile-meta strong {
+    display: block;
+    overflow: hidden;
+    color: var(--text2);
+    font-size: 12px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .outside-candidate-mobile-fields {
+    display: grid;
+    gap: 9px;
+    padding: 10px;
+    border: 1px solid var(--border);
+    border-radius: 9px;
+    background: var(--bg);
+  }
+
+  .outside-candidate-mobile-fields label {
+    display: block;
+    min-width: 0;
+  }
+
+  .outside-candidate-mobile-fields .form-control {
+    min-width: 0;
+    height: 36px;
+    padding: 7px 9px;
+    font-size: 12px;
+  }
+
+  .outside-candidate-mobile-actions {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    flex-wrap: wrap;
+    margin-top: 12px;
+    padding-top: 10px;
+    border-top: 1px solid var(--border);
+  }
+
+  .outside-candidate-mobile-actions .attendance-image-button {
+    width: auto !important;
+    display: inline-flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 2px;
+    color: var(--text3);
+    font-size: 10px;
+  }
+
+  .outside-candidate-mobile-actions .attendance-image-thumb {
+    width: 44px;
+    height: 34px;
+    border-radius: 5px;
+  }
+
+  .outside-candidate-mobile-actions .map-pin-btn {
+    width: auto !important;
+    padding: 7px;
+  }
+
+  .outside-candidate-mobile-actions .outside-candidate-save {
+    width: auto !important;
+    flex: 1 1 130px;
+    padding: 8px 10px;
+    font-size: 11px;
+  }
+
+  .outside-candidate-assigned {
+    margin-left: auto;
+  }
+
+  .outside-location-pagination {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 9px !important;
+    align-items: stretch !important;
+  }
+
+  .outside-location-pagination .pagination-summary {
+    font-size: 11px;
+  }
+
+  .outside-location-pagination .pagination-actions {
+    display: flex !important;
+    justify-content: space-between;
+    gap: 5px !important;
+    width: 100%;
+  }
+
+  .outside-location-pagination .pagination-actions > .pagination-page-btn:not(:first-child):not(:last-child),
+  .outside-location-pagination .pagination-actions > .pagination-ellipsis {
+    display: none;
+  }
+
+  .outside-location-pagination .pagination-pages {
+    display: none;
+  }
+
+  .outside-location-pagination .pagination-current-label {
+    display: block;
+    min-width: 82px;
+    text-align: center;
+  }
+
+  .outside-location-pagination .pagination-page-btn {
+    min-width: 30px;
+    flex-shrink: 0;
+  }
+}

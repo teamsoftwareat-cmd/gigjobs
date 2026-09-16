@@ -1,0 +1,151 @@
+.candidate-info-page {
+  width: min(100%, 1400px);
+  box-sizing: border-box;
+}
+
+.candidate-info-page,
+.candidate-info-page * {
+  min-width: 0;
+}
+
+.candidate-info-header-actions {
+  flex-wrap: wrap;
+}
+
+.candidate-info-header-actions .btn {
+  white-space: nowrap;
+}
+
+@media (max-width: 768px) {
+  .candidate-info-page {
+    width: 100%;
+    margin: 12px auto !important;
+    padding: 12px !important;
+    padding-bottom: 24px !important;
+    border-radius: 8px !important;
+  }
+
+  .candidate-info-header {
+    align-items: stretch !important;
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px !important;
+  }
+
+  .candidate-info-header-actions {
+    width: 100%;
+  }
+
+  .candidate-info-header-actions .btn {
+    flex: 1 1 150px;
+    justify-content: center;
+  }
+
+  .candidate-info-layout {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 16px !important;
+  }
+
+  .candidate-info-sidebar,
+  .candidate-info-main {
+    gap: 16px !important;
+  }
+
+  .candidate-info-page .card {
+    max-width: 100%;
+  }
+
+  .candidate-info-page .card[style*='padding: 24px'] {
+    padding: 16px !important;
+  }
+
+  .candidate-info-education-grid,
+  .candidate-info-documents-grid,
+  .candidate-info-ocr-grid {
+    grid-template-columns: minmax(0, 1fr) !important;
+    gap: 14px !important;
+  }
+
+  .candidate-info-ocr-grid > * {
+    grid-column: auto !important;
+  }
+
+  .candidate-info-documents-grid > .card {
+    padding: 12px !important;
+  }
+
+  .candidate-info-documents-grid .btn {
+    white-space: nowrap;
+  }
+
+  .candidate-info-page.candidate-info-exporting {
+    width: 1400px;
+    max-width: none;
+    margin: 24px 0 !important;
+    padding: 24px 24px 40px !important;
+    border-radius: 12px !important;
+  }
+
+  .candidate-info-page.candidate-info-exporting .candidate-info-layout {
+    grid-template-columns: 340px 1fr !important;
+    gap: 24px !important;
+  }
+
+  .candidate-info-page.candidate-info-exporting .candidate-info-sidebar,
+  .candidate-info-page.candidate-info-exporting .candidate-info-main {
+    gap: 20px !important;
+  }
+
+  .candidate-info-page.candidate-info-exporting .candidate-info-education-grid {
+    grid-template-columns: 1fr 1fr 1fr !important;
+    gap: 20px !important;
+  }
+
+  .candidate-info-page.candidate-info-exporting .candidate-info-ocr-grid {
+    grid-template-columns: repeat(3, 1fr) !important;
+    gap: 24px !important;
+  }
+
+  .candidate-info-page.candidate-info-exporting .candidate-info-ocr-grid > * {
+    grid-column: revert !important;
+  }
+
+  .candidate-info-page.candidate-info-exporting .candidate-info-documents-grid {
+    grid-template-columns: 1fr 1fr !important;
+    gap: 20px !important;
+  }
+
+  .candidate-info-page.candidate-info-exporting .card[style*='padding: 24px'] {
+    padding: 24px !important;
+  }
+
+  .candidate-info-page.candidate-info-exporting .candidate-info-documents-grid > .card {
+    padding: 16px !important;
+  }
+}
+
+@media (max-width: 420px) {
+  .candidate-info-header-actions {
+    flex-direction: column;
+  }
+
+  .candidate-info-header-actions .btn {
+    width: 100%;
+    flex-basis: auto;
+  }
+
+  .candidate-info-page .card[style*='padding: 20px'] {
+    padding: 16px !important;
+  }
+
+  .candidate-info-documents-grid > .card > div:first-child {
+    align-items: flex-start !important;
+    flex-direction: column;
+    gap: 8px !important;
+  }
+
+  .candidate-info-documents-grid > .card > div:first-child > div {
+    width: 100%;
+    flex-wrap: wrap;
+  }
+}

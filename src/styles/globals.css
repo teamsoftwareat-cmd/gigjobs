@@ -28,6 +28,8 @@
   --header-bg: #FFFFFF;
   --modal-bg: #FFFFFF;
   --shadow: rgba(0,0,0,0.08);
+  --chart-grid: rgba(26,39,64,0.12);
+  --chart-track: rgba(15,23,42,0.08);
   /* Layout */
   --container-max: 1200px;
   --container-padding: 16px;
@@ -45,6 +47,8 @@
   --header-bg: #161B22;
   --modal-bg: #161B22;
   --shadow: rgba(0,0,0,0.4);
+  --chart-grid: rgba(230,237,243,0.14);
+  --chart-track: rgba(230,237,243,0.12);
   --teal-light: rgba(14,124,134,0.15);
   --saffron-light: rgba(244,161,48,0.15);
   --green-light: rgba(27,158,92,0.15);

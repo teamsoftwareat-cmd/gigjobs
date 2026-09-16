@@ -21,8 +21,10 @@ import {
 import { jsPDF } from 'jspdf';
 import html2canvas from 'html2canvas';
 import { Card } from '../../components/ui/index';
+import { MapModal } from '../../components/ui/MapModal';
 import { recruiterAPI } from '../../api/axios';
 import heic2any from 'heic2any';
+import './CandidateInfo.css';
 
 // ---------- Helpers (unchanged) ----------
 const formatDate = (value) => {
@@ -53,6 +55,42 @@ const parseSkills = (skills) => {
     return skills.split(',').map((item) => item.trim()).filter(Boolean);
   }
   return [];
+};
+
+const decodeDigipin = (value) => {
+  const code = String(value || '').replace(/[^a-zA-Z0-9]/g, '').toUpperCase();
+  const grid = [
+    ['F', 'C', '9', '8'],
+    ['J', '3', '2', '7'],
+    ['K', '4', '5', '6'],
+    ['L', 'M', 'P', 'T'],
+  ];
+  const positions = new Map(grid.flatMap((row, rowIndex) => row.map((character, columnIndex) => [
+    character,
+    [rowIndex, columnIndex],
+  ])));
+
+  if (code.length !== 10 || [...code].some((character) => !positions.has(character))) return null;
+
+  let minLatitude = 2.5;
+  let maxLatitude = 38.5;
+  let minLongitude = 63.5;
+  let maxLongitude = 99.5;
+
+  for (const character of code) {
+    const [row, column] = positions.get(character);
+    const latitudeStep = (maxLatitude - minLatitude) / 4;
+    const longitudeStep = (maxLongitude - minLongitude) / 4;
+    maxLatitude -= row * latitudeStep;
+    minLatitude = maxLatitude - latitudeStep;
+    minLongitude += column * longitudeStep;
+    maxLongitude = minLongitude + longitudeStep;
+  }
+
+  return {
+    latitude: (minLatitude + maxLatitude) / 2,
+    longitude: (minLongitude + maxLongitude) / 2,
+  };
 };
 
 const normalizeCandidate = (raw) => {
@@ -159,6 +197,8 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
   const [newBack, setNewBack] = useState(null);
   const [ocrData, setOcrData] = useState(null);
   const [ocrLoading, setOcrLoading] = useState(false);
+  const [isMapOpen, setIsMapOpen] = useState(false);
+  const [mapMarkers, setMapMarkers] = useState([]);
 
   // Converted display URLs
   const [displayFront, setDisplayFront] = useState(null);
@@ -282,6 +322,22 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
     }
   };
 
+  const handleShowDigipinOnMap = () => {
+    const coordinates = decodeDigipin(digipin);
+    if (!coordinates) {
+      alert('A valid DIGIPIN is not available for this candidate.');
+      return;
+    }
+
+    setMapMarkers([{ ...coordinates, label: `${name} DIGIPIN` }]);
+    setIsMapOpen(true);
+  };
+
+  const handleCloseMap = () => {
+    setIsMapOpen(false);
+    setMapMarkers([]);
+  };
+
   const handleExportReport = async () => {
     if (!candidate || !contentRef.current) return;
 
@@ -291,6 +347,7 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
     const originalHeaderDisplay = headerElement ? headerElement.style.display : '';
 
     element.style.backgroundColor = '#ffffff';
+    element.classList.add('candidate-info-exporting');
     if (headerElement) headerElement.style.display = 'none';
 
     try {
@@ -356,6 +413,7 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
       alert('PDF export failed. Please try again.');
     } finally {
       element.style.backgroundColor = originalBg;
+      element.classList.remove('candidate-info-exporting');
       if (headerElement) headerElement.style.display = originalHeaderDisplay;
     }
   };
@@ -401,6 +459,7 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
     fatherName = '—',
     presentAddress = '—',
     permanentAddress = '—',
+    digipin = '—',
     aadhaarNumber = '—',
     profileImage = null,
     aadhaarFront = null,
@@ -426,6 +485,7 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
   return (
     <div
       ref={contentRef}
+      className="candidate-info-page"
       data-export-root
       style={{
         padding: 24,
@@ -439,6 +499,7 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
       {/* Header with actions */}
       <div
         ref={headerRef}
+        className="candidate-info-header"
         data-export-header
         style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}
       >
@@ -449,7 +510,7 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
         >
           <FontAwesomeIcon icon={faArrowLeft} /> Database
         </button>
-        <div style={{ display: 'flex', gap: 10 }}>
+        <div className="candidate-info-header-actions" style={{ display: 'flex', gap: 10 }}>
           <button className="btn btn-secondary btn-sm" onClick={handlePostCandidateId} disabled={actionLoading}>
             <FontAwesomeIcon icon={faUpload} /> {actionLoading ? 'Sending...' : 'Send Candidate ID'}
           </button>
@@ -459,9 +520,9 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
         </div>
       </div>
 
-      <div style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 24, alignItems: 'start' }}>
+      <div className="candidate-info-layout" style={{ display: 'grid', gridTemplateColumns: '340px 1fr', gap: 24, alignItems: 'start' }}>
         {/* Left Sidebar (unchanged) */}
-        <aside style={{ display: 'grid', gap: 20 }}>
+        <aside className="candidate-info-sidebar" style={{ display: 'grid', gap: 20 }}>
           <Card style={{ padding: 0, overflow: 'hidden', textAlign: 'center' }}>
             <div style={{ background: 'linear-gradient(135deg, #0E7C86 0%, #6C3FC5 100%)', height: 80 }} />
             <div style={{ marginTop: -50, padding: '0 20px 24px' }}>
@@ -617,6 +678,24 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
                 </div>
                 <div style={{ fontSize: 13, lineHeight: '1.5' }}>{presentAddress}</div>
               </div>
+              <div>
+                <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 4 }}>
+                  DIGIPIN
+                </div>
+                <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8 }}>
+                  <div style={{ fontSize: 13, lineHeight: '1.5', fontFamily: 'monospace', letterSpacing: 1 }}>{digipin}</div>
+                  {digipin !== '—' && (
+                    <button
+                      type="button"
+                      className="btn btn-tertiary btn-sm"
+                      onClick={handleShowDigipinOnMap}
+                      style={{ padding: '3px 8px', fontSize: 11, whiteSpace: 'nowrap' }}
+                    >
+                      <FontAwesomeIcon icon={faMapMarkerAlt} /> Show on map
+                    </button>
+                  )}
+                </div>
+              </div>
               <div style={{ height: 1, background: 'var(--border-light)' }} />
               <div>
                 <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 4 }}>
@@ -629,7 +708,7 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
         </aside>
 
         {/* Right Main Column */}
-        <main style={{ display: 'grid', gap: 24 }}>
+        <main className="candidate-info-main" style={{ display: 'grid', gap: 24 }}>
           {/* Education & Employment Section */}
           <Card style={{ padding: 24 }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 20 }}>
@@ -656,7 +735,7 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
               </div>
             </div>
 
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
+            <div className="candidate-info-education-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 20 }}>
               <div style={{ background: '#f8fafc', padding: 16, borderRadius: 12 }}>
                 <div style={{ fontSize: 11, color: 'var(--text3)', textTransform: 'uppercase', marginBottom: 6 }}>
                   Highest Education
@@ -762,6 +841,7 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
                 )}
 
                 <div
+                  className="candidate-info-ocr-grid"
                   style={{
                     background: '#f8fafc',
                     borderRadius: 12,
@@ -975,7 +1055,7 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
           </Card>
 
           {/* Document Previews */}
-          <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
+          <div className="candidate-info-documents-grid" style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: 20 }}>
             <Card style={{ padding: 16 }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
                 <h4 style={{ margin: 0, fontSize: 14, fontWeight: 700 }}>Aadhaar Front</h4>
@@ -1083,6 +1163,12 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
           )}
         </main>
       </div>
+      <MapModal
+        isOpen={isMapOpen}
+        onClose={handleCloseMap}
+        markers={mapMarkers}
+        title="DIGIPIN location"
+      />
     </div>
   );
 }

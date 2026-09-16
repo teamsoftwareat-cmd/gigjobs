@@ -224,10 +224,10 @@ function ProjectStatsPanel({ projectId, refreshTrigger }) {
     const filledLength = circumference * Math.min(percentage, 100) / 100
 
     return (
-      <div style={{ display: 'grid', placeItems: 'center', gap: 10, padding: 16, backgroundColor: '#fff', borderRadius: 16, boxShadow: '0 8px 20px rgba(15, 23, 42, 0.04)', border: '1px solid rgba(15, 23, 42, 0.08)' }}>
+      <div style={{ display: 'grid', placeItems: 'center', gap: 10, padding: 16, backgroundColor: 'var(--card)', borderRadius: 16, boxShadow: '0 8px 20px var(--shadow)', border: '1px solid var(--border)' }}>
         <div style={{ position: 'relative', width: 120, height: 120 }}>
           <svg viewBox="0 0 120 120" style={{ width: '100%', height: '100%' }}>
-            <circle cx="60" cy="60" r={radius} fill="none" stroke="rgba(15, 23, 42, 0.08)" strokeWidth="16" />
+            <circle cx="60" cy="60" r={radius} fill="none" stroke="var(--chart-track)" strokeWidth="16" />
             <circle
               cx="60"
               cy="60"
@@ -287,7 +287,7 @@ function ProjectStatsPanel({ projectId, refreshTrigger }) {
           <div style={{ display: 'grid', gridTemplateColumns: 'minmax(240px, 320px) 1fr', gap: 20, alignItems: 'center' }}>
             {renderDonut(fillPercentage, 'Project fill rate', totals.available, totals.required, statusColor)}
             <div style={{ display: 'grid', gap: 12 }}>
-              <div style={{ padding: 18, backgroundColor: '#fff', borderRadius: 16, border: '1px solid rgba(15, 23, 42, 0.08)', boxShadow: '0 8px 20px rgba(15, 23, 42, 0.04)' }}>
+              <div style={{ padding: 18, backgroundColor: 'var(--card)', borderRadius: 16, border: '1px solid var(--border)', boxShadow: '0 8px 20px var(--shadow)' }}>
                 <div style={{ fontSize: 12, color: 'var(--text2)', marginBottom: 6 }}>Total Required</div>
                 <div style={{ fontSize: 30, fontWeight: 700, color: 'rgba(54, 162, 235, 1)' }}>{totals.required}</div>
               </div>
@@ -320,7 +320,7 @@ function ProjectStatsPanel({ projectId, refreshTrigger }) {
               const miniColor = percentage >= 80 ? 'rgba(75, 192, 75, 1)' : percentage >= 50 ? 'rgba(255, 159, 64, 1)' : 'rgba(239, 68, 68, 1)'
 
               return (
-                <div key={idx} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 14, alignItems: 'center', padding: 14, backgroundColor: '#fff', borderRadius: 14, border: '1px solid rgba(15, 23, 42, 0.06)', boxShadow: '0 6px 18px rgba(15, 23, 42, 0.04)' }}>
+                <div key={idx} style={{ display: 'grid', gridTemplateColumns: 'auto 1fr', gap: 14, alignItems: 'center', padding: 14, backgroundColor: 'var(--card)', borderRadius: 14, border: '1px solid var(--border)', boxShadow: '0 6px 18px var(--shadow)' }}>
                   <div>{renderMiniDonut(percentage, miniColor)}</div>
                   <div style={{ display: 'grid', gap: 6 }}>
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
@@ -476,6 +476,80 @@ function ProjectStatsPanel({ projectId, refreshTrigger }) {
           </button>
         </div>
       </div>
+    </div>
+  )
+}
+
+function ProjectSearchSelect({ options, value, onChange }) {
+  const [search, setSearch] = useState('')
+  const [isOpen, setIsOpen] = useState(false)
+  const selectedProject = options.find((project) => project.id === value)
+  const filteredOptions = options.filter((project) => project.label.toLowerCase().includes(search.toLowerCase()))
+
+  return (
+    <div style={{ position: 'relative' }}>
+      <input
+        className="form-control"
+        role="combobox"
+        aria-expanded={isOpen}
+        aria-controls="project-stats-options"
+        placeholder="Search projects..."
+        value={isOpen ? search : selectedProject?.label || ''}
+        onFocus={() => {
+          setSearch('')
+          setIsOpen(true)
+        }}
+        onChange={(e) => {
+          setSearch(e.target.value)
+          setIsOpen(true)
+        }}
+        onBlur={() => setTimeout(() => setIsOpen(false), 150)}
+      />
+      {isOpen && (
+        <div
+          id="project-stats-options"
+          role="listbox"
+          style={{
+            position: 'absolute',
+            zIndex: 10,
+            top: 'calc(100% + 4px)',
+            left: 0,
+            right: 0,
+            maxHeight: 240,
+            overflowY: 'auto',
+            background: 'var(--surface, #fff)',
+            border: '1px solid var(--border-light, #DDE4EE)',
+            borderRadius: 8,
+            boxShadow: '0 8px 20px rgba(15, 23, 42, 0.12)',
+          }}
+        >
+          <button
+            type="button"
+            role="option"
+            aria-selected={!value}
+            onMouseDown={(e) => e.preventDefault()}
+            onClick={() => { onChange(''); setSearch(''); setIsOpen(false) }}
+            style={{ display: 'block', width: '100%', padding: '10px 12px', border: 0, background: 'transparent', textAlign: 'left', cursor: 'pointer', color: 'var(--text2)' }}
+          >
+            Choose a project to view stats
+          </button>
+          {filteredOptions.length > 0 ? filteredOptions.map((project) => (
+            <button
+              key={project.id}
+              type="button"
+              role="option"
+              aria-selected={project.id === value}
+              onMouseDown={(e) => e.preventDefault()}
+              onClick={() => { onChange(project.id); setSearch(''); setIsOpen(false) }}
+              style={{ display: 'block', width: '100%', padding: '10px 12px', border: 0, background: project.id === value ? 'var(--bg, #f5f7fa)' : 'transparent', textAlign: 'left', cursor: 'pointer', color: 'var(--text)' }}
+            >
+              {project.label}
+            </button>
+          )) : (
+            <div style={{ padding: '10px 12px', color: 'var(--text2)', fontSize: 13 }}>No projects found.</div>
+          )}
+        </div>
+      )}
     </div>
   )
 }
@@ -717,16 +791,7 @@ export function RecruiterDashboard() {
         <CardHeader title="Project Stats" />
         <div style={{ marginBottom: 16 }}>
           <div className="filter-label">Select Project</div>
-          <select
-            className="form-control"
-            value={selectedProjectId}
-            onChange={(e) => setSelectedProjectId(e.target.value)}
-          >
-            <option value="">Choose a project to view stats</option>
-            {projectOptions.map((project) => (
-              <option key={project.id} value={project.id}>{project.label}</option>
-            ))}
-          </select>
+          <ProjectSearchSelect options={projectOptions} value={selectedProjectId} onChange={setSelectedProjectId} />
         </div>
         {selectedProjectId && (
           <ProjectStatsPanel projectId={selectedProjectId} refreshTrigger={statsRefreshTrigger} />

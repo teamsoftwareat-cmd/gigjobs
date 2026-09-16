@@ -4,12 +4,13 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faFolderPlus } from '@fortawesome/free-solid-svg-icons'
 import { PageHeader, Card, CardHeader, Tabs } from '../../components/ui/index'
 import ProjectsTable from '../../components/ui/ProjectsTable'
-import { ProjectLocationChart } from '../../components/ui/Charts'
+import { ProjectMonthlyChart } from '../../components/ui/Charts'
 import CreateProjectModal from './CreateProjectModal'
 import { recruiterAPI } from '../../api/axios'
 
 export default function RecruiterProjects() {
   const [projects, setProjects] = useState([])
+  const [chartProjects, setChartProjects] = useState([])
   const [loading, setLoading] = useState(true)
   const [totalProjects, setTotalProjects] = useState(0)
   const [statusCounts, setStatusCounts] = useState({ pending: 0, completed: 0, hold: 0, cancelled: 0 })
@@ -78,6 +79,39 @@ export default function RecruiterProjects() {
     }
   }, [selectedStatus, searchTerm, locationFilter, dateFilter, page, pageSize])
 
+  const fetchChartProjects = useCallback(async () => {
+    try {
+      const baseParams = {
+        search: searchTerm || undefined,
+        from: dateFilter.from || undefined,
+        to: dateFilter.to || undefined,
+        location: locationFilter !== 'All' ? locationFilter : undefined,
+        status: selectedStatus === 'all' ? undefined : selectedStatus,
+      }
+      const allProjects = []
+      const limit = 100
+      let offset = 0
+      let total = Infinity
+
+      while (offset < total) {
+        const response = await recruiterAPI.getProjects({ ...baseParams, offset, limit })
+        const data = response.data?.data || {}
+        const items = data.items || data.projects || []
+        total = data.total || data.totalCount || data.count || data.meta?.total || data.meta?.totalItems || 0
+
+        if (!items.length) break
+        allProjects.push(...items)
+        offset += items.length
+
+        if (items.length < limit || !total) break
+      }
+
+      setChartProjects(allProjects)
+    } catch {
+      setChartProjects([])
+    }
+  }, [selectedStatus, searchTerm, locationFilter, dateFilter])
+
   const handleSearch = useCallback((value) => {
     setSearchTerm(value)
     setPage(1)
@@ -106,6 +140,10 @@ export default function RecruiterProjects() {
   useEffect(() => {
     fetchProjects()
   }, [fetchProjects])
+
+  useEffect(() => {
+    if (!loading) fetchChartProjects()
+  }, [fetchChartProjects, loading])
 
   const filteredProjects = projects.filter((project) => {
     const statusMatch = selectedStatus === 'all' || project.status?.toLowerCase() === selectedStatus
@@ -169,9 +207,9 @@ export default function RecruiterProjects() {
 
         <div className="chart-card" style={{ marginTop: 16 }}>
           <div className="card-header" style={{ marginBottom: 12, padding: 0, border: 'none' }}>
-            <div className="card-title">Projects by location</div>
+            <div className="card-title">Projects by month</div>
           </div>
-          <ProjectLocationChart data={projects} />
+          <ProjectMonthlyChart data={chartProjects} />
         </div>
       </Card>
 

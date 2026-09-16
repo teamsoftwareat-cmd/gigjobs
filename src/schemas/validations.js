@@ -227,6 +227,12 @@ export const step2ProfileSchema = z.object({
   pincode: z
     .string()
     .regex(/^[0-9]{6}$/, 'Enter a valid 6-digit pincode'),
+  digipin: z
+    .string()
+    .optional()
+    .refine((value) => !value || /^[A-Za-z0-9]{10}$/.test(value), {
+      message: 'Enter a valid 10-character DIGIPIN',
+    }),
   state: z.string().min(1, 'State is required'),
   area: z.string().min(1, 'Area is required'),
   customArea: z.string().optional(),

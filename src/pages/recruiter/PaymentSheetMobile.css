@@ -1,0 +1,312 @@
+@media (max-width: 768px) {
+  .payment-sheet-page {
+    gap: 12px;
+  }
+
+  .payment-sheet-page > .btn:first-child {
+    width: auto !important;
+    align-self: flex-start;
+  }
+
+  .payment-sheet-page .page-header {
+    gap: 12px;
+  }
+
+  .payment-sheet-page .page-header > div:last-child,
+  .payment-sheet-page .page-header > div:last-child > div {
+    width: 100%;
+  }
+
+  .payment-sheet-page .page-header > div:last-child > div {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px !important;
+  }
+
+  .payment-sheet-page .page-header .btn {
+    width: auto !important;
+    min-width: 0;
+    padding: 9px 8px !important;
+    font-size: 11px;
+  }
+
+  .payment-sheet-page .attendancedata-card {
+    padding: 0;
+  }
+
+  .payment-sheet-page .stats-grid {
+    gap: 8px;
+    padding: 0 12px;
+  }
+
+  .payment-sheet-page .stats-grid .stat-card {
+    min-width: 0;
+    padding: 12px;
+    gap: 8px;
+  }
+
+  .payment-sheet-page .stats-grid .stat-value {
+    overflow: hidden;
+    font-size: 15px;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .payment-sheet-page .stats-grid .stat-label {
+    font-size: 10px;
+  }
+
+  .payment-sheet-page .projects-table-filters {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 10px !important;
+    padding: 12px;
+    margin-bottom: 12px !important;
+    overflow: visible !important;
+  }
+
+  .payment-sheet-page .projects-table-filter-group,
+  .payment-sheet-page .projects-table-filter-group.role-group,
+  .payment-sheet-page .rows-per-page-group {
+    width: 100%;
+    min-width: 0 !important;
+    padding: 0;
+  }
+
+  .payment-sheet-page .projects-table-filter-group .filter-label {
+    display: block;
+    font-size: 10px;
+  }
+
+  .payment-sheet-page .date-group {
+    display: grid !important;
+    grid-template-columns: 1fr 1fr;
+    gap: 8px !important;
+  }
+
+  .payment-sheet-page .date-group .filter-label {
+    grid-column: 1 / -1;
+  }
+
+  .payment-sheet-page .date-separator {
+    display: none;
+  }
+
+  .payment-sheet-page .rows-per-page-group select {
+    width: 100% !important;
+  }
+
+  .payment-sheet-page .projects-table-filters > .btn {
+    width: 100% !important;
+  }
+
+  .payment-sheet-page .projects-table-wrap {
+    width: calc(100% - 24px);
+    margin: 0 12px;
+    overflow-x: auto !important;
+    -webkit-overflow-scrolling: touch;
+    border-radius: 8px;
+  }
+
+  .payment-sheet-page .projects-table-wrap table {
+    min-width: 900px;
+  }
+
+  .payment-sheet-page .projects-table-pagination {
+    display: flex;
+    flex-direction: column;
+    align-items: stretch;
+    gap: 8px;
+    width: 100%;
+    padding: 12px;
+  }
+
+  .payment-sheet-page .pagination-summary {
+    min-width: 0;
+    font-size: 11px;
+  }
+
+  .payment-sheet-page .pagination-actions {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 6px;
+    width: 100%;
+    flex-wrap: nowrap;
+    overflow-x: auto;
+  }
+
+  .payment-sheet-page .pagination-pages {
+    display: flex;
+    width: auto;
+    min-width: 0;
+    margin: 0;
+    flex: 0 1 auto;
+    overflow: visible;
+  }
+
+  .payment-sheet-page .pagination-page-btn {
+    min-width: 30px;
+    height: 30px;
+    padding: 0 7px;
+    flex: 0 0 auto;
+    font-size: 11px;
+  }
+
+  .payment-sheet-page .modal-footer {
+    flex-wrap: wrap;
+  }
+
+  .payment-sheet-page .modal-footer > div {
+    width: 100%;
+    flex-wrap: wrap !important;
+  }
+
+  .payment-sheet-page .modal-footer .btn {
+    width: auto !important;
+    flex: 1 1 120px;
+    min-width: 0;
+    font-size: 11px;
+  }
+
+  .payment-sheet-page .modal {
+    max-height: calc(100dvh - 16px);
+  }
+
+  .payment-sheet-page .modal-body {
+    max-height: none;
+    min-height: 0;
+  }
+
+  .payment-sheet-page .modal:has(.payment-config-modal-body) .modal-footer > div {
+    display: grid !important;
+    grid-template-columns: 1fr;
+    gap: 8px !important;
+  }
+
+  .payment-sheet-page .modal:has(.payment-config-modal-body) .modal-footer .btn {
+    width: 100% !important;
+    flex: none;
+  }
+
+  .payment-sheet-page .payment-config-modal-body {
+    overflow-x: hidden;
+  }
+
+  .payment-sheet-page .payment-config-modal-body > div,
+  .payment-sheet-page .manual-attendance-ui > div {
+    max-width: 100%;
+  }
+
+  .payment-sheet-page .attendance-request-popover {
+    position: fixed;
+    left: 12px !important;
+    right: 12px !important;
+    top: auto !important;
+    bottom: 12px !important;
+    width: auto !important;
+    min-width: 0 !important;
+    max-height: 70vh;
+    overflow-y: auto;
+    transform: none !important;
+  }
+
+  .payment-sheet-page .manual-attendance-ui {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+    min-width: 0;
+  }
+
+  .payment-sheet-page .manual-attendance-ui .manual-attendance-section {
+    margin-bottom: 0 !important;
+  }
+
+  .payment-sheet-page .manual-attendance-ui > div[style*="grid-template-columns"],
+  .payment-sheet-page .manual-attendance-ui .manual-attendance-section > div[style*="grid-template-columns"] {
+    grid-template-columns: 1fr !important;
+    gap: 12px !important;
+  }
+
+  .payment-sheet-page .manual-attendance-ui .manual-attendance-section:first-child > div {
+    display: grid !important;
+    grid-template-columns: repeat(3, minmax(0, 1fr)) !important;
+    gap: 6px !important;
+  }
+
+  .payment-sheet-page .manual-attendance-ui .manual-attendance-section:first-child .btn {
+    width: auto !important;
+    min-width: 0 !important;
+    padding: 9px 5px !important;
+    font-size: 11px;
+  }
+
+  .payment-sheet-page .manual-attendance-ui .manual-attendance-column {
+    min-width: 0;
+    width: 100%;
+  }
+
+  .payment-sheet-page .manual-attendance-ui .manual-attendance-column > div[style*="display: flex"] {
+    overflow-x: auto;
+    max-width: 100%;
+  }
+
+  .payment-sheet-page .manual-attendance-ui .manual-attendance-column > div[style*="maxHeight"] {
+    max-height: 280px !important;
+  }
+
+  .payment-sheet-page .manual-attendance-ui .rdp {
+    margin: 0 auto;
+    max-width: 100%;
+  }
+
+  .payment-sheet-page .manual-attendance-ui .rdp-months,
+  .payment-sheet-page .manual-attendance-ui .rdp-month,
+  .payment-sheet-page .manual-attendance-ui .rdp-month_grid {
+    max-width: 100% !important;
+    width: 100% !important;
+  }
+
+  .payment-sheet-page .manual-attendance-ui .rdp-day {
+    width: 32px !important;
+    height: 32px !important;
+  }
+
+  .payment-sheet-page .modal:has(.manual-attendance-ui) .modal-body {
+    padding: 14px;
+  }
+
+  .payment-sheet-page .modal:has(.manual-attendance-ui) .modal-footer > div {
+    justify-content: stretch !important;
+  }
+
+  .payment-sheet-page .modal:has(.manual-attendance-ui) .modal-footer .btn {
+    flex: 1 1 0;
+    width: auto !important;
+    min-width: 0;
+    padding: 9px 8px !important;
+    font-size: 11px;
+  }
+}
+
+@media (max-width: 480px) {
+  .payment-sheet-page .page-header > div:last-child > div {
+    grid-template-columns: 1fr;
+  }
+
+  .payment-sheet-page .page-header .btn {
+    width: 100% !important;
+  }
+
+  .payment-sheet-page .stats-grid {
+    grid-template-columns: 1fr 1fr;
+  }
+
+  .payment-sheet-page .date-group {
+    grid-template-columns: 1fr;
+  }
+
+  .payment-sheet-page .date-group .filter-label {
+    grid-column: auto;
+  }
+}
