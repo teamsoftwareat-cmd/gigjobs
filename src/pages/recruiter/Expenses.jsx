@@ -424,6 +424,12 @@ export default function Expenses() {
   const [paidExpensesModalOpen, setPaidExpensesModalOpen] = useState(false)
   const [paidExpenses, setPaidExpenses] = useState([])
   const [paidExpensesLoading, setPaidExpensesLoading] = useState(false)
+  const [timingExportModalOpen, setTimingExportModalOpen] = useState(false)
+  const [timingExportExpenseIds, setTimingExportExpenseIds] = useState([])
+  const [timingExportProjectId, setTimingExportProjectId] = useState('')
+  const [timingProjects, setTimingProjects] = useState([])
+  const [timingProjectsLoading, setTimingProjectsLoading] = useState(false)
+  const [timingExportInProgress, setTimingExportInProgress] = useState(false)
   const [paidExpensesFilters, setPaidExpensesFilters] = useState({
     search: '',
     project: '',
@@ -1374,6 +1380,56 @@ export default function Expenses() {
     }
   }, [activeTab, alert])
 
+  const fetchTimingProjects = useCallback(async () => {
+    setTimingProjectsLoading(true)
+    try {
+      const response = await recruiterAPI.getTimingExpenseProjects({ offset: 0, limit: 100 })
+      const payload = response?.data?.data || response?.data || {}
+      const projects = Array.isArray(payload) ? payload : payload.projects || payload.items || []
+      setTimingProjects(projects)
+    } catch (error) {
+      setTimingProjects([])
+      alert('error', 'Failed to load timing projects')
+    } finally {
+      setTimingProjectsLoading(false)
+    }
+  }, [alert])
+
+  const openTimingExportModal = useCallback((expenseIds) => {
+    if (!expenseIds.length) {
+      alert('error', 'Please select at least one expense to export to timing')
+      return
+    }
+
+    setTimingExportExpenseIds(expenseIds)
+    setTimingExportProjectId('')
+    setTimingExportModalOpen(true)
+    fetchTimingProjects()
+  }, [alert, fetchTimingProjects])
+
+  const handleExportToTiming = useCallback(async () => {
+    if (!timingExportProjectId) {
+      alert('error', 'Please select a timing project')
+      return
+    }
+
+    setTimingExportInProgress(true)
+    try {
+      await recruiterAPI.exportExpensesToTiming({
+        expense_ids: timingExportExpenseIds,
+        project_id: timingExportProjectId,
+      })
+      alert('success', 'Expenses exported to timing successfully')
+      setTimingExportModalOpen(false)
+      setTimingExportExpenseIds([])
+      setTimingExportProjectId('')
+    } catch (error) {
+      alert('error', error?.response?.data?.message || 'Failed to export expenses to timing')
+    } finally {
+      setTimingExportInProgress(false)
+    }
+  }, [alert, timingExportExpenseIds, timingExportProjectId])
+
   // Toggle expense selection handlers
   const toggleExpenseSelection = useCallback((expense, selectedIds, setSelectedIds) => {
     const expenseId = expense.id || expense.expenseId || `${expense.candidatename}-${expense.date}-${expense.amount}`
@@ -1666,6 +1722,14 @@ export default function Expenses() {
               <FontAwesomeIcon icon={faFileExcel} /> Export
             </button>
             <button
+              className="btn btn-primary btn-sm"
+              onClick={() => openTimingExportModal(selectedApprovedExpenseIds)}
+              disabled={!selectedApprovedExpenseIds.length}
+              style={{ width: 'fit-content' }}
+            >
+              Export to Timing
+            </button>
+            <button
               className="btn btn-success btn-sm"
               onClick={handleMarkSelectedPaid}
               disabled={!selectedApprovedExpenseIds.length || markPaidInProgress}
@@ -1712,6 +1776,14 @@ export default function Expenses() {
             >
               <FontAwesomeIcon icon={faFileExcel} /> Export
             </button>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => openTimingExportModal(selectedPendingExpenseIds)}
+              disabled={!selectedPendingExpenseIds.length}
+              style={{ width: 'fit-content' }}
+            >
+              Export to Timing
+            </button>
           </div>
         )}
         
@@ -1750,6 +1822,14 @@ export default function Expenses() {
               title="Export selected expenses to Excel"
             >
               <FontAwesomeIcon icon={faFileExcel} /> Export
+            </button>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={() => openTimingExportModal(selectedRejectedExpenseIds)}
+              disabled={!selectedRejectedExpenseIds.length}
+              style={{ width: 'fit-content' }}
+            >
+              Export to Timing
             </button>
           </div>
         )}
@@ -2005,6 +2085,65 @@ export default function Expenses() {
             </div>
           </div>
       </div>
+
+      {/* Export to Timing Modal */}
+      <Modal
+        title="Export Expenses to Timing"
+        isOpen={timingExportModalOpen}
+        onClose={() => {
+          if (timingExportInProgress) return
+          setTimingExportModalOpen(false)
+          setTimingExportExpenseIds([])
+          setTimingExportProjectId('')
+        }}
+        maxWidth="520px"
+        footer={
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: '12px', padding: '16px 20px', borderTop: '1px solid var(--border-light)' }}>
+            <button
+              className="btn btn-outline btn-sm"
+              onClick={() => setTimingExportModalOpen(false)}
+              disabled={timingExportInProgress}
+            >
+              Cancel
+            </button>
+            <button
+              className="btn btn-primary btn-sm"
+              onClick={handleExportToTiming}
+              disabled={timingProjectsLoading || !timingExportProjectId || timingExportInProgress}
+            >
+              {timingExportInProgress ? 'Exporting...' : 'Export to Timing'}
+            </button>
+          </div>
+        }
+      >
+        <div style={{ display: 'grid', gap: '12px', padding: '8px 0' }}>
+          <p style={{ margin: 0, color: 'var(--text2)' }}>
+            Select the timing project for {timingExportExpenseIds.length} selected expense{timingExportExpenseIds.length === 1 ? '' : 's'}.
+          </p>
+          <label className="form-label" htmlFor="timing-export-project">Timing project</label>
+          <select
+            id="timing-export-project"
+            className="form-control"
+            value={timingExportProjectId}
+            onChange={(event) => setTimingExportProjectId(event.target.value)}
+            disabled={timingProjectsLoading || timingExportInProgress}
+          >
+            <option value="">
+              {timingProjectsLoading ? 'Loading timing projects...' : 'Select a project'}
+            </option>
+            {timingProjects.map((project) => (
+              <option key={project.id} value={project.id}>
+                {project.name || project.title || project.id}
+              </option>
+            ))}
+          </select>
+          {!timingProjectsLoading && timingProjects.length === 0 && (
+            <p style={{ margin: 0, color: 'var(--text3)', fontSize: '13px' }}>
+              No timing projects are available.
+            </p>
+          )}
+        </div>
+      </Modal>
 
       {/* Allocate Expense Access Modal */}
       <Modal
@@ -2387,6 +2526,14 @@ export default function Expenses() {
                 title="Export selected paid expenses to Excel"
               >
                 <FontAwesomeIcon icon={faFileExcel} /> Export
+              </button>
+              <button
+                className="btn btn-primary btn-sm"
+                onClick={() => openTimingExportModal(selectedPaidExpenseIds)}
+                disabled={!selectedPaidExpenseIds.length}
+                style={{ width: 'fit-content' }}
+              >
+                Export to Timing
               </button>
             </div>
           )}
