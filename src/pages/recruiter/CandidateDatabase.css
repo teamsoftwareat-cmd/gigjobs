@@ -9,6 +9,390 @@
   justify-content: flex-end;
 }
 
+.candidate-attendance-content {
+  display: grid;
+  gap: 18px;
+}
+
+.candidate-attendance-filters {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(140px, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+  padding: 16px;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--bg);
+}
+
+.candidate-attendance-filter {
+  display: grid;
+  min-width: 0;
+  gap: 6px;
+}
+
+.candidate-attendance-filter > span {
+  color: var(--text2);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.candidate-attendance-clear {
+  white-space: nowrap;
+}
+
+.candidate-attendance-filter-error {
+  padding: 10px 12px;
+  border-radius: 8px;
+  color: var(--red);
+  background: color-mix(in srgb, var(--red) 8%, transparent);
+  font-size: 13px;
+}
+
+.candidate-attendance-summary {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  color: var(--text2);
+  font-size: 13px;
+}
+
+.candidate-attendance-summary strong {
+  color: var(--text);
+}
+
+.candidate-attendance-summary span {
+  margin-left: auto;
+  color: var(--text2);
+}
+
+.candidate-attendance-selection-bar {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  padding: 10px 12px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--card);
+}
+
+.candidate-attendance-selection-bar label {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.candidate-attendance-selection-bar > span {
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.candidate-attendance-selection-warning {
+  flex-basis: 100%;
+  color: var(--red);
+  font-size: 12px;
+}
+
+.candidate-attendance-selection-bar .btn {
+  margin-left: auto;
+}
+
+.candidate-attendance-records {
+  display: grid;
+  gap: 14px;
+  padding: 2px 4px 4px 2px;
+}
+
+.candidate-attendance-pagination {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 14px 2px 2px;
+  border-top: 1px solid var(--border);
+  color: var(--text2);
+  font-size: 13px;
+}
+
+.candidate-attendance-pagination-controls {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.candidate-attendance-pagination-controls label {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  white-space: nowrap;
+}
+
+.candidate-attendance-pagination-controls select {
+  width: 76px;
+  min-width: 76px;
+}
+
+.candidate-attendance-pagination-controls > span {
+  white-space: nowrap;
+}
+
+.candidate-attendance-record {
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  background: var(--card);
+  box-shadow: 0 2px 8px rgba(15, 23, 42, 0.04);
+}
+
+.candidate-attendance-record-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 18px;
+  border-bottom: 1px solid var(--border);
+  background: var(--bg);
+}
+
+.candidate-attendance-record-title {
+  display: flex;
+  min-width: 0;
+  align-items: flex-start;
+  gap: 12px;
+}
+
+.candidate-attendance-record-checkbox {
+  width: 16px;
+  height: 16px;
+  flex: 0 0 auto;
+  margin-top: 8px;
+  accent-color: var(--teal);
+}
+
+.candidate-attendance-record-index {
+  display: inline-flex;
+  width: 32px;
+  height: 32px;
+  flex: 0 0 32px;
+  align-items: center;
+  justify-content: center;
+  border-radius: 9px;
+  color: var(--teal);
+  background: var(--teal-light);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.candidate-attendance-record-title h3 {
+  margin: 0;
+  color: var(--text);
+  font-size: 15px;
+  font-weight: 700;
+}
+
+.candidate-attendance-record-subtitle {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+  margin-top: 5px;
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.candidate-attendance-record-subtitle span {
+  padding-left: 8px;
+  border-left: 1px solid var(--border);
+}
+
+.candidate-attendance-record-details {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 16px 20px;
+  padding: 16px 18px;
+}
+
+.candidate-attendance-record-details > div {
+  display: grid;
+  min-width: 0;
+  gap: 4px;
+}
+
+.candidate-attendance-record-details > div > span {
+  color: var(--text2);
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.candidate-attendance-record-details strong {
+  overflow-wrap: anywhere;
+  color: var(--text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.candidate-attendance-record-details small {
+  display: block;
+  margin-top: 2px;
+  color: var(--text2);
+  font-size: 11px;
+  font-weight: 400;
+}
+
+.candidate-attendance-record-media {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  padding: 12px 18px;
+  border-top: 1px solid var(--border);
+}
+
+.candidate-attendance-thumbnails {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 9px;
+}
+
+.candidate-attendance-thumbnail-button {
+  display: grid;
+  width: 76px;
+  gap: 4px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  cursor: pointer;
+}
+
+.candidate-attendance-thumbnail-button img {
+  display: block;
+  width: 76px;
+  height: 54px;
+  overflow: hidden;
+  border: 1px solid var(--border);
+  border-radius: 7px;
+  background: var(--bg);
+  object-fit: cover;
+}
+
+.candidate-attendance-thumbnail-button span {
+  color: var(--text2);
+  font-size: 10px;
+  text-align: center;
+}
+
+.candidate-attendance-state {
+  padding: 42px 18px;
+  border: 1px dashed var(--border);
+  border-radius: 12px;
+  color: var(--text2);
+  text-align: center;
+}
+
+.candidate-attendance-state-error {
+  color: var(--red);
+}
+
+.candidate-attendance-reassign-form {
+  display: grid;
+  gap: 16px;
+}
+
+.candidate-attendance-reassign-selection {
+  padding: 12px 14px;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  background: var(--bg);
+  color: var(--text2);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.candidate-attendance-reassign-selection strong {
+  color: var(--text);
+}
+
+.candidate-attendance-reassign-note {
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.candidate-attendance-reassign-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  width: 100%;
+}
+
+@media (max-width: 1000px) {
+  .candidate-attendance-filters {
+    grid-template-columns: repeat(3, minmax(140px, 1fr));
+  }
+}
+
+@media (max-width: 650px) {
+  .candidate-attendance-filters {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    padding: 12px;
+  }
+
+  .candidate-attendance-clear {
+    width: 100%;
+  }
+
+  .candidate-attendance-selection-bar {
+    align-items: flex-start;
+    flex-wrap: wrap;
+  }
+
+  .candidate-attendance-selection-bar .btn {
+    margin-left: 0;
+  }
+
+  .candidate-attendance-selection-bar .btn {
+    width: 100%;
+  }
+
+  .candidate-attendance-pagination {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .candidate-attendance-pagination-controls {
+    width: 100%;
+    flex-wrap: wrap;
+    justify-content: space-between;
+  }
+
+  .candidate-attendance-record-header,
+  .candidate-attendance-record-details,
+  .candidate-attendance-record-media {
+    padding-right: 12px;
+    padding-left: 12px;
+  }
+
+  .candidate-attendance-record-details {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 14px;
+  }
+
+  .candidate-attendance-record-media {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
+
+@media (max-width: 420px) {
+  .candidate-attendance-filters {
+    grid-template-columns: 1fr;
+  }
+}
+
 @media (max-width: 768px) {
   .candidate-database-page .page-header {
     gap: 14px;

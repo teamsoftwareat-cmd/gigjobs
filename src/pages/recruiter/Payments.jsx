@@ -1,8 +1,8 @@
 import { useState, useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faFileExcel, faInfoCircle, faDownload } from '@fortawesome/free-solid-svg-icons'
+import { faFileExcel, faInfoCircle, faDownload, faUpload } from '@fortawesome/free-solid-svg-icons'
 import * as XLSX from 'xlsx'
-import { PageHeader, Card } from '../../components/ui'
+import { PageHeader, Card, Modal } from '../../components/ui'
 import { recruiterAPI } from '../../api/axios'
 import { useAlert } from '../../context/AlertContext'
 import './Payments.css'
@@ -27,6 +27,21 @@ const EXPORT_HEADERS = [
 
 const RESPONSE_PREVIEW_HEADERS = [...EXPORT_HEADERS]
 const DEFAULT_EXPORT_FILE_NAME = 'payment_export'
+const PAYMENT_UPLOAD_HEADERS = [
+  'DATE',
+  'Name of Contact',
+  'Payout Link Amount',
+  'Contact Phone Number',
+  'Contact Email ID',
+  'Send Link to Phone Number',
+  'Send Link to Mail ID',
+  'Contact Type',
+  'Payout Purpose',
+  'Payout Description',
+  'Reference ID(optional)',
+  'Internal notes(optional): Title',
+  'Internal notes(optional): Description',
+]
 
 const PAYMENT_SHEET_NAMES = new Set([
   'all_districts_centres',
@@ -310,6 +325,11 @@ const buildOriginalUploadSheetRows = (originalRows, responseRecords) => {
 
 export default function RecruiterPayments() {
   const { alert } = useAlert()
+  const [isUploadPaymentsOpen, setIsUploadPaymentsOpen] = useState(false)
+  const [globalUploadFile, setGlobalUploadFile] = useState(null)
+  const [globalUploadLoading, setGlobalUploadLoading] = useState(false)
+  const [globalUploadError, setGlobalUploadError] = useState('')
+  const [globalUploadSuccess, setGlobalUploadSuccess] = useState('')
   const [uploadFile, setUploadFile] = useState(null)
   const [parsing, setParsing] = useState(false)
   const [sheetNames, setSheetNames] = useState([])
@@ -566,6 +586,49 @@ export default function RecruiterPayments() {
     XLSX.writeFile(workbook, 'payment_export_sample.xlsx')
   }
 
+  const downloadPaymentUploadSample = () => {
+    const now = new Date()
+    const excelDate = Math.floor((Date.UTC(now.getFullYear(), now.getMonth(), now.getDate()) - Date.UTC(1899, 11, 30)) / 86400000)
+    const sampleRows = [
+      [excelDate, 'Sample Contact 1', 1000, '', 'sample1@example.com', 'No', 'Yes', 'Consultant', 'Sample payout', 'Example payment row 1', 'SAMPLE-001', 'Example only', 'Do not use as a real payment'],
+      [excelDate, 'Sample Contact 2', 1500, '', 'sample2@example.com', 'No', 'Yes', 'Consultant', 'Sample payout', 'Example payment row 2', 'SAMPLE-002', 'Example only', 'Do not use as a real payment'],
+      [excelDate, 'Sample Contact 3', 2000, '', 'sample3@example.com', 'No', 'Yes', 'Consultant', 'Sample payout', 'Example payment row 3', 'SAMPLE-003', 'Example only', 'Do not use as a real payment'],
+    ]
+    const worksheet = XLSX.utils.aoa_to_sheet([PAYMENT_UPLOAD_HEADERS, ...sampleRows])
+    worksheet['!cols'] = [9, 27, 17, 20, 35, 24, 18, 12, 14, 64, 45, 24, 64].map((wch) => ({ wch }))
+    worksheet.A2.z = 'dd-mm-yyyy'
+    worksheet.A3.z = 'dd-mm-yyyy'
+    worksheet.A4.z = 'dd-mm-yyyy'
+
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, worksheet, 'Payment Sample')
+    XLSX.writeFile(workbook, 'payment_upload_sample.xlsx')
+  }
+
+  const uploadPaymentsFile = async () => {
+    if (!globalUploadFile) {
+      setGlobalUploadError('Choose a payment file to upload.')
+      return
+    }
+
+    setGlobalUploadLoading(true)
+    setGlobalUploadError('')
+    setGlobalUploadSuccess('')
+    const formData = new FormData()
+    formData.append('file', globalUploadFile)
+
+    try {
+      await recruiterAPI.uploadPaymentsFile(formData)
+      setGlobalUploadSuccess('Payments uploaded successfully.')
+      setGlobalUploadFile(null)
+    } catch (uploadError) {
+      console.error('Failed to upload payment file:', uploadError)
+      setGlobalUploadError('Unable to upload the payment file. Please try again.')
+    } finally {
+      setGlobalUploadLoading(false)
+    }
+  }
+
   const downloadExternalSampleTemplate = () => {
     const rows = [
       [
@@ -630,6 +693,9 @@ export default function RecruiterPayments() {
         subtitle="Upload attendance payment workbooks generated from PaymentSheet and export the payout-ready format."
         action={(
           <div className="payments-actions">
+            <button className="btn btn-primary btn-sm" type="button" onClick={() => setIsUploadPaymentsOpen(true)}>
+              <FontAwesomeIcon icon={faUpload} /> Upload Payments
+            </button>
             <button className="btn btn-secondary btn-sm" type="button" onClick={downloadSampleTemplate}>
               <FontAwesomeIcon icon={faDownload} /> Download Output Sample
             </button>
@@ -879,6 +945,43 @@ export default function RecruiterPayments() {
           </div>
         </div>
       </Card>
+      <Modal
+        isOpen={isUploadPaymentsOpen}
+        onClose={() => setIsUploadPaymentsOpen(false)}
+        title="Upload payments"
+        maxWidth="520px"
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8 }}>
+            <button type="button" className="btn btn-outline btn-sm" onClick={() => setIsUploadPaymentsOpen(false)} disabled={globalUploadLoading}>Close</button>
+            <button type="button" className="btn btn-primary btn-sm" onClick={uploadPaymentsFile} disabled={globalUploadLoading || !globalUploadFile}>
+              <FontAwesomeIcon icon={faUpload} /> {globalUploadLoading ? 'Uploading...' : 'Upload file'}
+            </button>
+          </div>
+        )}
+      >
+        <div style={{ display: 'grid', gap: 12 }}>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <label className="form-label" htmlFor="global-payment-upload" style={{ margin: 0 }}>Payment file</label>
+            <button type="button" className="btn btn-outline btn-sm" onClick={downloadPaymentUploadSample}>
+              <FontAwesomeIcon icon={faDownload} /> Download sample
+            </button>
+          </div>
+          <input
+            id="global-payment-upload"
+            className="form-control"
+            type="file"
+            accept=".csv,.xls,.xlsx"
+            onChange={(event) => {
+              setGlobalUploadFile(event.target.files?.[0] || null)
+              setGlobalUploadError('')
+              setGlobalUploadSuccess('')
+            }}
+          />
+          {globalUploadFile && <div style={{ color: 'var(--text2)', fontSize: 13 }}>{globalUploadFile.name}</div>}
+          {globalUploadError && <div className="upload-error" role="alert">{globalUploadError}</div>}
+          {globalUploadSuccess && <div className="upload-status" role="status">{globalUploadSuccess}</div>}
+        </div>
+      </Modal>
     </div>
   )
 }

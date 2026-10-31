@@ -547,7 +547,7 @@
 .professional-id-card .label {
   font-size: 0.7rem;
   font-weight: 600;
-  color: #6b7280;
+  color: #374151;
   text-transform: uppercase;
   letter-spacing: 0.05em;
 }
@@ -579,7 +579,7 @@
 .professional-id-card .card-footer p {
   margin: 0;
   font-size: 0.65rem;
-  color: #6b7280;
+  color: #374151;
   line-height: 1.4;
 }
 
@@ -663,7 +663,7 @@
 .attendance-container.light {
   --bg: #ffffff;
   --text: #1a1a1b;
-  --text2: #656566;
+  --text2: #4b5563;
   --card: #f9f9fa;
   --border: #e5e5e5;
   --saffron: #f4a130;
@@ -672,7 +672,7 @@
 .attendance-container.dark {
   --bg: #1a1a1b;
   --text: #ffffff;
-  --text2: #a0a0a1;
+  --text2: #c4c9d0;
   --card: #2a2a2b;
   --border: #3a3a3b;
   --saffron: #f4a130;

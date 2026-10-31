@@ -213,7 +213,7 @@ export default function AllocateRecipientsModal({ isOpen, onClose, project, loca
             Loading recipients...
           </div>
         ) : batches.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>
+          <div style={{ textAlign: 'center', padding: '40px', color: '#374151' }}>
             No recipients found
           </div>
         ) : (
@@ -251,7 +251,7 @@ export default function AllocateRecipientsModal({ isOpen, onClose, project, loca
                       }}
                     />
                     <strong>{getDisplayBatchKey(batchKey)}</strong>
-                    <span style={{ color: '#666', fontSize: '14px' }}>
+                    <span style={{ color: '#374151', fontSize: '14px' }}>
                       ({batchRecipients.length} recipients)
                     </span>
                   </div>
@@ -383,7 +383,7 @@ export default function AllocateRecipientsModal({ isOpen, onClose, project, loca
       )}
 
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderTop: '1px solid #dee2e6' }}>
-        <div style={{ fontSize: '14px', color: '#666' }}>
+        <div style={{ fontSize: '14px', color: '#374151' }}>
           Showing {start} - {end} of {total} recipients
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>
@@ -582,7 +582,7 @@ export default function AllocateRecipientsModal({ isOpen, onClose, project, proj
         {loading ? (
           <div style={{ textAlign: 'center', padding: '40px' }}>Loading recipients...</div>
         ) : recipients.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: '40px', color: '#666' }}>No recipients found</div>
+          <div style={{ textAlign: 'center', padding: '40px', color: '#374151' }}>No recipients found</div>
         ) : (
           <table style={{ width: '100%', borderCollapse: 'collapse' }}>
             <thead>
@@ -693,7 +693,7 @@ export default function AllocateRecipientsModal({ isOpen, onClose, project, proj
 
       {/* Footer */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '16px', borderTop: '1px solid #dee2e6' }}>
-        <div style={{ fontSize: '14px', color: '#666' }}>
+        <div style={{ fontSize: '14px', color: '#374151' }}>
           Showing {start} - {end} of {total} recipients
         </div>
         <div style={{ display: 'flex', gap: '10px' }}>

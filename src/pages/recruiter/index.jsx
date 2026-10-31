@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faSync, faUserPlus, faUpload, faSearch, faArrowLeft } from '@fortawesome/free-solid-svg-icons'
 import { Card, CardHeader, PageHeader, Tabs, DataTable, Tag, Modal } from '../../components/ui/index'
 import ProjectsTable from '../../components/ui/ProjectsTable'
 import CreateProjectModal from './CreateProjectModal'
 import InternalRegisterModal from '../auth/InternalRegisterModal'
-import { recruiterAPI } from '../../api/axios'
+import { normalizeProjectIdParam, recruiterAPI } from '../../api/axios'
 import { addCandidateSchema } from '../../schemas/validations'
 import ProjectStatsViz from '../../components/ProjectStatsViz'
 
@@ -555,6 +556,7 @@ function ProjectSearchSelect({ options, value, onChange }) {
 }
 
 export function RecruiterDashboard() {
+  const navigate = useNavigate()
   const [projects, setProjects] = useState([])
   const [loading, setLoading] = useState({ projects: false })
   const [totalProjects, setTotalProjects] = useState(0)
@@ -572,6 +574,13 @@ export function RecruiterDashboard() {
   const [showCreateProjectModal, setShowCreateProjectModal] = useState(false)
   const [showCreateInternalUser, setShowCreateInternalUser] = useState(false)
   const [editingProject, setEditingProject] = useState(null)
+
+  const handleCreateForm = useCallback((project) => {
+    const projectId = project.projectId || project.id
+    if (projectId != null) {
+      navigate(`/app/recruiter/projects/${normalizeProjectIdParam(projectId)}/form-builder`, { state: { project } })
+    }
+  }, [navigate])
 
   const projectTabs = [
     { id: 'all', label: 'All' },
@@ -825,6 +834,7 @@ export function RecruiterDashboard() {
           onDateFilter={handleDateFilter}
           onStatusChange={() => fetchProjects()}
           onEditProject={handleEditProject}
+          onCreateForm={handleCreateForm}
           showFilters={true}
           emptyMessage={loading.projects ? 'Loading projects…' : `No ${selectedStatus} projects found.`}
         />

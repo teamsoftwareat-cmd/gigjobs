@@ -1,0 +1,119 @@
+.attendance-main-table .table-wrap table,
+.projects-table-wrap.core-attendance-assignment-table table,
+.core-attendance-requests-table .table-wrap table {
+  table-layout: fixed;
+}
+
+.attendance-main-table .table-wrap table {
+  min-width: 1753px;
+}
+
+.attendance-main-table .table-wrap th,
+.attendance-main-table .table-wrap td,
+.projects-table-wrap.core-attendance-assignment-table th,
+.projects-table-wrap.core-attendance-assignment-table td,
+.core-attendance-requests-table .table-wrap th,
+.core-attendance-requests-table .table-wrap td {
+  vertical-align: middle;
+  white-space: normal;
+  overflow-wrap: anywhere;
+}
+
+.attendance-main-table .table-wrap th:nth-child(1),
+.attendance-main-table .table-wrap td:nth-child(1) { width: 48px; text-align: center; }
+.attendance-main-table .table-wrap th:nth-child(2),
+.attendance-main-table .table-wrap td:nth-child(2) { width: 64px; }
+.attendance-main-table .table-wrap th:nth-child(3),
+.attendance-main-table .table-wrap td:nth-child(3) { width: 116px; }
+.attendance-main-table .table-wrap th:nth-child(4),
+.attendance-main-table .table-wrap td:nth-child(4) { width: 180px; }
+.attendance-main-table .table-wrap th:nth-child(5),
+.attendance-main-table .table-wrap td:nth-child(5) { width: 130px; }
+.attendance-main-table .table-wrap th:nth-child(6),
+.attendance-main-table .table-wrap td:nth-child(6) { width: 170px; }
+.attendance-main-table .table-wrap th:nth-child(7),
+.attendance-main-table .table-wrap td:nth-child(7) { width: 170px; }
+.attendance-main-table .table-wrap th:nth-child(8),
+.attendance-main-table .table-wrap td:nth-child(8) { width: 150px; }
+.attendance-main-table .table-wrap th:nth-child(9),
+.attendance-main-table .table-wrap td:nth-child(9) { width: 120px; }
+.attendance-main-table .table-wrap th:nth-child(10),
+.attendance-main-table .table-wrap td:nth-child(10) { width: 120px; }
+.attendance-main-table .table-wrap th:nth-child(11),
+.attendance-main-table .table-wrap td:nth-child(11) { width: 100px; }
+.attendance-main-table .table-wrap th:nth-child(12),
+.attendance-main-table .table-wrap td:nth-child(12) { width: 100px; }
+.attendance-main-table .table-wrap th:nth-child(13),
+.attendance-main-table .table-wrap td:nth-child(13) { width: 72px; }
+.attendance-main-table .table-wrap th:nth-child(14),
+.attendance-main-table .table-wrap td:nth-child(14) { width: 105px; }
+.attendance-main-table .table-wrap th:nth-child(15),
+.attendance-main-table .table-wrap td:nth-child(15) { width: 108px; }
+
+.projects-table-wrap.core-attendance-assignment-table table {
+  min-width: 2051px;
+}
+
+.projects-table-wrap.core-attendance-assignment-table th:nth-child(1),
+.projects-table-wrap.core-attendance-assignment-table td:nth-child(1) { width: 56px; }
+.projects-table-wrap.core-attendance-assignment-table th:nth-child(2),
+.projects-table-wrap.core-attendance-assignment-table td:nth-child(2) { width: 110px; }
+.projects-table-wrap.core-attendance-assignment-table th:nth-child(3),
+.projects-table-wrap.core-attendance-assignment-table td:nth-child(3) { width: 180px; }
+.projects-table-wrap.core-attendance-assignment-table th:nth-child(4),
+.projects-table-wrap.core-attendance-assignment-table td:nth-child(4) { width: 140px; }
+.projects-table-wrap.core-attendance-assignment-table th:nth-child(5),
+.projects-table-wrap.core-attendance-assignment-table td:nth-child(5) { width: 130px; }
+.projects-table-wrap.core-attendance-assignment-table th:nth-child(6),
+.projects-table-wrap.core-attendance-assignment-table td:nth-child(6) { width: 180px; }
+.projects-table-wrap.core-attendance-assignment-table th:nth-child(7),
+.projects-table-wrap.core-attendance-assignment-table td:nth-child(7) { width: 180px; }
+.projects-table-wrap.core-attendance-assignment-table th:nth-child(8),
+.projects-table-wrap.core-attendance-assignment-table td:nth-child(8) { width: 200px; }
+.projects-table-wrap.core-attendance-assignment-table th:nth-child(9),
+.projects-table-wrap.core-attendance-assignment-table td:nth-child(9) { width: 190px; }
+.projects-table-wrap.core-attendance-assignment-table th:nth-child(10),
+.projects-table-wrap.core-attendance-assignment-table td:nth-child(10) { width: 105px; }
+.projects-table-wrap.core-attendance-assignment-table th:nth-child(11),
+.projects-table-wrap.core-attendance-assignment-table td:nth-child(11) { width: 105px; }
+.projects-table-wrap.core-attendance-assignment-table th:nth-child(12),
+.projects-table-wrap.core-attendance-assignment-table td:nth-child(12) { width: 100px; }
+.projects-table-wrap.core-attendance-assignment-table th:nth-child(13),
+.projects-table-wrap.core-attendance-assignment-table td:nth-child(13) { width: 100px; }
+.projects-table-wrap.core-attendance-assignment-table th:nth-child(14),
+.projects-table-wrap.core-attendance-assignment-table td:nth-child(14) { width: 60px; }
+.projects-table-wrap.core-attendance-assignment-table th:nth-child(15),
+.projects-table-wrap.core-attendance-assignment-table td:nth-child(15) { width: 105px; }
+.projects-table-wrap.core-attendance-assignment-table th:nth-child(16),
+.projects-table-wrap.core-attendance-assignment-table td:nth-child(16) { width: 110px; }
+
+.core-attendance-requests-table .table-wrap table {
+  min-width: 1191px;
+}
+
+.core-attendance-requests-table .table-wrap th:nth-child(1),
+.core-attendance-requests-table .table-wrap td:nth-child(1) { width: 56px; text-align: center; }
+.core-attendance-requests-table .table-wrap th:nth-child(2),
+.core-attendance-requests-table .table-wrap td:nth-child(2) { width: 60px; }
+.core-attendance-requests-table .table-wrap th:nth-child(3),
+.core-attendance-requests-table .table-wrap td:nth-child(3) { width: 170px; }
+.core-attendance-requests-table .table-wrap th:nth-child(4),
+.core-attendance-requests-table .table-wrap td:nth-child(4) { width: 150px; }
+.core-attendance-requests-table .table-wrap th:nth-child(5),
+.core-attendance-requests-table .table-wrap td:nth-child(5) { width: 130px; }
+.core-attendance-requests-table .table-wrap th:nth-child(6),
+.core-attendance-requests-table .table-wrap td:nth-child(6) { width: 145px; }
+.core-attendance-requests-table .table-wrap th:nth-child(7),
+.core-attendance-requests-table .table-wrap td:nth-child(7) { width: 180px; }
+.core-attendance-requests-table .table-wrap th:nth-child(8),
+.core-attendance-requests-table .table-wrap td:nth-child(8) { width: 180px; }
+.core-attendance-requests-table .table-wrap th:nth-child(9),
+.core-attendance-requests-table .table-wrap td:nth-child(9) { width: 120px; }
+
+@media (max-width: 768px) {
+  .attendance-main-table .table-wrap table,
+  .projects-table-wrap.core-attendance-assignment-table table,
+  .core-attendance-requests-table .table-wrap table {
+    font-size: 12px;
+  }
+}

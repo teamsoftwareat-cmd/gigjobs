@@ -1,0 +1,92 @@
+.add-candidates-table-wrap {
+  width: 100%;
+  overflow-x: auto;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--card);
+  -webkit-overflow-scrolling: touch;
+}
+
+.add-candidates-table {
+  width: 100%;
+  min-width: 2216px;
+  table-layout: fixed;
+  border-collapse: collapse;
+  border-spacing: 0;
+  font-size: 13px;
+}
+
+.add-candidates-table col:nth-child(1) { width: 54px; }
+.add-candidates-table col:nth-child(2) { width: 205px; }
+.add-candidates-table col:nth-child(3) { width: 150px; }
+.add-candidates-table col:nth-child(4) { width: 132px; }
+.add-candidates-table col:nth-child(5) { width: 230px; }
+.add-candidates-table col:nth-child(6) { width: 180px; }
+.add-candidates-table col:nth-child(7) { width: 170px; }
+.add-candidates-table col:nth-child(8) { width: 135px; }
+.add-candidates-table col:nth-child(9) { width: 110px; }
+.add-candidates-table col:nth-child(10) { width: 140px; }
+.add-candidates-table col:nth-child(11) { width: 170px; }
+.add-candidates-table col:nth-child(12) { width: 135px; }
+.add-candidates-table col:nth-child(13) { width: 135px; }
+.add-candidates-table col:nth-child(14) { width: 135px; }
+.add-candidates-table col:nth-child(15) { width: 135px; }
+
+.add-candidates-table th,
+.add-candidates-table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--border);
+  text-align: left;
+  vertical-align: middle;
+}
+
+.add-candidates-table th {
+  background: var(--bg-light);
+  color: var(--text3);
+  font-size: 11px;
+  font-weight: 700;
+  line-height: 1.35;
+  text-transform: uppercase;
+  white-space: normal;
+}
+
+.add-candidates-table td {
+  color: var(--text2);
+  line-height: 1.45;
+  overflow-wrap: anywhere;
+}
+
+.add-candidates-table th:first-child,
+.add-candidates-table td:first-child {
+  text-align: center;
+}
+
+.add-candidates-table tbody tr:nth-child(even) td {
+  background: var(--bg);
+}
+
+.add-candidates-table tbody tr:nth-child(odd) td:last-child {
+  background: var(--card);
+}
+
+.add-candidates-table tbody tr:nth-child(even) td:last-child {
+  background: var(--bg);
+}
+
+.add-candidates-table tbody tr:hover td {
+  background: var(--surface);
+}
+
+.add-candidates-table tbody tr:hover td:last-child {
+  background: var(--surface);
+}
+
+.add-candidates-table tbody tr:last-child td {
+  border-bottom: 0;
+}
+
+@media (max-width: 768px) {
+  .add-candidates-table-wrap {
+    border-radius: 8px;
+  }
+}

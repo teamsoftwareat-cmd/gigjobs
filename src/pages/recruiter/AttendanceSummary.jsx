@@ -7,7 +7,7 @@ import jsPDF from 'jspdf'
 import autoTable from 'jspdf-autotable'
 import JSZip from 'jszip'
 import * as XLSX from 'xlsx'
-import { recruiterAPI } from '../../api/axios'
+import { recruiterAPI, coreRecruiterAPI } from '../../api/axios'
 import { useAlert } from '../../context/AlertContext'
 import { PageHeader, Card, DataTable, StatCard, Modal, Tag, Tabs } from '../../components/ui'
 import { MapModal } from '../../components/ui/MapModal'
@@ -41,6 +41,7 @@ export default function RecruiterAttendanceSummary() {
   const [kpis, setKpis] = useState({ totalProjects: 0, totalResources: 0, totalMandays: 0, totalLocations: 0 })
   const [activeTab, setActiveTab] = useState('regular')
   const [isOutsideModalOpen, setIsOutsideModalOpen] = useState(false)
+  const [assignmentModalMode, setAssignmentModalMode] = useState('outside')
   const [outsideCandidates, setOutsideCandidates] = useState([])
   const [outsideSearch, setOutsideSearch] = useState('')
   const [debouncedOutsideSearch, setDebouncedOutsideSearch] = useState('')
@@ -75,6 +76,7 @@ export default function RecruiterAttendanceSummary() {
   const [centreOptionsByLocation, setCentreOptionsByLocation] = useState({})
   const [assignments, setAssignments] = useState({})
   const [isModalLoading, setIsModalLoading] = useState(false)
+  const [rejectingCandidateId, setRejectingCandidateId] = useState('')
   const [modalError, setModalError] = useState('')
   const [assignmentMessage, setAssignmentMessage] = useState('')
   const [projectStatusLoading, setProjectStatusLoading] = useState({})
@@ -290,7 +292,8 @@ export default function RecruiterAttendanceSummary() {
         if (typeof item === 'object') {
           const id = String(item.id ?? item.project_id ?? item.value ?? item.key ?? item._id ?? item.projectId ?? item.locationId ?? '')
           const name = String(item.name ?? item.project_name ?? item.title ?? item.label ?? item.value ?? id)
-          return id ? { id, name } : null
+          const projectType = item.projectType ?? item.project_type ?? item.projectKind ?? item.project_kind ?? item.kind ?? item.type ?? item.is_written_exam
+          return id ? { id, name, ...(projectType !== undefined ? { projectType } : {}) } : null
         }
         const value = String(item || '')
         return value ? { id: value, name: value } : null
@@ -298,9 +301,9 @@ export default function RecruiterAttendanceSummary() {
       .filter(Boolean)
   }
 
-  const loadProjectOptions = async () => {
+  const loadProjectOptions = async (projectType) => {
     try {
-      const response = await recruiterAPI.getProjectSuggestions('', 200)
+      const response = await recruiterAPI.getProjectSuggestions('', 200, projectType)
       const payload = response?.data ?? {}
       const rawList = Array.isArray(payload?.data)
         ? payload.data
@@ -336,29 +339,54 @@ export default function RecruiterAttendanceSummary() {
     )
   }
 
+  const isWrittenProjectType = (value) => {
+    if (typeof value === 'boolean') return value
+    const normalized = String(value || '').trim().toLowerCase().replace(/[-\s]/g, '_')
+    return ['true', '1'].includes(normalized) || normalized.includes('written') || normalized.includes('exam')
+  }
+
+  const isWrittenAssignmentProject = (projectKey) => {
+    const project = projectOptions.find((option) => String(option.id) === String(projectKey))
+    return project?.projectType !== undefined
+      ? isWrittenProjectType(project.projectType)
+      : isWrittenProjectType(project?.name) || activeTab === 'written'
+  }
+
   const loadProjectLocations = async (projectKey) => {
     if (!projectKey) return []
     if (locationOptionsByProject[projectKey]) return locationOptionsByProject[projectKey]
 
     try {
-      const response = await recruiterAPI.getProjectLocations(projectKey)
+      const response = isWrittenAssignmentProject(projectKey)
+        ? await recruiterAPI.getProjectDistricts(projectKey)
+        : await recruiterAPI.getProjectLocations(projectKey)
       const payload = response?.data ?? {}
       const rawList = Array.isArray(payload?.data)
         ? payload.data
-        : Array.isArray(payload?.locations)
-          ? payload.locations
-          : Array.isArray(payload?.location_options)
-            ? payload.location_options
-            : Array.isArray(payload?.locationOptions)
-              ? payload.locationOptions
-              : Array.isArray(payload)
-                ? payload
-                : []
+        : isWrittenAssignmentProject(projectKey)
+          ? Array.isArray(payload?.districts)
+            ? payload.districts
+            : Array.isArray(payload?.district_options)
+              ? payload.district_options
+              : Array.isArray(payload?.districtOptions)
+                ? payload.districtOptions
+                : Array.isArray(payload)
+                  ? payload
+                  : []
+          : Array.isArray(payload?.locations)
+            ? payload.locations
+            : Array.isArray(payload?.location_options)
+              ? payload.location_options
+              : Array.isArray(payload?.locationOptions)
+                ? payload.locationOptions
+                : Array.isArray(payload)
+                  ? payload
+                  : []
       const locations = normalizeOptionList(rawList)
       setLocationOptionsByProject((current) => ({ ...current, [projectKey]: locations }))
       return locations
     } catch (error) {
-      setCentreOptionsByLocation((current) => ({ ...current, [cacheKey]: [] }))
+      setLocationOptionsByProject((current) => ({ ...current, [projectKey]: [] }))
       return []
     }
   }
@@ -369,7 +397,9 @@ export default function RecruiterAttendanceSummary() {
     if (centreOptionsByLocation[cacheKey]) return centreOptionsByLocation[cacheKey]
 
     try {
-      const response = await recruiterAPI.getLocationCentres(projectKey, locationKey)
+      const response = isWrittenAssignmentProject(projectKey)
+        ? await recruiterAPI.getDistrictCentres(projectKey, locationKey)
+        : await recruiterAPI.getLocationCentres(projectKey, locationKey)
       const payload = response?.data ?? {}
       const rawList = Array.isArray(payload?.data)
         ? payload.data
@@ -383,10 +413,10 @@ export default function RecruiterAttendanceSummary() {
                 ? payload
                 : []
       const centres = normalizeOptionList(rawList)
-      setCentreOptionsByLocation((current) => ({ ...current, [locationKey]: centres }))
+      setCentreOptionsByLocation((current) => ({ ...current, [cacheKey]: centres }))
       return centres
     } catch (error) {
-      setCentreOptionsByLocation((current) => ({ ...current, [locationKey]: [] }))
+      setCentreOptionsByLocation((current) => ({ ...current, [cacheKey]: [] }))
       return []
     }
   }
@@ -1065,7 +1095,10 @@ export default function RecruiterAttendanceSummary() {
     setModalError('')
 
     try {
-      const response = await recruiterAPI.getOutsideCandidates({
+      const getAssignmentCandidates = assignmentModalMode === 'core'
+        ? coreRecruiterAPI.getOutsideCoreCandidates
+        : recruiterAPI.getOutsideCandidates
+      const response = await getAssignmentCandidates({
         search: debouncedOutsideSearch || undefined,
         from: outsideFromDate || undefined,
         to: outsideToDate || undefined,
@@ -1092,14 +1125,41 @@ export default function RecruiterAttendanceSummary() {
     } finally {
       setIsModalLoading(false)
     }
-  }, [debouncedOutsideSearch, outsideFromDate, outsideToDate, outsideLimit, outsideOffset])
+  }, [assignmentModalMode, debouncedOutsideSearch, outsideFromDate, outsideToDate, outsideLimit, outsideOffset])
+
+  const handleRejectOutsideCandidate = async (candidate) => {
+    const attendanceId = candidate?.attendance_id ?? candidate?.id ?? candidate?.candidateId ?? candidate?._id
+    if (attendanceId == null || attendanceId === '') {
+      setModalError('Unable to reject candidate: attendance ID is missing.')
+      return
+    }
+
+    const candidateKey = String(attendanceId)
+    setRejectingCandidateId(candidateKey)
+    setModalError('')
+
+    try {
+      await recruiterAPI.rejectOutsideCandidate(attendanceId, { attendance_id: attendanceId })
+      setOutsideCandidates((current) => current.filter((item) => {
+        const itemId = item?.attendance_id ?? item?.id ?? item?.candidateId ?? item?._id
+        return String(itemId) !== candidateKey
+      }))
+      setOutsideTotal((current) => Math.max(0, current - 1))
+      alert('success', 'Candidate rejected successfully.')
+    } catch (error) {
+      console.error('Failed to reject outside candidate:', error)
+      setModalError(error?.response?.data?.message || 'Unable to reject candidate. Please try again.')
+    } finally {
+      setRejectingCandidateId('')
+    }
+  }
 
   useEffect(() => {
     if (!isOutsideModalOpen) return
-    loadProjectOptions()
+    loadProjectOptions(assignmentModalMode === 'outside' ? 'regular' : undefined)
     const timer = setTimeout(loadOutsideCandidates, 300)
     return () => clearTimeout(timer)
-  }, [activeTab, isOutsideModalOpen, loadOutsideCandidates])
+  }, [activeTab, assignmentModalMode, isOutsideModalOpen, loadOutsideCandidates])
 
   useEffect(() => {
     if (!isSearchAttendanceModalOpen) return
@@ -1155,6 +1215,13 @@ export default function RecruiterAttendanceSummary() {
   }
 
   const handleOpenOutsideModal = () => {
+    setAssignmentModalMode('outside')
+    setIsOutsideModalOpen(true)
+    setAssignmentMessage('')
+  }
+
+  const handleOpenCoreMembersModal = () => {
+    setAssignmentModalMode('core')
     setIsOutsideModalOpen(true)
     setAssignmentMessage('')
   }
@@ -1165,32 +1232,32 @@ export default function RecruiterAttendanceSummary() {
 
   const handleProjectSelect = async (candidateKey, projectKey) => {
     const current = assignments[candidateKey] || {}
+    const isWrittenProject = isWrittenAssignmentProject(projectKey)
     const locations = await loadProjectLocations(projectKey)
     setAssignments((prev) => ({
       ...prev,
       [candidateKey]: {
         ...current,
         project: projectKey,
+        isWrittenProject,
         location: '',
-        centre: activeTab === 'written' ? '' : undefined,
+        centre: isWrittenProject ? '' : undefined,
         saved: false,
         locationOptions: locations,
-        centreOptions: activeTab === 'written' ? [] : undefined,
+        centreOptions: isWrittenProject ? [] : undefined,
       },
     }))
   }
 
   const handleLocationSelect = async (candidateKey, locationKey) => {
     const current = assignments[candidateKey] || {}
-    const centres = activeTab === 'written' ? await loadLocationCentres(current.project, locationKey) : undefined
     setAssignments((prev) => ({
       ...prev,
       [candidateKey]: {
         ...current,
         location: locationKey,
-        centre: activeTab === 'written' ? '' : undefined,
+        centre: undefined,
         saved: false,
-        centreOptions: centres,
       },
     }))
   }
@@ -1209,7 +1276,7 @@ export default function RecruiterAttendanceSummary() {
 
   const handleSaveAssignment = async (candidateKey) => {
     const current = assignments[candidateKey] || {}
-    const requiredFields = activeTab === 'written' ? ['project', 'location', 'centre'] : ['project', 'location']
+    const requiredFields = ['project', 'location']
     if (requiredFields.some(field => !current[field])) return
 
     setAssignments((prev) => ({
@@ -1223,11 +1290,15 @@ export default function RecruiterAttendanceSummary() {
     setModalError('')
 
     try {
-      await recruiterAPI.assignCandidate({
+      const assignCandidates = assignmentModalMode === 'core'
+        ? coreRecruiterAPI.assignCoreCandidates
+        : recruiterAPI.assignCandidate
+      await assignCandidates({
         candidate_id: candidateKey,
         project_id: current.project,
-        location_id: current.location,
-        ...(activeTab === 'written' && { centre_id: current.centre }),
+        ...(assignmentModalMode === 'core' && current.isWrittenProject
+          ? { district_id: current.location }
+          : { location_id: current.location }),
       })
 
       setAssignments((prev) => ({
@@ -1255,7 +1326,7 @@ export default function RecruiterAttendanceSummary() {
   const handleDone = async () => {
     const pendingKeys = Object.keys(assignments).filter(key => {
       const item = assignments[key];
-      const requiredFields = activeTab === 'written' ? ['project', 'location', 'centre'] : ['project', 'location'];
+      const requiredFields = ['project', 'location'];
       return requiredFields.every(f => item[f]) && !item.saved;
     });
 
@@ -1276,11 +1347,11 @@ export default function RecruiterAttendanceSummary() {
 
 
   const assignedCount = Object.values(assignments).filter((item) => {
-    const requiredFields = activeTab === 'written' ? ['project', 'location', 'centre'] : ['project', 'location']
+    const requiredFields = ['project', 'location']
     return requiredFields.every(field => item?.[field] && item?.saved)
   }).length
   const unsavedCount = Object.values(assignments).filter((item) => {
-    const requiredFields = activeTab === 'written' ? ['project', 'location', 'centre'] : ['project', 'location']
+    const requiredFields = ['project', 'location']
     return requiredFields.every(field => item?.[field]) && !item?.saved
   }).length
 
@@ -1297,10 +1368,11 @@ export default function RecruiterAttendanceSummary() {
     const mobile = candidate.mobile || candidate.phone || candidate.whatsapp || candidate.contact || '—'
     const assignment = assignments[candidateId] || {}
     const projectValue = assignment.project || ''
+    const isWrittenProject = assignment.isWrittenProject ?? isWrittenAssignmentProject(projectValue)
     const locationValue = assignment.location || ''
-    const centreValue = activeTab === 'written' ? (assignment.centre || '') : undefined
     const locationOptions = locationOptionsByProject[projectValue] || []
-    const centreOptions = activeTab === 'written' ? (centreOptionsByLocation[locationValue] || []) : []
+    const typedProject = candidate.typed_in_project || candidate.typedProject || candidate.typed_project || candidate.entered_project || candidate.enteredProject || candidate.project_name || candidate.projectName || candidate.project || '—'
+    const typedLocation = candidate.typed_in_location || candidate.typedLocation || candidate.typed_location || candidate.entered_location || candidate.enteredLocation || candidate.location_name || candidate.locationName || candidate.location || candidate.district_name || candidate.district || '—'
 
     const candidateDate = candidate.date || candidate.created_at || candidate.createdAt || candidate.added || ''
     const checkInImage = candidate.check_in_image || candidate.checkInImage || candidate.checkin_image || candidate.photo || candidate.profile_image || NO_IMAGE_PLACEHOLDER
@@ -1324,6 +1396,7 @@ export default function RecruiterAttendanceSummary() {
       name,
       formatAadhaar(candidate.aadhaar || candidate.aadhaar_number || candidate.aadhar || candidate.aadhaarNo || ''),
       mobile,
+      ...(assignmentModalMode === 'core' ? [typedProject, typedLocation] : []),
       <ProjectDropdown
         value={projectValue}
         onSelect={(projId) => handleProjectSelect(candidateId, projId)}
@@ -1335,24 +1408,11 @@ export default function RecruiterAttendanceSummary() {
         onChange={(e) => handleLocationSelect(candidateId, e.target.value)}
         disabled={!projectValue || locationOptions.length === 0}
       >
-        <option value="">Select location</option>
+        <option value="">{isWrittenProject ? 'Select district' : 'Select location'}</option>
         {locationOptions.map((option) => (
           <option key={option.id} value={option.id}>{option.name}</option>
         ))}
       </select>,
-      ...(activeTab === 'written' ? [
-        <select
-          className="form-control"
-          value={centreValue}
-          onChange={(e) => handleCentreSelect(candidateId, e.target.value)}
-          disabled={!locationValue || centreOptions.length === 0}
-        >
-          <option value="">Select centre</option>
-          {centreOptions.map((option) => (
-            <option key={option.id} value={option.id}>{option.name}</option>
-          ))}
-        </select>
-      ] : []),
       clockIn || '—',
       clockOut || '—',
       <button
@@ -1391,18 +1451,30 @@ export default function RecruiterAttendanceSummary() {
         </button>
       ) : '—',
       <Tag key={`status-${candidateId}`} variant={statusVariant(candidate.status)}>{candidate.status || (assignment.saved ? 'Assigned' : 'Unassigned')}</Tag>,
-      assignment.saved ? (
-        <span className="tag tag-green">Assigned</span>
-      ) : (
-        <button
-          type="button"
-          className="btn btn-primary btn-sm"
-          disabled={!projectValue || !locationValue || assignment.saving}
-          onClick={() => handleSaveAssignment(candidateId)}
-        >
-          {assignment.saving ? 'Saving…' : 'Save'}
-        </button>
-      ),
+      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+        {assignment.saved ? (
+          <span className="tag tag-green">Assigned</span>
+        ) : (
+          <button
+            type="button"
+            className="btn btn-primary btn-sm"
+            disabled={!projectValue || !locationValue || assignment.saving}
+            onClick={() => handleSaveAssignment(candidateId)}
+          >
+            {assignment.saving ? 'Saving…' : 'Save'}
+          </button>
+        )}
+        {assignmentModalMode === 'outside' && (
+          <button
+            type="button"
+            className="btn btn-danger btn-sm"
+            disabled={rejectingCandidateId === candidateId}
+            onClick={() => handleRejectOutsideCandidate(candidate)}
+          >
+            {rejectingCandidateId === candidateId ? 'Rejecting…' : 'Reject'}
+          </button>
+        )}
+      </div>,
     ]
   })
 
@@ -1412,10 +1484,11 @@ export default function RecruiterAttendanceSummary() {
     const mobile = candidate.mobile || candidate.phone || candidate.whatsapp || candidate.contact || '—'
     const assignment = assignments[candidateId] || {}
     const projectValue = assignment.project || ''
+    const isWrittenProject = assignment.isWrittenProject ?? isWrittenAssignmentProject(projectValue)
     const locationValue = assignment.location || ''
-    const centreValue = activeTab === 'written' ? (assignment.centre || '') : undefined
     const locationOptions = locationOptionsByProject[projectValue] || []
-    const centreOptions = activeTab === 'written' ? (centreOptionsByLocation[locationValue] || []) : []
+    const typedProject = candidate.typed_in_project || candidate.typedProject || candidate.typed_project || candidate.entered_project || candidate.enteredProject || candidate.project_name || candidate.projectName || candidate.project || '—'
+    const typedLocation = candidate.typed_in_location || candidate.typedLocation || candidate.typed_location || candidate.entered_location || candidate.enteredLocation || candidate.location_name || candidate.locationName || candidate.location || candidate.district_name || candidate.district || '—'
     const candidateDate = candidate.date || candidate.created_at || candidate.createdAt || candidate.added || ''
     const clockIn = candidate.clock_in || candidate.clockIn || candidate.check_in_time || candidate.checkin_time || candidate.check_in || candidate.checkin || '—'
     const clockOut = candidate.clock_out || candidate.clockOut || candidate.check_out_time || candidate.checkout_time || candidate.check_out || candidate.checkout || '—'
@@ -1441,6 +1514,12 @@ export default function RecruiterAttendanceSummary() {
           <div><span>Clock in</span><strong>{clockIn}</strong></div>
           <div><span>Clock out</span><strong>{clockOut}</strong></div>
           <div><span>Status</span><strong>{candidate.status || (assignment.saved ? 'Assigned' : 'Unassigned')}</strong></div>
+          {assignmentModalMode === 'core' && (
+            <>
+              <div><span>Typed in project</span><strong>{typedProject}</strong></div>
+              <div><span>Typed in location</span><strong>{typedLocation}</strong></div>
+            </>
+          )}
         </div>
         <div className="outside-candidate-mobile-fields">
           <label>
@@ -1448,21 +1527,12 @@ export default function RecruiterAttendanceSummary() {
             <ProjectDropdown value={projectValue} onSelect={(projectId) => handleProjectSelect(candidateId, projectId)} placeholder="Select project" />
           </label>
           <label>
-            <span>{activeTab === 'written' ? 'District / location' : 'Location'}</span>
+            <span>{isWrittenProject ? 'District' : 'Location'}</span>
             <select className="form-control" value={locationValue} onChange={(event) => handleLocationSelect(candidateId, event.target.value)} disabled={!projectValue || locationOptions.length === 0}>
-              <option value="">Select location</option>
+              <option value="">{isWrittenProject ? 'Select district' : 'Select location'}</option>
               {locationOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
             </select>
           </label>
-          {activeTab === 'written' && (
-            <label>
-              <span>Centre</span>
-              <select className="form-control" value={centreValue} onChange={(event) => handleCentreSelect(candidateId, event.target.value)} disabled={!locationValue || centreOptions.length === 0}>
-                <option value="">Select centre</option>
-                {centreOptions.map((option) => <option key={option.id} value={option.id}>{option.name}</option>)}
-              </select>
-            </label>
-          )}
         </div>
         <div className="outside-candidate-mobile-actions">
           <button type="button" className="attendance-image-button" onClick={() => openImageModal(checkInImage, 'Check-in image', 'Check in')}>
@@ -1477,8 +1547,18 @@ export default function RecruiterAttendanceSummary() {
           {assignment.saved ? (
             <span className="tag tag-green outside-candidate-assigned">Assigned</span>
           ) : (
-            <button type="button" className="btn btn-primary btn-sm outside-candidate-save" disabled={!projectValue || !locationValue || (activeTab === 'written' && !centreValue) || assignment.saving} onClick={() => handleSaveAssignment(candidateId)}>
+            <button type="button" className="btn btn-primary btn-sm outside-candidate-save" disabled={!projectValue || !locationValue || assignment.saving} onClick={() => handleSaveAssignment(candidateId)}>
               {assignment.saving ? 'Saving...' : 'Save assignment'}
+            </button>
+          )}
+          {assignmentModalMode === 'outside' && (
+            <button
+              type="button"
+              className="btn btn-danger btn-sm outside-candidate-reject"
+              disabled={rejectingCandidateId === candidateId}
+              onClick={() => handleRejectOutsideCandidate(candidate)}
+            >
+              {rejectingCandidateId === candidateId ? 'Rejecting...' : 'Reject'}
             </button>
           )}
         </div>
@@ -1616,6 +1696,9 @@ export default function RecruiterAttendanceSummary() {
                 <FontAwesomeIcon icon={faMapMarkerAlt} /> Outside location
               </button>
             )}
+            <button type="button" className="btn btn-outline btn-sm" onClick={handleOpenCoreMembersModal}>
+              <FontAwesomeIcon icon={faUsers} /> Assign core members to projects
+            </button>
           </div>
         )}
       />
@@ -2046,7 +2129,7 @@ export default function RecruiterAttendanceSummary() {
       <Modal
         isOpen={isOutsideModalOpen}
         onClose={handleCloseOutsideModal}
-        title="Assign outside candidates"
+        title={assignmentModalMode === 'core' ? 'Assign core members to projects' : 'Assign outside candidates'}
         maxWidth="1200px"
         footer={(
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 12, width: '100%' }}>
@@ -2139,7 +2222,9 @@ export default function RecruiterAttendanceSummary() {
 
         <div className="projects-table-wrap outside-candidate-table">
           <DataTable
-            columns={activeTab === 'written' ? ['ID', 'Date', 'Candidate', 'Aadhaar', 'Mobile', 'Project', 'Location', 'Centre', 'Clock In', 'Clock Out', 'Check In Image', 'Check Out Image', 'Map', 'Status', 'Action'] : ['ID', 'Date', 'Candidate', 'Aadhaar', 'Mobile', 'Project', 'Location', 'Clock In', 'Clock Out', 'Check In Image', 'Check Out Image', 'Map', 'Status', 'Action']}
+            columns={assignmentModalMode === 'core'
+              ? ['ID', 'Date', 'Candidate', 'Aadhaar', 'Mobile', 'Typed in project', 'Typed in location', 'Project', 'District / Location', 'Clock In', 'Clock Out', 'Check In Image', 'Check Out Image', 'Map', 'Status', 'Action']
+              : ['ID', 'Date', 'Candidate', 'Aadhaar', 'Mobile', 'Project', 'Location', 'Clock In', 'Clock Out', 'Check In Image', 'Check Out Image', 'Map', 'Status', 'Action']}
             rows={isModalLoading ? [] : outsideCandidateRows}
             emptyMessage={isModalLoading ? 'Loading candidates...' : 'No candidates available.'}
           />

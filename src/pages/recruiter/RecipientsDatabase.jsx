@@ -1,5 +1,5 @@
 import { useState, useEffect, useRef } from 'react'
-import { Card, Button, Modal, LoadingOverlay } from '../../components/ui/index'
+import { Card, Button, Modal, LoadingOverlay, EmailMessenger, WhatsAppMessenger } from '../../components/ui/index'
 import { recruiterAPI } from '../../api/axios'
 import { useAlert } from '../../context/AlertContext'
 
@@ -105,6 +105,16 @@ export default function RecipientsDatabase() {
   const [chartTimeframe, setChartTimeframe] = useState('Daily')
   const [selectedDateRange, setSelectedDateRange] = useState('Select Date Range')
   const [drillPath, setDrillPath] = useState('')
+  const [candidateListOpen, setCandidateListOpen] = useState(false)
+  const [candidateList, setCandidateList] = useState([])
+  const [candidateListTotal, setCandidateListTotal] = useState(0)
+  const [candidateListLoading, setCandidateListLoading] = useState(false)
+  const [candidateListError, setCandidateListError] = useState('')
+  const [candidateListPage, setCandidateListPage] = useState(1)
+  const [candidateListPageSize] = useState(10)
+  const [selectedCandidates, setSelectedCandidates] = useState(new Map())
+  const [bulkWhatsAppOpen, setBulkWhatsAppOpen] = useState(false)
+  const [bulkEmailOpen, setBulkEmailOpen] = useState(false)
   const datePickerRef = useRef(null)
   const flatpickrInstance = useRef(null)
 
@@ -146,6 +156,93 @@ export default function RecipientsDatabase() {
   useEffect(() => {
     fetchAllDashboardData(currentParams)
   }, [currentParams])
+
+  useEffect(() => {
+    if (!candidateListOpen) return undefined
+
+    let active = true
+    const loadCandidates = async () => {
+      setCandidateListLoading(true)
+      setCandidateListError('')
+      try {
+        const response = await recruiterAPI.getImportedRecipients({
+          offset: (candidateListPage - 1) * candidateListPageSize,
+          limit: candidateListPageSize,
+        })
+        const data = response?.data?.data || response?.data || {}
+        const items = data.items || data.candidates || data.results || []
+        const total = data.total ?? data.totalCount ?? data.count ?? data.meta?.total ?? items.length
+        if (active) {
+          setCandidateList(Array.isArray(items) ? items : [])
+          setCandidateListTotal(Number(total) || 0)
+        }
+      } catch (loadError) {
+        if (active) {
+          setCandidateList([])
+          setCandidateListTotal(0)
+          setCandidateListError('Unable to load candidate list. Please try again.')
+        }
+      } finally {
+        if (active) setCandidateListLoading(false)
+      }
+    }
+
+    loadCandidates()
+    return () => { active = false }
+  }, [candidateListOpen, candidateListPage, candidateListPageSize])
+
+  const getCandidateId = (candidate) => String(candidate.id ?? candidate.candidate_id ?? candidate.candidateId ?? candidate._id ?? candidate.new_id ?? candidate.newId ?? '')
+  const getCandidateName = (candidate) => String(candidate.name || candidate.full_name || candidate.fullName || candidate.candidate_name || '—')
+  const getCandidateMobile = (candidate) => String(candidate.mobile || candidate.phone || candidate.whatsapp || candidate.mobile_number || candidate.phone_number || '').trim()
+  const getCandidateEmail = (candidate) => String(candidate.email || candidate.email_address || candidate.primary_email || '').trim()
+  const getCandidateAadhaar = (candidate) => String(candidate.aadhaar || candidate.aadhaar_number || candidate.aadhaarNumber || candidate.aadhar || candidate.aadhar_number || candidate.Aadhaar || '—')
+  const selectedCandidateRows = [...selectedCandidates.values()]
+  const selectedWhatsAppRecipients = selectedCandidateRows.filter((candidate) => getCandidateId(candidate) && getCandidateMobile(candidate))
+  const selectedEmailRecipients = selectedCandidateRows.filter((candidate) => getCandidateEmail(candidate))
+  const selectableCandidateRows = candidateList.filter((candidate) => getCandidateId(candidate) && (getCandidateMobile(candidate) || getCandidateEmail(candidate)))
+  const allVisibleCandidatesSelected = selectableCandidateRows.length > 0 && selectableCandidateRows.every((candidate) => selectedCandidates.has(getCandidateId(candidate)))
+
+  const toggleCandidateSelection = (candidate, checked) => {
+    const id = getCandidateId(candidate)
+    if (!id) return
+    setSelectedCandidates((current) => {
+      const next = new Map(current)
+      if (checked) next.set(id, candidate)
+      else next.delete(id)
+      return next
+    })
+  }
+
+  const toggleVisibleCandidates = (checked) => {
+    setSelectedCandidates((current) => {
+      const next = new Map(current)
+      selectableCandidateRows.forEach((candidate) => {
+        const id = getCandidateId(candidate)
+        if (!id) return
+        if (checked) next.set(id, candidate)
+        else next.delete(id)
+      })
+      return next
+    })
+  }
+
+  const handleBulkWhatsAppSend = async ({ templateId, variables }) => {
+    const recipientIds = selectedWhatsAppRecipients.map(getCandidateId)
+    await recruiterAPI.sendWhatsAppMessage({ to: recipientIds, templateId, variables, origin: 'recipient_database_id' })
+    await alert('WhatsApp messages sent (requests queued).')
+    setBulkWhatsAppOpen(false)
+    setSelectedCandidates(new Map())
+  }
+
+  const handleBulkEmailSend = async ({ cc, subject, body, ...attachments }) => {
+    for (const candidate of selectedEmailRecipients) {
+      const to = getCandidateEmail(candidate)
+      await recruiterAPI.sendEmailMessage({ to, cc, subject, body, ...attachments, origin: 'recipient_database_id' })
+    }
+    await alert('Email messages sent.')
+    setBulkEmailOpen(false)
+    setSelectedCandidates(new Map())
+  }
 
   // Automatically fetch suggested field mappings when the mapping modal opens
   useEffect(() => {
@@ -699,6 +796,16 @@ export default function RecipientsDatabase() {
           <div style={{ color: '#5b6e8c', fontSize: '14px', marginTop: '4px' }}>
             Upload candidate data from recruitment portals
           </div>
+          <Button
+            variant="primary"
+            onClick={() => {
+              setCandidateListPage(1)
+              setCandidateListOpen(true)
+            }}
+            style={{ marginTop: 12 }}
+          >
+            Candidate List
+          </Button>
         </div>
 
         <div
@@ -925,7 +1032,7 @@ export default function RecipientsDatabase() {
                       <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flex: 1 }}>
                         <div style={{ background: '#eef2ff', padding: '8px 12px', borderRadius: 8 }}>
                           <div style={{ fontSize: '13px', fontWeight: 600, color: '#1a1f36' }}>{file.name}</div>
-                          <div style={{ fontSize: '12px', color: '#6b7280' }}>{(file.size / 1024).toFixed(1)} KB</div>
+                          <div style={{ fontSize: '12px', color: '#374151' }}>{(file.size / 1024).toFixed(1)} KB</div>
                         </div>
                       </div>
                       <button
@@ -961,7 +1068,7 @@ export default function RecipientsDatabase() {
                   >
                     Download sample CSV
                   </button>
-                  <span style={{ color: '#6b7280', fontSize: '13px' }}>
+                  <span style={{ color: '#374151', fontSize: '13px' }}>
                     Get the expected file format for recipient imports.
                   </span>
                 </div>
@@ -1114,7 +1221,7 @@ export default function RecipientsDatabase() {
           border: none;
           background: transparent;
           border-radius: 6px;
-          color: #5b6e8c;
+          color: #334155;
           cursor: pointer;
           transition: all 0.2s;
         }
@@ -1149,7 +1256,7 @@ export default function RecipientsDatabase() {
         .metric-title {
           font-size: 13px;
           font-weight: 500;
-          color: #5b6e8c;
+          color: #334155;
           text-transform: uppercase;
           letter-spacing: 0.3px;
         }
@@ -1316,6 +1423,130 @@ export default function RecipientsDatabase() {
           </div>
         </div>
       </Modal>
+
+      <Modal
+        isOpen={candidateListOpen}
+        onClose={() => setCandidateListOpen(false)}
+        title="Uploaded Candidate List"
+        maxWidth="1100px"
+        footer={(
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+            <div style={{ color: '#5b6e8c', fontSize: 13 }}>
+              {selectedCandidates.size} selected
+              {selectedWhatsAppRecipients.length !== selectedCandidates.size ? ` · ${selectedWhatsAppRecipients.length} with mobile` : ''}
+              {selectedEmailRecipients.length !== selectedCandidates.size ? ` · ${selectedEmailRecipients.length} with email` : ''}
+            </div>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button variant="secondary" onClick={() => setCandidateListOpen(false)}>Close</Button>
+              <Button
+                variant="secondary"
+                disabled={selectedWhatsAppRecipients.length === 0}
+                onClick={() => {
+                  setBulkWhatsAppOpen(true)
+                }}
+              >
+                Send WhatsApp ({selectedWhatsAppRecipients.length})
+              </Button>
+              <Button
+                variant="primary"
+                disabled={selectedEmailRecipients.length === 0}
+                onClick={() => {
+                  setBulkEmailOpen(true)
+                }}
+              >
+                Send Email ({selectedEmailRecipients.length})
+              </Button>
+            </div>
+          </div>
+        )}
+      >
+        <div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
+            <strong>{candidateListTotal.toLocaleString()} candidates</strong>
+            {candidateListLoading && <span style={{ color: '#5b6e8c' }}>Loading candidates...</span>}
+          </div>
+          {candidateListError && (
+            <div role="alert" style={{ color: '#b42318', padding: '12px 0' }}>{candidateListError}</div>
+          )}
+          <div style={{ maxHeight: '55vh', overflow: 'auto', border: '1px solid #dfe5ef', borderRadius: 8 }}>
+            <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 720 }}>
+              <thead style={{ position: 'sticky', top: 0, background: '#f5f8fc', zIndex: 1 }}>
+                <tr>
+                  <th style={{ padding: 10, textAlign: 'left' }}>
+                    <input
+                      type="checkbox"
+                      aria-label="Select all candidates on this page"
+                      checked={allVisibleCandidatesSelected}
+                      disabled={selectableCandidateRows.length === 0 || candidateListLoading}
+                      onChange={(event) => toggleVisibleCandidates(event.target.checked)}
+                    />
+                  </th>
+                  {['S.No', 'Name', 'Mobile', 'Email', 'Aadhaar'].map((column) => (
+                    <th key={column} style={{ padding: 10, textAlign: 'left', whiteSpace: 'nowrap' }}>{column}</th>
+                  ))}
+                </tr>
+              </thead>
+              <tbody>
+                {candidateListLoading ? (
+                  <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center' }}>Loading candidate records...</td></tr>
+                ) : candidateList.length === 0 ? (
+                  <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#5b6e8c' }}>No candidate records found.</td></tr>
+                ) : candidateList.map((candidate, index) => {
+                  const id = getCandidateId(candidate)
+                  return (
+                    <tr key={id || `${candidateListPage}-${index}`} style={{ borderTop: '1px solid #e8edf4' }}>
+                      <td style={{ padding: 10 }}>
+                        <input
+                          type="checkbox"
+                          aria-label={`Select ${getCandidateName(candidate)}`}
+                          checked={Boolean(id && selectedCandidates.has(id))}
+                          disabled={!id || (!getCandidateMobile(candidate) && !getCandidateEmail(candidate))}
+                          onChange={(event) => toggleCandidateSelection(candidate, event.target.checked)}
+                        />
+                      </td>
+                      <td style={{ padding: 10 }}>{(candidateListPage - 1) * candidateListPageSize + index + 1}</td>
+                      <td style={{ padding: 10 }}>{getCandidateName(candidate)}</td>
+                      <td style={{ padding: 10, whiteSpace: 'nowrap' }}>{getCandidateMobile(candidate) || '—'}</td>
+                      <td style={{ padding: 10 }}>{getCandidateEmail(candidate) || '—'}</td>
+                      <td style={{ padding: 10, whiteSpace: 'nowrap' }}>{getCandidateAadhaar(candidate)}</td>
+                    </tr>
+                  )
+                })}
+              </tbody>
+            </table>
+          </div>
+          <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: 12, gap: 12 }}>
+            <span style={{ color: '#5b6e8c', fontSize: 13 }}>
+              Showing {candidateListTotal === 0 ? 0 : (candidateListPage - 1) * candidateListPageSize + 1}–{Math.min(candidateListPage * candidateListPageSize, candidateListTotal)} of {candidateListTotal}
+            </span>
+            <div style={{ display: 'flex', gap: 8 }}>
+              <Button variant="secondary" disabled={candidateListPage <= 1 || candidateListLoading} onClick={() => setCandidateListPage((page) => page - 1)}>Previous</Button>
+              <Button variant="secondary" disabled={candidateListPage * candidateListPageSize >= candidateListTotal || candidateListLoading} onClick={() => setCandidateListPage((page) => page + 1)}>Next</Button>
+            </div>
+          </div>
+        </div>
+      </Modal>
+
+      <WhatsAppMessenger
+        isOpen={bulkWhatsAppOpen}
+        recipients={selectedWhatsAppRecipients.map((candidate) => ({
+          id: getCandidateId(candidate),
+          name: getCandidateName(candidate),
+          phone: getCandidateMobile(candidate),
+        }))}
+        onClose={() => setBulkWhatsAppOpen(false)}
+        onSend={handleBulkWhatsAppSend}
+      />
+      <EmailMessenger
+        isOpen={bulkEmailOpen}
+        recipients={selectedEmailRecipients.map((candidate) => ({
+          id: getCandidateId(candidate),
+          name: getCandidateName(candidate),
+          email: getCandidateEmail(candidate),
+        }))}
+        onClose={() => setBulkEmailOpen(false)}
+        onSend={handleBulkEmailSend}
+      />
     </div>
   )
 }

@@ -16,6 +16,14 @@ const ISSUE_CATEGORIES = [
   'Other'
 ]
 
+const CORE_ISSUE_CATEGORIES = [
+  'Attendance',
+  'Expenses',
+  'Fooding',
+  'Salary Delay',
+  'OT Issue'
+]
+
 const AADHAAR_REQUIRED_CATEGORIES = [
   'Payment / Payout Issue',
   'Attendance Correction',
@@ -51,6 +59,12 @@ export default function SupportRequestModal({ isOpen, onClose, variant = 'modal'
   const [centreLoading, setCentreLoading] = useState(false)
   const [success, setSuccess] = useState(false)
   const { alert } = useAlert()
+
+  const routeQuery = window.location.hash.includes('?')
+    ? window.location.hash.slice(window.location.hash.indexOf('?') + 1)
+    : window.location.search.slice(1)
+  const isCoreRole = new URLSearchParams(routeQuery).get('role')?.toLowerCase() === 'core'
+  const issueCategories = isCoreRole ? CORE_ISSUE_CATEGORIES : ISSUE_CATEGORIES
 
   const isAadhaarRequired = AADHAAR_REQUIRED_CATEGORIES.includes(form.category)
 
@@ -309,10 +323,14 @@ export default function SupportRequestModal({ isOpen, onClose, variant = 'modal'
     try {
       const formData = new FormData()
       Object.entries(form).forEach(([key, value]) => {
+        if (isCoreRole && key === 'centre') return
         if (value !== undefined && value !== null) {
           formData.append(key, value)
         }
       })
+      if (isCoreRole) {
+        formData.append('role', 'core')
+      }
       files.forEach((file, index) => {
         formData.append(`attachments[${index}]`, file)
       })
@@ -342,7 +360,7 @@ export default function SupportRequestModal({ isOpen, onClose, variant = 'modal'
           <FormField label="Issue Category">
             <select name="category" className="form-control" value={form.category} onChange={handleChange} required>
               <option value="">Select a category</option>
-              {ISSUE_CATEGORIES.map(cat => <option key={cat} value={cat}>{cat}</option>)}
+              {issueCategories.map(cat => <option key={cat} value={cat}>{cat}</option>)}
             </select>
           </FormField>
 
@@ -422,7 +440,7 @@ export default function SupportRequestModal({ isOpen, onClose, variant = 'modal'
             )}
           </div>
 
-          {form.projectType === 'written' && (
+          {form.projectType === 'written' && !isCoreRole && (
             <FormField label="Centre">
               <select
                 name="centre"

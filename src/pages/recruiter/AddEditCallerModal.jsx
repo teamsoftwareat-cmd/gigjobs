@@ -670,7 +670,7 @@ export default function AddEditCallerModal({ isOpen, onClose, onSaved, initialDa
           <input name="email" type="email" className="form-control" value={form.email} onChange={handleChange} disabled={loading || callerDetailsLoading} />
         </FormField>
 
-        {callerDetailsLoading && <div style={{ textAlign: 'center', padding: '10px', color: '#666' }}>Loading caller details...</div>}
+        {callerDetailsLoading && <div style={{ textAlign: 'center', padding: '10px', color: '#374151' }}>Loading caller details...</div>}
 
         <FormField label="Project Assignments">
           <div style={{ border: '1px solid #ddd', borderRadius: '4px', padding: '12px' }}>
@@ -839,7 +839,7 @@ export default function AddEditCallerModal({ isOpen, onClose, onSaved, initialDa
                 )}
 
                 {(pl.project && ((pl.projectType === 'written' && pl.district && pl.centre) || (pl.projectType !== 'written' && pl.location))) && (
-                  <div style={{ fontSize: '12px', color: '#666', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
+                  <div style={{ fontSize: '12px', color: '#374151', display: 'flex', alignItems: 'center', justifyContent: 'space-between'}}>
                     <div>
                       Available Recipients: <strong>{pl.recipientCount}</strong> |
                       Allocated Recipients: <strong style={{ color: '#007bff' }}>{pl.allocatedRecipients.length}</strong>

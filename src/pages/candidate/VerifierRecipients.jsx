@@ -1037,7 +1037,7 @@ export default function VerifierRecipients({ initialState, registrationIdOverrid
               )}
             </div>
             <div style={{ marginTop: 6, fontSize: 18, fontWeight: 700 }}>{maskMobile(mobileRaw)}</div>
-            <div style={{ marginTop: 6, fontSize: 13, color: '#6b7280' }}>{aadhaar ? maskAadhaar(aadhaar) : ''}</div>
+            <div style={{ marginTop: 6, fontSize: 13, color: '#374151' }}>{aadhaar ? maskAadhaar(aadhaar) : ''}</div>
           </div>
           <div className="verifier-card-right">
             <div className="verifier-card-status-row">
@@ -1964,7 +1964,7 @@ export default function VerifierRecipients({ initialState, registrationIdOverrid
         .dialer-recipient-counter .counter-total {
           font-size: 18px;
           font-weight: 600;
-          color: #6b7280;
+          color: #374151;
         }
         
         .dialer-topbar {
@@ -2094,7 +2094,7 @@ export default function VerifierRecipients({ initialState, registrationIdOverrid
 
         .dialer-subtitle {
           font-size: 13px;
-          color: #6b7280;
+          color: #374151;
           margin-top: 4px;
         }
         
@@ -2123,7 +2123,7 @@ export default function VerifierRecipients({ initialState, registrationIdOverrid
         
         .dialer-field-title {
           font-size: 11px;
-          color: #9ca3af;
+          color: #1F2937;
           font-weight: 600;
           text-transform: uppercase;
           letter-spacing: 0.05em;
@@ -2182,7 +2182,7 @@ export default function VerifierRecipients({ initialState, registrationIdOverrid
         }
 
         .dialer-status-control:hover {
-          border-color: #94a3b8;
+          border-color: #475569;
           background: #f8fafc;
         }
 
@@ -2329,7 +2329,7 @@ export default function VerifierRecipients({ initialState, registrationIdOverrid
         
         .dialer-nav-btn:hover:not(:disabled) {
           background: #f3f4f6;
-          border-color: #9ca3af;
+          border-color: #475569;
         }
         
         .dialer-nav-btn:disabled {
@@ -2392,7 +2392,7 @@ export default function VerifierRecipients({ initialState, registrationIdOverrid
           display: flex;
           flex-direction: column;
           gap: 4px;
-          color: #475569;
+          color: #1F2937;
           font-size: 13px;
         }
 
@@ -2507,7 +2507,7 @@ export default function VerifierRecipients({ initialState, registrationIdOverrid
         
         .candidate-calling-page .detail-label {
           font-size: 11px;
-          color: #9ca3af;
+          color: #1F2937;
           font-weight: 500;
           text-transform: uppercase;
           letter-spacing: 0.02em;
@@ -2583,7 +2583,7 @@ export default function VerifierRecipients({ initialState, registrationIdOverrid
         }
 
         .candidate-calling-page .compact-card-status-control:hover {
-          border-color: #94a3b8;
+          border-color: #475569;
           background: #f8fafc;
         }
 

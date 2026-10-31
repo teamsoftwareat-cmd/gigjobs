@@ -67,7 +67,10 @@ export function EmailMessenger({
   // The `onSend` function in SupportTickets.jsx will handle adding templateId and variables if needed.
 
   const handleSend = async () => {
-    if (!recipientEmail?.trim()) {
+    const recipientEmails = recipients
+      .map((recipient) => String(recipient.email || recipient.email_address || '').trim())
+      .filter(Boolean)
+    if (!recipientEmail?.trim() && recipientEmails.length === 0) {
       return alert('Recipient email is required.')
     }
     if (!currentSubject.trim() || !currentBody.trim()) {
@@ -78,7 +81,7 @@ export function EmailMessenger({
       setSending(true)
       try {
         const payload = {
-          to: recipientEmail, // Assuming single recipient for simplicity, or handle multiple in onSend
+          to: recipientEmail || recipientEmails.join(', '),
           cc: cc.trim(),
           subject: currentSubject.trim(),
           body: currentBody.trim(),

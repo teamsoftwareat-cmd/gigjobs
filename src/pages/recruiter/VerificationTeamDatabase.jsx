@@ -645,7 +645,7 @@ export default function VerificationTeamDatabase() {
                       borderRadius: '8px',
                       border: '1px solid #cbd5e1',
                       background: offset === 0 ? '#f8fafc' : '#ffffff',
-                      color: offset === 0 ? '#94a3b8' : '#0f172a',
+                      color: offset === 0 ? '#475569' : '#0f172a',
                       cursor: offset === 0 ? 'not-allowed' : 'pointer'
                     }}
                   >
@@ -663,7 +663,7 @@ export default function VerificationTeamDatabase() {
                       borderRadius: '8px',
                       border: '1px solid #cbd5e1',
                       background: currentPage >= totalPages ? '#f8fafc' : '#ffffff',
-                      color: currentPage >= totalPages ? '#94a3b8' : '#0f172a',
+                      color: currentPage >= totalPages ? '#475569' : '#0f172a',
                       cursor: currentPage >= totalPages ? 'not-allowed' : 'pointer'
                     }}
                   >

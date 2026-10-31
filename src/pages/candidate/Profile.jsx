@@ -1103,7 +1103,7 @@ const styles = {
   grid2:        { display:'grid', gridTemplateColumns:'repeat(auto-fill,minmax(280px,1fr))', gap:'0 24px', overflow:'visible' },
   label:        { display:'block', fontSize:12, fontWeight:600, color:'#475569', marginBottom:5, textTransform:'uppercase', letterSpacing:'0.04em' },
   fieldError:   { fontSize:12, color:'#ef4444', marginTop:4 },
-  fieldHint:    { fontSize:11, color:'#94a3b8', marginTop:4 },
+  fieldHint:    { fontSize:11, color:'#475569', marginTop:4 },
   chips:        { display:'flex', flexWrap:'wrap', gap:8, marginTop:6 },
   chip:         { padding:'6px 14px', borderRadius:20, border:'1.5px solid #e2e8f0', fontSize:13, color:'#64748b', cursor:'pointer', userSelect:'none' },
   chipActive:   { padding:'6px 14px', borderRadius:20, border:'1.5px solid #0E7C86', background:'#e6f6f7', fontSize:13, color:'#0E7C86', fontWeight:600, cursor:'pointer', display:'inline-flex', alignItems:'center', userSelect:'none' },
@@ -1116,7 +1116,7 @@ const styles = {
   maskedValue:  { display:'flex', alignItems:'center', gap:12, padding:'9px 12px', borderRadius:8, background:'#f9fafb', border:'1.5px solid #e5e8eb', fontSize:14, justifyContent:'space-between' },
   showHideBtn:  { background:'none', border:'none', color:'#0E7C86', cursor:'pointer', fontSize:12, fontWeight:600, display:'flex', alignItems:'center', gap:4 },
   fullAadhaar:  { marginTop:8, fontSize:13, color:'#1f2937', fontWeight:500, padding:'8px 12px', background:'#e6f6f7', borderRadius:6, display:'inline-block' },
-  emptyHint:    { fontSize:13, color:'#94a3b8', fontStyle:'italic' },
+  emptyHint:    { fontSize:13, color:'#475569', fontStyle:'italic' },
   separator:    { height:1, background:'#e2e8f0', margin:'20px 0' },
   warningBox:   { background:'#FEF3C7', borderRadius:8, padding:'12px 16px', display:'flex', alignItems:'center', flexWrap:'wrap' },
 }

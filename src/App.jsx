@@ -1,11 +1,13 @@
-import { HashRouter, Routes, Route, Navigate, useLocation } from 'react-router-dom'
+import { HashRouter, Routes, Route, Navigate, useLocation, useNavigate } from 'react-router-dom'
 import { useEffect, useState } from 'react'
+import { installTableSelectionGestures } from './utils/tableSelectionGestures'
 import { AuthProvider, useAuth } from './context/AuthContext'
 import { ThemeProvider } from './context/ThemeContext'
 import { AlertProvider } from './context/AlertContext'
 
 import Landing from './pages/Landing'
 import InternalLanding from './pages/InternalLanding'
+import PublicProjectApplication from './pages/PublicProjectApplication'
 import AppLayout from './components/layout/AppLayout'
 import RegistrationPage from './components/Registration/RegistrationPage'
 import GlobalToastProvider from './components/Common/GlobalToastProvider'
@@ -22,6 +24,7 @@ import CandidateAttendance from './pages/attendance/Attendance'
 import KYCverify from './pages/attendance/KYCverify'
 import AadhaarUpload from './pages/attendance/AadhaarUpload'
 import PoliceInfo from './pages/attendance/PoliceInfo'
+import CoreAttendance from './pages/attendance/CoreAttendance'
 import CandidateAttendanceSummary from './pages/candidate/AttendanceSummary'
 import CandidateAttendanceDetails from './pages/candidate/Attendance'
 import CandidateCallingProjects from './pages/candidate/CallingProjects'
@@ -38,13 +41,17 @@ import CandidateDatabase from './pages/recruiter/CandidateDatabase'
 import CandidateInfo from './pages/recruiter/CandidateInfo'
 import RecruiterAttendanceSummary from './pages/recruiter/AttendanceSummary'
 import RecruiterAttendanceDetails from './pages/recruiter/AttendanceData'
+import CoreTeamAttendance from './pages/recruiter/CoreTeamAttendance'
 import RecruiterPaymentSheet from './pages/recruiter/PaymentSheet'
+import RecruiterPaymentsNew from './pages/recruiter/PaymentsNew'
 import { RecruiterDashboard, RecruiterCandidates } from './pages/recruiter/index'
 import { SupportTickets } from './pages/recruiter/SupportTickets'
 import RecruiterProjects from './pages/recruiter/Projects'
+import ProjectFormBuilder from './pages/recruiter/ProjectFormBuilder'
 import ProjectStats from './pages/recruiter/ProjectStats'
 import Campaigns from './pages/recruiter/Campaigns'
 import CallingTeam from './pages/recruiter/CallingTeam'
+import AddCandidates from './pages/recruiter/AddCandidates'
 import RecipientsDatabase from './pages/recruiter/RecipientsDatabase'
 import VerificationTeamList from './pages/recruiter/VerificationTeamList'
 import VerificationTeamDatabase from './pages/recruiter/VerificationTeamDatabase'
@@ -54,12 +61,15 @@ import ValidCandidate from './pages/recruiter/validCandidate'
 import InvalidCandidate from './pages/recruiter/invalidCandidate'
 import RegistrationKycStatus from './pages/attendance/RegistrationKycStatus'
 import Expenses from './pages/recruiter/Expenses'
+import TimingExpensesView from './pages/recruiter/timingexpenses'
 import CheckKYC from './pages/recruiter/CheckKYC'
 import DocumentExportHistory from './pages/recruiter/DocumentExportHistory'
 import RecruiterAttendanceApprovals from './pages/recruiter/AttendanceApprovals'
-import RecruiterApplications from './pages/recruiter/Applications'
+import ApplicationsNew from './pages/recruiter/ApplicationsNew'
 import FaceMatching from './pages/recruiter/FaceSearch'
 import Certifications from './pages/recruiter/Certifications'
+import FaceEnroll from './pages/attendance/FaceEnroll'
+import RequestAttendance from './pages/attendance/RequestAttendance'
 
 /* Client */
 import { ClientDashboard, ClientAttendance } from './pages/client/index'
@@ -93,6 +103,7 @@ function ProtectedRoute({ children }) {
 
 function AppRoutes({ showToast }) {
   const { authChecked } = useAuth()
+  const navigate = useNavigate()
 
   if (!authChecked) {
     return null
@@ -103,12 +114,18 @@ function AppRoutes({ showToast }) {
       {/* Landing */}
       <Route path="/" element={<MaintenanceGate enabled={false}><Landing /></MaintenanceGate>} />
       <Route path="/internal" element={<MaintenanceGate enabled={false}><InternalLanding /></MaintenanceGate>} />
+      <Route path="/apply/:projectId" element={<PublicProjectApplication />} />
       <Route path="/register" element={<MaintenanceGate enabled={false}><RegistrationPage showToast={showToast} /></MaintenanceGate>} />
       <Route path="/attendance" element={<MaintenanceGate enabled={false}><CandidateAttendance /></MaintenanceGate>} />
       <Route path="/attendance/kycverify" element={<MaintenanceGate enabled={false}><KYCverify /></MaintenanceGate>} />
       <Route path="/attendance/aadhaar-upload" element={<MaintenanceGate enabled={false}><AadhaarUpload /></MaintenanceGate>} />
       <Route path="/attendance/police-info" element={<MaintenanceGate enabled={false}><PoliceInfo /></MaintenanceGate>} />
       <Route path="/attendance/registration-kyc-status" element={<MaintenanceGate enabled={false}><RegistrationKycStatus /></MaintenanceGate>} />
+      <Route path="/attendance/core-attendance" element={<MaintenanceGate enabled={false}><CoreAttendance /></MaintenanceGate>} />
+      <Route path="/attendance/coreattendance" element={<MaintenanceGate enabled={false}><CoreAttendance /></MaintenanceGate>} />
+      <Route path="/attendance/face-enroll" element={<MaintenanceGate enabled={false}><FaceEnroll /></MaintenanceGate>} />
+      <Route path="/attendance/faceenroll" element={<MaintenanceGate enabled={false}><FaceEnroll /></MaintenanceGate>} />
+      <Route path="/attendance/request" element={<MaintenanceGate enabled={false}><RequestAttendance /></MaintenanceGate>} />
       <Route path="/support-request" element={<SupportRequestModal variant="page" onClose={() => window.history.back()} />} />
 
       {/* App Shell — all dashboard routes */}
@@ -135,11 +152,14 @@ function AppRoutes({ showToast }) {
         <Route path="recruiter/dashboard" element={<MaintenanceGate enabled={false}><RecruiterDashboard /></MaintenanceGate>} />
         <Route path="recruiter/attendance" element={<MaintenanceGate enabled={false}><RecruiterAttendanceSummary /></MaintenanceGate>} />
         <Route path="recruiter/attendance/details" element={<MaintenanceGate enabled={false}><RecruiterAttendanceDetails /></MaintenanceGate>} />
+        <Route path="recruiter/core-team-attendance" element={<MaintenanceGate enabled={false}><CoreTeamAttendance /></MaintenanceGate>} />
         <Route path="recruiter/attendance/payment" element={<MaintenanceGate enabled={false}><RecruiterPaymentSheet /></MaintenanceGate>} />
+        <Route path="recruiter/projects/:projectId/form-builder" element={<MaintenanceGate enabled={false}><ProjectFormBuilder /></MaintenanceGate>} />
         <Route path="recruiter/projects" element={<MaintenanceGate enabled={false}><RecruiterProjects /></MaintenanceGate>} />
         <Route path="recruiter/campaigns" element={<MaintenanceGate enabled={false}><Campaigns /></MaintenanceGate>} />
         <Route path="recruiter/project-stats" element={<MaintenanceGate enabled={false}><ProjectStats /></MaintenanceGate>} />
         <Route path="recruiter/calling-team/list" element={<MaintenanceGate enabled={false}><CallingTeam /></MaintenanceGate>} />
+        <Route path="recruiter/calling-team/add-candidates" element={<MaintenanceGate enabled={false}><AddCandidates /></MaintenanceGate>} />
         <Route path="recruiter/calling-team/recipients" element={<MaintenanceGate enabled={false}><RecipientsDatabase /></MaintenanceGate>} />
         <Route path="recruiter/verification-team/list" element={<MaintenanceGate enabled={false}><VerificationTeamList /></MaintenanceGate>} />
         <Route path="recruiter/verification-team/recipients" element={<MaintenanceGate enabled={false}><VerificationTeamDatabase /></MaintenanceGate>} />
@@ -155,7 +175,8 @@ function AppRoutes({ showToast }) {
         <Route path="recruiter/check-kyc" element={<MaintenanceGate enabled={false}><CheckKYC /></MaintenanceGate>} />
         <Route path="recruiter/document-history" element={<MaintenanceGate enabled={false}><DocumentExportHistory /></MaintenanceGate>} />
         <Route path="recruiter/expenses" element={<MaintenanceGate enabled={false}><Expenses /></MaintenanceGate>} />
-        <Route path="recruiter/applications" element={<MaintenanceGate enabled={false}><RecruiterApplications /></MaintenanceGate>} />
+        <Route path="recruiter/timing-expenses" element={<MaintenanceGate enabled={false}><TimingExpensesView onSwitchToGigjobs={() => navigate('/app/recruiter/expenses')} /></MaintenanceGate>} />
+        <Route path="recruiter/applications" element={<MaintenanceGate enabled={false}><ApplicationsNew /></MaintenanceGate>} />
         <Route path="recruiter/certifications" element={<MaintenanceGate enabled={false}><Certifications /></MaintenanceGate>} />
         <Route path="recruiter/face-matching" element={<MaintenanceGate enabled={false}><FaceMatching /></MaintenanceGate>} />
 
@@ -173,6 +194,7 @@ function AppRoutes({ showToast }) {
 
         {/* Recruiter Payments */}
         <Route path="recruiter/payments" element={<MaintenanceGate enabled={false}><RecruiterPayments /></MaintenanceGate>} />
+        <Route path="recruiter/payments-new" element={<MaintenanceGate enabled={false}><RecruiterPaymentsNew /></MaintenanceGate>} />
 
         {/* Default redirect */}
         <Route index element={<Navigate to="candidate/dashboard" replace />} />
@@ -185,6 +207,8 @@ function AppRoutes({ showToast }) {
 }
 
 export default function App() {
+  useEffect(() => installTableSelectionGestures(), [])
+
   const showToast = (icon, message) => {
     // Dispatch event to GlobalToastProvider instead of using local state
     window.dispatchEvent(new CustomEvent('apiMessage', {

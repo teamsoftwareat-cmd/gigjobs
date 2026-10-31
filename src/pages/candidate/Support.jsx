@@ -1,4 +1,4 @@
-﻿import React, { useEffect, useState } from 'react'
+import React, { useEffect, useState } from 'react'
 import { useAuth } from '../../context/AuthContext'
 import { useAlert } from '../../context/AlertContext'
 import { PageHeader, FormField, Button, Modal } from '../../components/ui'
@@ -17,6 +17,14 @@ const ISSUE_CATEGORIES = [
   'Invoice / Billing (Client)',
   'Worker Performance (Client)',
   'Other'
+]
+
+const CORE_ISSUE_CATEGORIES = [
+  'Attendance',
+  'Expenses',
+  'Fooding',
+  'Salary Delay',
+  'OT Issue'
 ]
 
 const AADHAAR_REQUIRED_CATEGORIES = [
@@ -61,6 +69,11 @@ export default function CandidateSupportPage() {
   const [selectedTicket, setSelectedTicket] = useState(null)
   const [ticketDetailLoading, setTicketDetailLoading] = useState(false)
 
+  const routeQuery = window.location.hash.includes('?')
+    ? window.location.hash.slice(window.location.hash.indexOf('?') + 1)
+    : window.location.search.slice(1)
+  const isCoreRole = new URLSearchParams(routeQuery).get('role')?.toLowerCase() === 'core'
+  const issueCategories = isCoreRole ? CORE_ISSUE_CATEGORIES : ISSUE_CATEGORIES
   const registrationId = user?.registrationId || user?.registration_id || user?.id || user?.candidateId
 
   const normalizeOptionList = (rawList) =>
@@ -404,6 +417,9 @@ export default function CandidateSupportPage() {
       if (user?.registrationId) {
         formData.append('registration_id', user.registrationId)
       }
+      if (isCoreRole) {
+        formData.append('role', 'core')
+      }
       files.forEach((file, index) => {
         formData.append(`attachments[${index}]`, file)
       })
@@ -491,7 +507,7 @@ export default function CandidateSupportPage() {
                     required
                   >
                     <option value="">Select a category</option>
-                    {ISSUE_CATEGORIES.map((cat) => (
+                    {issueCategories.map((cat) => (
                       <option key={cat} value={cat}>{cat}</option>
                     ))}
                   </select>
@@ -608,7 +624,7 @@ export default function CandidateSupportPage() {
                   )}
                 </div>
 
-                {form.projectType === 'written' && (
+                {form.projectType === 'written' && !isCoreRole && (
                   <FormField label="Centre">
                     <select
                       name="centre"
@@ -665,7 +681,7 @@ export default function CandidateSupportPage() {
 
         <div style={{ marginBottom: 16, display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
           <h2 style={{ margin: 0, fontSize: '18px' }}>Previous Support Tickets</h2>
-          <span style={{ color: '#6b7280' }}>{tickets.length} ticket{tickets.length === 1 ? '' : 's'}</span>
+          <span style={{ color: '#374151' }}>{tickets.length} ticket{tickets.length === 1 ? '' : 's'}</span>
         </div>
 
         <div style={{ border: '1px solid #e5e7eb', borderRadius: 12, overflowX: 'auto' }}>

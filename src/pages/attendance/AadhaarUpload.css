@@ -52,7 +52,7 @@
 .aadhaar-card-header p {
   margin: 0;
   font-size: 15px;
-  color: #475569;
+  color: #1F2937;
   max-width: 560px;
 }
 
@@ -93,7 +93,7 @@
   font-size: 12px;
   font-weight: 700;
   text-transform: uppercase;
-  color: #475569;
+  color: #1F2937;
   letter-spacing: 0.04em;
   margin-bottom: 8px;
 }
@@ -149,7 +149,7 @@
   border-radius: 14px;
   background: #fff;
   border: 1px solid #e2e8f0;
-  color: #475569;
+  color: #1F2937;
   min-height: 88px;
 }
 

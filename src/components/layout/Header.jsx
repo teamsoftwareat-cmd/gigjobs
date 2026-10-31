@@ -2,7 +2,6 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faMoon, faSun, faBars } from '@fortawesome/free-solid-svg-icons'
 import { useTheme } from '../../context/ThemeContext'
 import { useAuth } from '../../context/AuthContext'
-import NotificationDropdown from '../ui/NotificationDropdown'
 
 export default function Header({ title, subtitle, onMenuClick }) {
   const { theme, toggleTheme } = useTheme()
@@ -19,8 +18,6 @@ export default function Header({ title, subtitle, onMenuClick }) {
       </div>
 
       <div className="header-actions">
-        <NotificationDropdown />
-
         <div className="icon-btn" onClick={toggleTheme} title="Toggle dark mode">
           <FontAwesomeIcon icon={theme === 'dark' ? faSun : faMoon} />
         </div>

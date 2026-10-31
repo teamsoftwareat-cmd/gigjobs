@@ -13,6 +13,7 @@ const PAGE_TITLES = {
   '/app/candidate/verifier': ['Verifier Projects', 'View your verifier assignments'],
   '/app/recruiter/dashboard': ['Recruiter Dashboard', 'Operations Overview'],
   '/app/recruiter/attendance': ['Attendance Records', 'Recruiter Operations'],
+  '/app/recruiter/timing-expenses': ['Timing Expenses', 'Recruiter Operations'],
   '/app/recruiter/applications': ['Applications', 'Recruiter Module'],
   '/app/recruiter/calling-team/recipients': ['Recipients Database', 'Manage call recipients'],
   '/app/recruiter/verification-team/list': ['Verification Team List', 'Manage your verification team'],

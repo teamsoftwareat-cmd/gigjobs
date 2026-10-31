@@ -216,7 +216,7 @@ export function WhatsAppMessenger({
                 <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
                   {selectedTemplateName || 'Choose a template...'}
                 </span>
-                <FontAwesomeIcon icon={isDropdownOpen ? faChevronUp : faChevronDown} style={{ fontSize: '12px', color: '#6b7280' }} />
+                <FontAwesomeIcon icon={isDropdownOpen ? faChevronUp : faChevronDown} style={{ fontSize: '12px', color: '#374151' }} />
               </div>
               
               {isDropdownOpen && (
@@ -271,7 +271,7 @@ export function WhatsAppMessenger({
                         </div>
                       ))
                     ) : (
-                      <div style={{ padding: '12px', color: '#9ca3af', fontSize: '14px', textAlign: 'center' }}>No templates found</div>
+                      <div style={{ padding: '12px', color: '#475569', fontSize: '14px', textAlign: 'center' }}>No templates found</div>
                     )}
                   </div>
                 </div>

@@ -1233,7 +1233,7 @@ export default function CallingRecipients({ initialState, useRecruiterApi = fals
       parsedDate.date,
       parsedDate.time,
       <span
-        style={{ cursor: 'pointer', textDecoration: 'underline', color: r.status ? '#666' : '#999' }}
+        style={{ cursor: 'pointer', textDecoration: 'underline', color: r.status ? '#374151' : '#4B5563' }}
         onClick={() => handleOpenStatusModal(r)}
         title="Click to update status"
       >

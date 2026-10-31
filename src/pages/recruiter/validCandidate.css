@@ -27,11 +27,11 @@
   gap: 8px;
 }
 
-.filter-search-icon { color: #6b7280; }
+.filter-search-icon { color: #374151; }
 
 .date-group { display: flex; align-items: center; gap: 8px; }
-.filter-label { font-size: 12px; color: #6b7280; margin-right: 8px; }
-.date-separator { margin: 0 8px; color: #6b7280; }
+.filter-label { font-size: 12px; color: #374151; margin-right: 8px; }
+.date-separator { margin: 0 8px; color: #374151; }
 
 .projects-table-meta { display: flex; align-items: center; gap: 12px; }
 .entries-selector label { display: block; font-size: 12px; margin-bottom: 4px; }

@@ -246,7 +246,7 @@ export default function LoginModal({ onClose }) {
                 </button>
               </div>
 
-              <div style={{ marginTop: '14px', fontSize: '12px', color: '#9ca3af' }}>
+              <div style={{ marginTop: '14px', fontSize: '12px', color: '#475569' }}>
                 {resendTimer > 0 ? (
                   <>Resend OTP in {resendTimer}s</>
                 ) : (

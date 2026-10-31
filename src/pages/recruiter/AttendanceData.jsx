@@ -2,11 +2,12 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faSearch, faMapMarkerAlt, faDownload, faFileExcel, faFilePdf, faFileArchive, faChevronDown, faChevronUp, faCalculator, faUsers, faTimesCircle, faTimes, faFileCsv, faShieldAlt } from '@fortawesome/free-solid-svg-icons'
-import { recruiterAPI } from '../../api/axios'
+import { recruiterAPI, coreRecruiterAPI } from '../../api/axios'
 import { PageHeader, Card, DataTable, Tag, StatCard, Modal, EmailMessenger, WhatsAppMessenger } from '../../components/ui'
 import { AttendanceBarChart, CentresAttendanceChart } from '../../components/ui/Charts'
 import { MapModal } from '../../components/ui/MapModal'
 import { ImageModal } from '../../components/ui/ImageModal'
+import SearchableProjectSelect from '../../components/ui/SearchableProjectSelect'
 import { useAlert } from '../../context/AlertContext'
 import * as XLSX from 'xlsx'
 import jsPDF from 'jspdf'
@@ -16,9 +17,19 @@ import { saveAs } from 'file-saver'
 import { useAuth } from '../../context/AuthContext'
 import './AttendanceData.css'
 import './AttendanceDataMobile.css'
+import XLSXStyle from 'xlsx-js-style'
 
 const LIMIT_OPTIONS = [10, 25, 50, 100, 250, 500]
 const NO_IMAGE_PLACEHOLDER = 'https://cdn-icons-png.flaticon.com/512/149/149071.png'
+const STATIC_CORE_PROJECT_OPTIONS = [{ id: 'Home', name: 'Home' }, { id: 'Travel', name: 'Travel' }]
+const STATIC_CORE_PROJECT_IDS = new Set(STATIC_CORE_PROJECT_OPTIONS.map((project) => project.id.toLowerCase()))
+const getLocalDateInputValue = () => {
+  const now = new Date()
+  const year = now.getFullYear()
+  const month = String(now.getMonth() + 1).padStart(2, '0')
+  const day = String(now.getDate()).padStart(2, '0')
+  return `${year}-${month}-${day}`
+}
 const REJECTION_TEMPLATES = [
   'Inappropriate photo',
   'Bad lighting',
@@ -35,10 +46,22 @@ const statusVariant = (status) => {
   if (normalized === 'absent') return 'red'
   return 'gray'
 }
+const getAttendanceExportValue = (record, keys, fallback = '') => {
+  for (const key of keys) {
+    if (record?.[key] !== undefined && record?.[key] !== null && record?.[key] !== '') return record[key]
+  }
+  return fallback
+}
 
 
-export default function RecruiterAttendance() {
+export default function RecruiterAttendance({ forcedAttendanceMode = '', attendanceVariant = '', pageTitle = '', headerActions = null, hideSummary = false, topContent = null, onAttendanceFiltersChange = null, hideBackToSummary = false }) {
   const { user } = useAuth()
+  const [attendanceMode, setAttendanceMode] = useState(() => {
+    if (forcedAttendanceMode) return forcedAttendanceMode
+    if (typeof window === 'undefined') return 'consultant'
+    return window.localStorage.getItem('recruiter-attendance-mode') || 'consultant'
+  })
+  const attendanceAPI = attendanceMode === 'core' ? coreRecruiterAPI : recruiterAPI
   const [attendance, setAttendance] = useState([])
   const [total, setTotal] = useState(0)
   const [search, setSearch] = useState('')
@@ -46,8 +69,9 @@ export default function RecruiterAttendance() {
   const [selectedLocationId, setSelectedLocationId] = useState('')
   const [selectedDistrictId, setSelectedDistrictId] = useState('')
   const [selectedCentreId, setSelectedCentreId] = useState('')
-  const [fromDate, setFromDate] = useState('')
-  const [toDate, setToDate] = useState('')
+  const [projectOptions, setProjectOptions] = useState([])
+  const [fromDate, setFromDate] = useState(() => forcedAttendanceMode === 'core' ? getLocalDateInputValue() : '')
+  const [toDate, setToDate] = useState(() => forcedAttendanceMode === 'core' ? getLocalDateInputValue() : '')
   const [locationOptions, setLocationOptions] = useState([])
   const [districtOptions, setDistrictOptions] = useState([])
   const [centreOptions, setCentreOptions] = useState([])
@@ -107,7 +131,7 @@ export default function RecruiterAttendance() {
   const [modifiedPdfClockOutFallback, setModifiedPdfClockOutFallback] = useState('')
   const [modifiedPdfOptions, setModifiedPdfOptions] = useState({
     columns: { date: true, candidate: true, aadhaar: true, mobile: true, designation: true, area: true, centre: false, clockIn: true, clockOut: false, status: true, checkInImage: true },
-    header: { dateMode: 'range', advtNo: true, centreCode: true },
+    header: { projectTitle: true, date: true, dateMode: 'range', advtNo: true, centreCode: true, location: true, centre: true, generated: true, recordCount: true },
   })
   const [isSearchAttendanceModalOpen, setIsSearchAttendanceModalOpen] = useState(false)
   const [searchAttendanceFile, setSearchAttendanceFile] = useState(null)
@@ -170,34 +194,59 @@ export default function RecruiterAttendance() {
   for (let i = rejectedMembersPageStart; i <= rejectedMembersPageEnd; i += 1) rejectedMembersPageNumbers.push(i)
 
   const projectType = searchParams.get('projectType') || searchParams.get('project_type') || location.state?.projectType || ''
-  const isWrittenExam = useMemo(() => Boolean(
-    projectType === 'writtenExam' || projectType === 'written_exam' ||
-    searchParams.get('centreId') || searchParams.get('centre') || selectedCentreId || centreOptions.length > 0 ||
-    attendance.some(record => record.centre || record.centre_name || record.centreName || record.center || record.center_name || record.centerName)
-  ), [projectType, searchParams, selectedCentreId, centreOptions.length, attendance])
+  const isWrittenExam = useMemo(() => {
+    if (attendanceVariant === 'written') return true
+    if (attendanceVariant === 'regular') return false
+    return Boolean(
+      projectType === 'writtenExam' || projectType === 'written_exam' ||
+      searchParams.get('centreId') || searchParams.get('centre') || selectedCentreId || centreOptions.length > 0 ||
+      attendance.some(record => record.centre || record.centre_name || record.centreName || record.center || record.center_name || record.centerName)
+    )
+  }, [attendanceVariant, projectType, searchParams, selectedCentreId, centreOptions.length, attendance])
+  const showWrittenExamCentreControls = isWrittenExam && attendanceMode !== 'core'
   const { alert } = useAlert()
+
+  useEffect(() => {
+    window.localStorage.setItem('recruiter-attendance-mode', attendanceMode)
+    if (attendanceMode === 'core') setSelectedCentreId('')
+    if (attendanceMode === 'core') {
+      setIsMembersModalOpen(false)
+      setIsRejectedMembersModalOpen(false)
+      setIsFraudModalOpen(false)
+      setIsWhatsAppOpen(false)
+      setIsEmailOpen(false)
+    }
+    setAttendance([])
+    setTotal(0)
+    setKpis({ totalLocations: 0 })
+    setChartData({ totalRequired: 0, totalAvailable: 0, present: 0, absent: 0 })
+    setCentreChartData([])
+    setOffset(0)
+    setSelectedRows(new Set())
+    setSelectAll(false)
+  }, [attendanceMode])
 
   const fetchAttendance = useCallback(async () => {
     setLoading(true)
     try {
       const response = await (isWrittenExam
-        ? recruiterAPI.getWrittenExamAttendanceRecords({
+        ? attendanceAPI.getWrittenExamAttendanceRecords({
             offset,
             limit,
             search: search || undefined,
             projectId: selectedProject || undefined,
             districtId: selectedDistrictId || undefined,
-            centreId: selectedCentreId || undefined,
+            centreId: showWrittenExamCentreControls ? selectedCentreId || undefined : undefined,
             from: fromDate || undefined,
             to: toDate || undefined,
           })
-        : recruiterAPI.getAttendanceRecords({
+        : attendanceAPI.getAttendanceRecords({
             offset,
             limit,
             search: search || undefined,
             projectId: selectedProject || undefined,
             locationId: selectedLocationId || undefined,
-            centreId: selectedCentreId || undefined,
+            centreId: showWrittenExamCentreControls ? selectedCentreId || undefined : undefined,
             from: fromDate || undefined,
             to: toDate || undefined,
           })
@@ -271,7 +320,7 @@ export default function RecruiterAttendance() {
     } finally {
       setLoading(false)
     }
-  }, [offset, limit, search, selectedProject, selectedLocationId, selectedDistrictId, selectedCentreId, fromDate, toDate, isWrittenExam])
+  }, [attendanceAPI, offset, limit, search, selectedProject, selectedLocationId, selectedDistrictId, selectedCentreId, fromDate, toDate, isWrittenExam, showWrittenExamCentreControls])
 
   const handleConfirmReject = async () => {
     if (!recordToReject || !rejectionComment.trim()) return
@@ -309,7 +358,7 @@ export default function RecruiterAttendance() {
         payload.locationId = locationId
       }
 
-      await recruiterAPI.rejectAttendance(attendanceId, payload)
+      await attendanceAPI.rejectAttendance(attendanceId, payload)
 
       setIsRejectModalOpen(false)
       setRecordToReject(null)
@@ -325,7 +374,7 @@ export default function RecruiterAttendance() {
   }
 
   const fetchRejectedMembers = useCallback(async () => {
-    if (!selectedProject) return
+    if (attendanceMode === 'core' || !selectedProject) return
     setRejectedMembersLoading(true)
     try {
       const params = {
@@ -344,8 +393,8 @@ export default function RecruiterAttendance() {
       }
 
       const response = await (isWrittenExam
-        ? recruiterAPI.getWrittenExamAttendanceRecords(params)
-        : recruiterAPI.getAttendanceRecords(params)
+        ? attendanceAPI.getWrittenExamAttendanceRecords(params)
+        : attendanceAPI.getAttendanceRecords(params)
       )
       const payload = response?.data ?? {}
       const list = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.records) ? payload.records : []
@@ -358,7 +407,7 @@ export default function RecruiterAttendance() {
     } finally {
       setRejectedMembersLoading(false)
     }
-  }, [selectedProject, rejectedMembersLimit, rejectedMembersOffset, debouncedRejectedMembersSearch, rejectedMembersLocationId, rejectedMembersDistrictId, rejectedMembersCentreId, isWrittenExam])
+  }, [attendanceAPI, attendanceMode, selectedProject, rejectedMembersLimit, rejectedMembersOffset, debouncedRejectedMembersSearch, rejectedMembersLocationId, rejectedMembersDistrictId, rejectedMembersCentreId, isWrittenExam])
 
   const handleAcceptRejectedAttendance = async (record) => {
     const attendanceId = record?.attendance_id || record?.id
@@ -396,7 +445,7 @@ export default function RecruiterAttendance() {
 
     setAcceptingAttendanceId(attendanceId)
     try {
-      await recruiterAPI.acceptAttendance(attendanceId, payload)
+      await attendanceAPI.acceptAttendance(attendanceId, payload)
       fetchRejectedMembers()
       fetchAttendance()
     } catch (err) {
@@ -408,6 +457,7 @@ export default function RecruiterAttendance() {
   }
 
   const fetchFraudAttendanceRecords = useCallback(async () => {
+    if (attendanceMode === 'core') return
     setFraudLoading(true)
     try {
       const normalizedDistrictId = districtOptions.find((option) => String(option.id) === String(selectedDistrictId) || String(option.name) === String(selectedDistrictId))?.id || selectedDistrictId
@@ -429,7 +479,7 @@ export default function RecruiterAttendance() {
         if (selectedCentreId) params.centreId = selectedCentreId
       }
 
-      const response = await recruiterAPI.getFraudAttendanceRecords(params)
+      const response = await attendanceAPI.getFraudAttendanceRecords(params)
       const payload = response?.data ?? {}
       const list = Array.isArray(payload?.data) ? payload.data : Array.isArray(payload?.records) ? payload.records : []
       setFraudRecords(list)
@@ -441,9 +491,10 @@ export default function RecruiterAttendance() {
     } finally {
       setFraudLoading(false)
     }
-  }, [selectedProject, fraudLimit, fraudOffset, fraudSearch, fraudFromDate, fraudToDate, selectedLocationId, selectedDistrictId, selectedCentreId, isWrittenExam])
+  }, [attendanceAPI, attendanceMode, selectedProject, fraudLimit, fraudOffset, fraudSearch, fraudFromDate, fraudToDate, selectedLocationId, selectedDistrictId, selectedCentreId, isWrittenExam])
 
   const handleAcceptFraudAttendance = async (record) => {
+    if (attendanceMode === 'core') return
     const attendanceId = record?.attendance_id || record?.id
     if (!attendanceId) return
 
@@ -480,7 +531,7 @@ export default function RecruiterAttendance() {
 
     setAcceptingFraudAttendanceId(attendanceId)
     try {
-      await recruiterAPI.acceptFraudAttendance(attendanceId, payload)
+      await attendanceAPI.acceptFraudAttendance(attendanceId, payload)
       fetchFraudAttendanceRecords()
       fetchAttendance()
     } catch (err) {
@@ -500,12 +551,12 @@ export default function RecruiterAttendance() {
   }
 
   useEffect(() => {
-    if (isRejectedMembersModalOpen) fetchRejectedMembers()
-  }, [isRejectedMembersModalOpen, fetchRejectedMembers])
+    if (attendanceMode !== 'core' && isRejectedMembersModalOpen) fetchRejectedMembers()
+  }, [attendanceMode, isRejectedMembersModalOpen, fetchRejectedMembers])
 
   useEffect(() => {
-    if (isFraudModalOpen) fetchFraudAttendanceRecords()
-  }, [isFraudModalOpen, fetchFraudAttendanceRecords])
+    if (attendanceMode !== 'core' && isFraudModalOpen) fetchFraudAttendanceRecords()
+  }, [attendanceMode, isFraudModalOpen, fetchFraudAttendanceRecords])
 
   useEffect(() => {
     const debounce = setTimeout(fetchAttendance, 300)
@@ -529,9 +580,81 @@ export default function RecruiterAttendance() {
     setSelectedCentreId(lockedCentreId)
   }, [searchParams, isWrittenExam])
 
+  useEffect(() => {
+    let cancelled = false
+    const loadProjectOptions = async () => {
+      try {
+        const response = await recruiterAPI.getProjectSuggestions('', 200, attendanceVariant || undefined)
+        const payload = response?.data ?? {}
+        const rawProjects = Array.isArray(payload?.data)
+          ? payload.data
+          : Array.isArray(payload?.projects)
+            ? payload.projects
+            : Array.isArray(payload?.results)
+              ? payload.results
+              : Array.isArray(payload)
+                ? payload
+                : []
+        const options = rawProjects.map((project) => {
+          if (typeof project === 'string' || typeof project === 'number') {
+            return { id: String(project), name: String(project) }
+          }
+          const id = project?.id ?? project?.project_id ?? project?.projectId ?? project?._id ?? project?.value
+          const name = project?.name ?? project?.project_name ?? project?.projectName ?? project?.title ?? project?.label ?? id
+          return id === undefined || id === null ? null : { id: String(id), name: String(name) }
+        }).filter(Boolean)
+        if (!cancelled) setProjectOptions([
+          ...(forcedAttendanceMode === 'core' ? STATIC_CORE_PROJECT_OPTIONS : []),
+          ...options,
+        ])
+      } catch {
+        if (!cancelled) setProjectOptions(forcedAttendanceMode === 'core' ? STATIC_CORE_PROJECT_OPTIONS : [])
+      }
+    }
+
+    loadProjectOptions()
+    return () => { cancelled = true }
+  }, [attendanceVariant, forcedAttendanceMode])
+
+  useEffect(() => {
+    if (!attendanceVariant) return
+    setSelectedProject('')
+    setSelectedLocationId('')
+    setSelectedDistrictId('')
+    setSelectedCentreId('')
+    setLocationOptions([])
+    setDistrictOptions([])
+    setCentreOptions([])
+    setOffset(0)
+  }, [attendanceVariant])
+
+  useEffect(() => {
+    onAttendanceFiltersChange?.({
+      project_id: selectedProject || undefined,
+      projectTitle,
+      from: fromDate || undefined,
+      to: toDate || undefined,
+      locationId: selectedLocationId || undefined,
+      districtId: selectedDistrictId || undefined,
+      centreId: selectedCentreId || undefined,
+      projectDates,
+    })
+  }, [fromDate, onAttendanceFiltersChange, projectDates, projectTitle, selectedCentreId, selectedDistrictId, selectedLocationId, selectedProject, toDate])
+
+  useEffect(() => {
+    if (!selectedProject) return
+    const selectedOption = projectOptions.find((project) => String(project.id) === String(selectedProject))
+    if (selectedOption) setProjectTitle(selectedOption.name)
+  }, [projectOptions, selectedProject])
+
   const locationsFetchingRef = useRef(false)
 
   const fetchLocationOptions = useCallback(async () => {
+    if (forcedAttendanceMode === 'core' && STATIC_CORE_PROJECT_IDS.has(String(selectedProject).toLowerCase())) {
+      setLocationOptions([])
+      setDistrictOptions([])
+      return
+    }
     if (!selectedProject) {
       if (isWrittenExam) {
         setDistrictOptions([])
@@ -594,7 +717,7 @@ export default function RecruiterAttendance() {
     } finally {
       locationsFetchingRef.current = false
     }
-  }, [selectedProject, isWrittenExam])
+  }, [attendanceAPI, forcedAttendanceMode, selectedProject, isWrittenExam])
 
   const centresFetchingRef = useRef(false)
 
@@ -640,7 +763,7 @@ export default function RecruiterAttendance() {
     } finally {
       centresFetchingRef.current = false
     }
-  }, [selectedProject, selectedLocationId, selectedDistrictId, isWrittenExam])
+  }, [attendanceAPI, selectedProject, selectedLocationId, selectedDistrictId, isWrittenExam])
 
   useEffect(() => {
     if (isWrittenExam && selectedDistrictId) {
@@ -679,11 +802,18 @@ export default function RecruiterAttendance() {
 
   const clearAllFilters = () => {
     setSearch('')
+    setSelectedProject('')
     setSelectedLocationId('')
     setSelectedDistrictId('')
     setSelectedCentreId('')
-    setFromDate('')
-    setToDate('')
+    const defaultDate = forcedAttendanceMode === 'core' ? getLocalDateInputValue() : ''
+    setFromDate(defaultDate)
+    setToDate(defaultDate)
+    setProjectTitle('All projects')
+    setProjectDates({ start: '', end: '' })
+    setLocationOptions([])
+    setDistrictOptions([])
+    setCentreOptions([])
     setOffset(0)
     setSelectedRows(new Set())
     setSelectAll(false)
@@ -785,6 +915,7 @@ export default function RecruiterAttendance() {
   const getMemberId = (m) => String(m.id ?? m.candidateId ?? m.registration_id ?? m._id ?? m.attendance_id ?? '')
 
   const fetchProjectMembers = useCallback(async () => {
+    if (attendanceMode === 'core') return
     if (!selectedProject) {
       setProjectMembers([])
       return
@@ -805,7 +936,7 @@ export default function RecruiterAttendance() {
       } else {
         if (membersDistrict) params.location = membersDistrict
       }
-      const response = await recruiterAPI.getProjectCandidates(params)
+      const response = await attendanceAPI.getProjectCandidates(params)
       const payload = response?.data ?? {}
       const data = payload?.data || payload || {}
       const list = data.items || data.candidates || data.results || data.data || []
@@ -821,7 +952,7 @@ export default function RecruiterAttendance() {
     } finally {
       setMembersLoading(false)
     }
-  }, [selectedProject, membersOffset, membersLimit, debouncedMembersSearch, membersDistrict, membersCentre])
+  }, [attendanceAPI, attendanceMode, selectedProject, membersOffset, membersLimit, debouncedMembersSearch, membersDistrict, membersCentre])
 
   const rejectedMembersCentresFetchingRef = useRef(false)
 
@@ -861,7 +992,7 @@ export default function RecruiterAttendance() {
     } finally {
       rejectedMembersCentresFetchingRef.current = false
     }
-  }, [selectedProject, rejectedMembersLocationId, rejectedMembersDistrictId, isWrittenExam])
+  }, [attendanceAPI, selectedProject, rejectedMembersLocationId, rejectedMembersDistrictId, isWrittenExam])
 
   const rejectedMembersLocationsFetchingRef = useRef(false)
 
@@ -919,7 +1050,7 @@ export default function RecruiterAttendance() {
     } finally {
       rejectedMembersLocationsFetchingRef.current = false
     }
-  }, [selectedProject, isWrittenExam])
+  }, [attendanceAPI, selectedProject, isWrittenExam])
 
   useEffect(() => {
     const timer = setTimeout(() => {
@@ -968,6 +1099,7 @@ export default function RecruiterAttendance() {
   }, [isRejectedMembersModalOpen, rejectedMembersDistrictId, rejectedMembersLocationId, isWrittenExam, fetchRejectedMembersCentreOptions])
 
   const openMembersModal = async () => {
+    if (attendanceMode === 'core') return
     if (!selectedProject) {
       alert('Please select a project first.')
       return
@@ -1004,7 +1136,7 @@ export default function RecruiterAttendance() {
       return
     }
     try {
-      await recruiterAPI.sendWhatsAppMessage({ to: recipientIds, templateId: payload.templateId, variables: payload.variables })
+      await attendanceAPI.sendWhatsAppMessage({ to: recipientIds, templateId: payload.templateId, variables: payload.variables })
       await alert('WhatsApp messages sent (requests queued).')
       setIsWhatsAppOpen(false)
       setIsMembersModalOpen(false)
@@ -1025,7 +1157,7 @@ export default function RecruiterAttendance() {
     }
     try {
       for (const email of emails) {
-        await recruiterAPI.sendEmailMessage({ to: email, cc: payload.cc || '', subject: payload.subject || '', body: payload.body || '' })
+        await attendanceAPI.sendEmailMessage({ to: email, cc: payload.cc || '', subject: payload.subject || '', body: payload.body || '' })
       }
       await alert('Emails sent.')
       setIsEmailOpen(false)
@@ -1109,7 +1241,7 @@ export default function RecruiterAttendance() {
     setSearchAttendanceError('')
 
     try {
-      const response = await recruiterAPI.searchAttendanceByCsv(formData, {
+      const response = await attendanceAPI.searchAttendanceByCsv(formData, {
         projectId: selectedProject || '',
         projectType: isWrittenExam ? 'writtenExam' : 'regular',
       })
@@ -1613,12 +1745,34 @@ export default function RecruiterAttendance() {
     saveAs(pdfBlob, fileName)
   }
 
-  const exportToExcel = () => {
-    const selectedData = selectedRows.size > 0
-      ? attendance.filter(record => selectedRows.has(record.attendance_id || record.id))
-      : attendance
+  const exportToExcel = async () => {
+    let selectedData
+    if (selectedRows.size > 0) {
+      selectedData = attendance.filter(record => selectedRows.has(record.attendance_id || record.id))
+    } else {
+      const filters = {
+        search: search || undefined,
+        projectId: selectedProject || undefined,
+        from: fromDate || undefined,
+        to: toDate || undefined,
+      }
+      if (isWrittenExam) {
+        filters.districtId = selectedDistrictId || undefined
+        if (selectedCentreId) filters.centreId = selectedCentreId
+      } else {
+        filters.locationId = selectedLocationId || undefined
+        if (selectedCentreId) filters.centreId = selectedCentreId
+      }
+      try {
+        selectedData = await fetchAllExportRecords(filters)
+      } catch (exportError) {
+        console.error('Unable to fetch attendance records for Excel export:', exportError)
+        alert('Unable to export attendance records. Please try again.')
+        return
+      }
+    }
 
-    if (selectedData.length === 0) {
+    if (!selectedData.length) {
       alert('No attendance records available for export.')
       return
     }
@@ -1630,6 +1784,7 @@ export default function RecruiterAttendance() {
         'Candidate': record.candidate_name || record.worker_name || record.worker || '',
         'Aadhaar': formatAadhaar(record.aadhar || record.aadhaar || ''),
         'Mobile': record.mobile || '',
+        'Project': record.project_name || record.projectName || record.project_title || record.project || '',
       }
 
       if (isWrittenExam) {
@@ -1684,6 +1839,142 @@ export default function RecruiterAttendance() {
     const wb = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(wb, ws, 'Attendance Data')
     XLSX.writeFile(wb, `attendance_data_${new Date().toISOString().split('T')[0]}.xlsx`)
+  }
+
+  const exportDateWiseAttendance = async () => {
+    try {
+      const fetchedRecords = await fetchAllExportRecords({
+        search: search || undefined,
+        projectId: selectedProject || undefined,
+        locationId: isWrittenExam ? undefined : selectedLocationId || undefined,
+        districtId: isWrittenExam ? selectedDistrictId || undefined : undefined,
+        centreId: showWrittenExamCentreControls ? selectedCentreId || undefined : undefined,
+        from: fromDate || undefined,
+        to: toDate || undefined,
+      })
+      const records = fetchedRecords.length ? fetchedRecords : attendance
+
+      if (!records.length) {
+        alert('No attendance records available for export.')
+        return
+      }
+
+      const recordDates = [...new Set(records
+        .map((record) => String(record.date || record.attendance_date || '').split('T')[0])
+        .filter((date) => /^\d{4}-\d{2}-\d{2}$/.test(date)))].sort()
+      if (!recordDates.length) {
+        alert('No dated attendance records available for export.')
+        return
+      }
+
+      const rangeStart = fromDate || recordDates[0]
+      const rangeEnd = toDate || recordDates[recordDates.length - 1]
+      if (rangeStart > rangeEnd) {
+        alert('The start date must be on or before the end date.')
+        return
+      }
+
+      const dates = []
+      const dateCursor = new Date(`${rangeStart}T00:00:00Z`)
+      const endDate = new Date(`${rangeEnd}T00:00:00Z`)
+      while (dateCursor <= endDate) {
+        dates.push(dateCursor.toISOString().slice(0, 10))
+        dateCursor.setUTCDate(dateCursor.getUTCDate() + 1)
+      }
+
+      const groupedRecords = new Map()
+      records.forEach((record) => {
+        const date = String(record.date || record.attendance_date || '').split('T')[0]
+        if (!dates.includes(date)) return
+
+        const name = getAttendanceExportValue(record, ['candidate_name', 'worker_name', 'worker', 'name', 'full_name'])
+        const mobile = getAttendanceExportValue(record, ['mobile', 'phone', 'contact'])
+        const candidateId = getAttendanceExportValue(record, ['candidate_id', 'candidateId', 'registration_id', 'registrationId', 'registration_number'])
+        const project = getAttendanceExportValue(record, ['project_name', 'projectName', 'project_title', 'project'])
+        const location = getAttendanceExportValue(record, ['location_name', 'locationName', 'location', 'district_name', 'districtName', 'district'])
+        const personKey = candidateId || `${name}|${mobile}`
+        const groupKey = JSON.stringify([personKey, project, location])
+        if (!groupedRecords.has(groupKey)) {
+          groupedRecords.set(groupKey, { name, mobile, project, location, attendanceByDate: {} })
+        }
+
+        const status = String(getAttendanceExportValue(record, ['status', 'attendance_status', 'attendanceStatus'])).trim().toLowerCase()
+        const hasCheckIn = Boolean(getAttendanceExportValue(record, ['clock_in', 'clockIn', 'check_in_time', 'checkInTime', 'check_in']))
+        const isPresent = ['present', 'late', 'p'].includes(status) ||
+          (!['absent', 'a', 'missing', 'not marked', 'not_marked'].includes(status) && hasCheckIn)
+        const projectOrLocation = `${project} ${location}`.toLowerCase()
+        const presentMark = /\bhome\b/.test(projectOrLocation) ? 'H' : /\btravel\b/.test(projectOrLocation) ? 'T' : 'P'
+        const group = groupedRecords.get(groupKey)
+        if (isPresent || !group.attendanceByDate[date]) {
+          group.attendanceByDate[date] = isPresent ? presentMark : 'A'
+        }
+      })
+
+      if (!groupedRecords.size) {
+        alert('No attendance records found for the selected dates.')
+        return
+      }
+
+      const formatDateHeader = (date) => {
+        const [year, month, day] = date.split('-').map(Number)
+        return new Date(year, month - 1, day).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })
+      }
+      const headers = ['S.No', 'Name', 'Mobile', 'Project', 'Location', ...dates.map(formatDateHeader)]
+      const sortedGroups = [...groupedRecords.values()].sort((first, second) =>
+        String(first.name).localeCompare(String(second.name)) ||
+        String(first.project).localeCompare(String(second.project)) ||
+        String(first.location).localeCompare(String(second.location)),
+      )
+      const rows = sortedGroups.map((group, index) => [
+        index + 1,
+        group.name,
+        group.mobile,
+        group.project,
+        group.location,
+        ...dates.map((date) => group.attendanceByDate[date] || 'A'),
+      ])
+      const worksheet = XLSXStyle.utils.aoa_to_sheet([headers, ...rows])
+      worksheet['!cols'] = [12, 24, 16, 28, 24, ...dates.map(() => 10)].map((wch) => ({ wch }))
+      dates.forEach((date, dateIndex) => {
+        rows.forEach((row, rowIndex) => {
+          const cellAddress = XLSXStyle.utils.encode_cell({ r: rowIndex + 1, c: dateIndex + 5 })
+          const cell = worksheet[cellAddress]
+          if (!cell) return
+          const colors = {
+            P: { fill: 'C6EFCE', font: '006100' },
+            H: { fill: 'DDEBF7', font: '1F4E78' },
+            T: { fill: 'FCE4D6', font: 'C65911' },
+            A: { fill: 'FFC7CE', font: '9C0006' },
+          }
+          const color = colors[cell.v] || colors.A
+          cell.s = {
+            fill: {
+              patternType: 'solid',
+              fgColor: { rgb: color.fill },
+            },
+            font: { bold: true, color: { rgb: color.font } },
+            alignment: { horizontal: 'center', vertical: 'center' },
+          }
+        })
+      })
+      const workbook = XLSXStyle.utils.book_new()
+      XLSXStyle.utils.book_append_sheet(workbook, worksheet, 'Date-wise Attendance')
+      const workbookData = XLSXStyle.write(workbook, { bookType: 'xlsx', type: 'array' })
+      const workbookZip = await JSZip.loadAsync(workbookData)
+      const worksheetFile = workbookZip.file('xl/worksheets/sheet1.xml')
+      if (!worksheetFile) throw new Error('Date-wise attendance worksheet was not created.')
+      const worksheetXml = await worksheetFile.async('string')
+      const worksheetXmlWithInitialSelection = worksheetXml.replace(
+        /<sheetView\b([^>]*)\/>/,
+        '<sheetView$1><selection activeCell="A1" sqref="A1"/></sheetView>',
+      )
+      workbookZip.file('xl/worksheets/sheet1.xml', worksheetXmlWithInitialSelection)
+      const workbookBlob = await workbookZip.generateAsync({ type: 'blob' })
+      saveAs(workbookBlob, `attendance_date_wise_${new Date().toISOString().split('T')[0]}.xlsx`)
+    } catch (exportError) {
+      console.error('Unable to export date-wise attendance:', exportError)
+      alert('Unable to export attendance records. Please try again.')
+    }
   }
 
   // Helper: load image and return data URL (tries direct load, then fetch+blob fallback)
@@ -1783,7 +2074,7 @@ export default function RecruiterAttendance() {
 
         // Fallback 2: try axios (recruiterAPI) to include auth headers/interceptors
         try {
-          const axiosResp = await recruiterAPI.get(url, { responseType: 'blob' })
+          const axiosResp = await attendanceAPI.get(url, { responseType: 'blob' })
           const blob = axiosResp?.data
           if (!blob) throw new Error('No blob from axios')
           const blobUrl = URL.createObjectURL(blob)
@@ -1832,6 +2123,17 @@ export default function RecruiterAttendance() {
   const getRecordMobile = (record) => String(record.mobile || record.phone || record.contact || 'Unknown').trim()
   const getRecordDistrictName = (record) => record.district_name || record.district || record.districtName || 'Unknown district'
   const getRecordCentreName = (record) => record.centre_name || record.centre || record.centreName || record.center || record.center_name || record.centerName || 'Unknown centre'
+  const getRecordProjectName = (record, fallback = 'Unknown project') => {
+    const value = record.project_name || record.projectName || record.project_title || record.projectTitle || record.project
+    const name = value && typeof value === 'object'
+      ? value.name || value.project_name || value.title
+      : value
+    return String(name || fallback).trim()
+  }
+  const getRecordProjectKey = (record) => JSON.stringify([
+    record.project_id ?? record.projectId ?? getRecordProjectName(record),
+    getRecordProjectName(record),
+  ])
   const getRecordCentreCode = (record) => {
     const value = record.centre_id || record.centreId || record.center_id || record.centerId || record.centre_code || record.centreCode || record.code || record.centerCode || ''
     return String(value || '').trim()
@@ -1870,7 +2172,7 @@ export default function RecruiterAttendance() {
     }
 
     try {
-      const axiosResp = await recruiterAPI.get(url, { responseType: 'blob' })
+      const axiosResp = await attendanceAPI.get(url, { responseType: 'blob' })
       const blob = axiosResp?.data
       if (blob && blob.size > 0) return blob
     } catch (err) {
@@ -2105,22 +2407,35 @@ export default function RecruiterAttendance() {
 
     while (true) {
       const response = await (isWrittenExam
-        ? recruiterAPI.getWrittenExamAttendanceRecords({ ...params, offset: offsetExport, limit: pageLimit })
-        : recruiterAPI.getAttendanceRecords({ ...params, offset: offsetExport, limit: pageLimit })
+        ? attendanceAPI.getWrittenExamAttendanceRecords({ ...params, offset: offsetExport, limit: pageLimit })
+        : attendanceAPI.getAttendanceRecords({ ...params, offset: offsetExport, limit: pageLimit })
       )
       let payload = response?.data ?? {}
       if (typeof payload === 'string') {
         try { payload = JSON.parse(payload) } catch { payload = {} }
       }
 
-      const rows = Array.isArray(payload?.data)
-        ? payload.data
-        : Array.isArray(payload?.records)
-          ? payload.records
-          : []
-      const count = payload?.total ?? payload?.count ?? payload?.total_count ?? payload?.meta?.total ?? payload?.meta?.count
-      if (totalCount === null && typeof count === 'number') {
-        totalCount = count
+      const payloadLayers = [payload]
+      let nestedPayload = payload
+      for (let depth = 0; depth < 4 && nestedPayload?.data !== undefined; depth += 1) {
+        nestedPayload = nestedPayload.data
+        if (typeof nestedPayload === 'string') {
+          try { nestedPayload = JSON.parse(nestedPayload) } catch { break }
+        }
+        payloadLayers.push(nestedPayload)
+      }
+      const rows = payloadLayers.flatMap((layer) => {
+        if (Array.isArray(layer)) return [layer]
+        for (const key of ['items', 'records', 'results', 'attendance']) {
+          if (Array.isArray(layer?.[key])) return [layer[key]]
+        }
+        return []
+      })[0] || []
+      const count = payloadLayers
+        .map((layer) => layer?.total ?? layer?.count ?? layer?.total_count ?? layer?.meta?.total ?? layer?.meta?.count)
+        .find((value) => value !== undefined && value !== null)
+      if (totalCount === null && count !== undefined && Number.isFinite(Number(count))) {
+        totalCount = Number(count)
       }
 
       allRows = allRows.concat(rows)
@@ -2148,7 +2463,7 @@ export default function RecruiterAttendance() {
     } = pdfOverrides || {}
     const pdfCustomization = modifiedPdfOptions || {
       columns: { date: true, candidate: true, aadhaar: true, mobile: true, designation: true, area: true, centre: false, clockIn: true, clockOut: false, status: true, checkInImage: true },
-      header: { dateMode: 'range', advtNo: true, centreCode: true },
+      header: { projectTitle: true, date: true, dateMode: 'range', advtNo: true, centreCode: true, location: true, centre: true, generated: true, recordCount: true },
     }
     const selectedLocation = locationOptions.find((l) => String(l.id) === String(selectedLocationId))
     const selectedDistrict = districtOptions.find((d) => String(d.id) === String(selectedDistrictId))
@@ -2246,11 +2561,18 @@ export default function RecruiterAttendance() {
       const pageWidth = doc.internal.pageSize.getWidth()
       const pageHeight = doc.internal.pageSize.getHeight()
       const margin = 36
+      const headerOptions = pdfCustomization.header
+      const recordProjectNames = [...new Set(records.map((record) => getRecordProjectName(record, '')).filter(Boolean))]
+      const resolvedProjectTitle = titleLabels.projectTitle || (recordProjectNames.length === 1 ? recordProjectNames[0] : projectTitleOverride)
       const projectTypeLabel = isWrittenExam ? 'Written Exam' : 'Regular'
-      const projectLocationLabel = isWrittenExam ? titleLabels.districtName || headerOverrides.districtNameOverride || selectedDistrictName || 'District' : titleLabels.locationName || headerOverrides.locationNameOverride || selectedLocationName || 'Location'
-      const projectCentreLabel = headerOverrides.centreNameOverride || titleLabels.centreName || selectedCentreName || (isWrittenExam ? 'All centres' : '')
+      const projectLocationLabel = headerOptions.location
+        ? isWrittenExam ? titleLabels.districtName || headerOverrides.districtNameOverride || selectedDistrictName || 'District' : titleLabels.locationName || headerOverrides.locationNameOverride || selectedLocationName || 'Location'
+        : ''
+      const projectCentreLabel = headerOptions.centre
+        ? headerOverrides.centreNameOverride || titleLabels.centreName || selectedCentreName || (isWrittenExam ? 'All centres' : '')
+        : ''
       const resolvedCentreCode = headerOverrides.centreCodeOverride || titleLabels.centreCodeOverride || titleLabels.centreCode || getRecordCentreCodeFromRecords(records) || selectedCentreCode
-      const centreCodeLine = pdfCustomization.header.centreCode && resolvedCentreCode ? `Centre Code: ${resolvedCentreCode}` : ''
+      const centreCodeLine = headerOptions.centreCode && resolvedCentreCode ? `Centre Code: ${resolvedCentreCode}` : ''
       const dateRangeText = `${fromDateOverride || fromDate || 'Any'} – ${toDateOverride || toDate || 'Any'}`
       const headerTitleY = 42
       const metaY = 18
@@ -2275,25 +2597,27 @@ export default function RecruiterAttendance() {
       }
 
       doc.setFontSize(10)
-      const projectTitleLines = doc.splitTextToSize(projectTitleOverride || 'All projects', fieldWidth)
+      const projectTitleLines = headerOptions.projectTitle
+        ? doc.splitTextToSize(resolvedProjectTitle || 'All projects', fieldWidth)
+        : []
       // remove 'Type' column from header and compact Venue into up to 3 lines
-      const headerDateText = pdfCustomization.header.dateMode === 'from'
-        ? `From: ${fromDateOverride || fromDate || 'Any'}`
-        : pdfCustomization.header.dateMode === 'to'
-          ? `To: ${toDateOverride || toDate || 'Any'}`
-          : pdfCustomization.header.dateMode === 'range'
-            ? dateRangeText
-            : ''
+      const headerDateText = !headerOptions.date
+        ? ''
+        : headerOptions.dateMode === 'from'
+          ? `From: ${fromDateOverride || fromDate || 'Any'}`
+          : headerOptions.dateMode === 'to'
+            ? `To: ${toDateOverride || toDate || 'Any'}`
+            : headerOptions.dateMode === 'range'
+              ? dateRangeText
+              : ''
       const headerDetails = [
         headerDateText,
         pdfCustomization.header.advtNo ? `Advt. No: ${advtNo || '—'}` : '',
         centreCodeLine,
       ].filter(Boolean).join('\n')
-      const dateDetailsLines = doc.splitTextToSize(headerDetails || ' ', fieldWidth)
-      const projectVenueLines = doc.splitTextToSize(
-        [projectLocationLabel, ...(projectCentreLabel ? [projectCentreLabel] : [])].join('\n'),
-        fieldWidth
-      )
+      const dateDetailsLines = headerDetails ? doc.splitTextToSize(headerDetails, fieldWidth) : []
+      const venueDetails = [projectLocationLabel, ...(projectCentreLabel ? [projectCentreLabel] : [])].filter(Boolean)
+      const projectVenueLines = venueDetails.length ? doc.splitTextToSize(venueDetails.join('\n'), fieldWidth) : []
       const firstRowValueHeight = Math.max(projectTitleLines.length, dateDetailsLines.length, projectVenueLines.length) * lineHeight
       const headerHeight = firstValueY + firstRowValueHeight + 10
       const firstPageStartY = headerHeight + 12
@@ -2315,14 +2639,13 @@ export default function RecruiterAttendance() {
         doc.setFontSize(8)
         doc.setFont('helvetica', 'normal')
         if (pageNumber === 1) {
-          doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - margin - 240, metaY)
-          // place Records slightly below Generated (reduced vertical gap)
-          doc.text(`Records: ${records.length}`, pageWidth - margin - 240, metaY + 10)
+          if (headerOptions.generated) doc.text(`Generated: ${new Date().toLocaleString()}`, pageWidth - margin - 240, metaY)
+          if (headerOptions.recordCount) doc.text(`Records: ${records.length}`, pageWidth - margin - 240, metaY + 10)
           doc.setFontSize(9)
           doc.setTextColor(235, 235, 235)
-          doc.text('Project', firstColX, labelTopY)
-          doc.text('Report details', secondColX, labelTopY)
-          doc.text('Venue', thirdColX, labelTopY)
+          if (headerOptions.projectTitle) doc.text('Project', firstColX, labelTopY)
+          if (headerDetails) doc.text('Report details', secondColX, labelTopY)
+          if (venueDetails.length) doc.text('Venue', thirdColX, labelTopY)
           doc.setFont('helvetica', 'bold')
           doc.setTextColor(255, 255, 255)
           drawTextLines(projectTitleLines, firstColX, firstValueY)
@@ -2436,6 +2759,7 @@ export default function RecruiterAttendance() {
     }
 
     const recordsForExport = Array.isArray(recordsOverride) ? recordsOverride : null
+    const allProjectsExport = !selectedProject
 
     const filters = {
       search: search || undefined,
@@ -2521,10 +2845,12 @@ export default function RecruiterAttendance() {
       if (isWrittenExam) {
         if (!selectedDistrictId || recordsForExport) {
           const districtGroups = allRecords.reduce((acc, record) => {
-            const key = getRecordDistrictKey(record)
+            const projectName = getRecordProjectName(record)
+            const projectKey = allProjectsExport ? getRecordProjectKey(record) : ''
+            const districtKey = getRecordDistrictKey(record)
+            const key = JSON.stringify([projectKey, districtKey])
             if (!acc[key]) {
-              const districtName = key.split('||')[1]
-              acc[key] = { districtName, records: [] }
+              acc[key] = { districtName: getRecordDistrictName(record), projectName, records: [] }
             }
             acc[key].records.push(record)
             return acc
@@ -2550,6 +2876,7 @@ export default function RecruiterAttendance() {
             centreList.forEach((centre) => {
               acc.push({
                 districtName: group.districtName,
+                projectName: group.projectName,
                 centreName: centre.centreName,
                 centreCode: centre.centreCode,
                 records: centre.records
@@ -2572,6 +2899,7 @@ export default function RecruiterAttendance() {
               total: totalGroups,
             })
             const pdfBlob = await createPdfBlob(group.records, {
+              projectTitle: group.projectName,
               districtName: group.districtName,
               centreName: centreLabel
             }, (current, total) => updateLoadingToast({
@@ -2584,7 +2912,10 @@ export default function RecruiterAttendance() {
               centreCodeOverride: group.centreCode || ''
             })
             const districtFolderName = sanitizeFilename(group.districtName || `district-${i + 1}`)
-            const districtFolder = zip.folder(districtFolderName) || zip
+            const projectFolder = allProjectsExport
+              ? zip.folder(sanitizeFilename(group.projectName || 'Unknown project')) || zip
+              : zip
+            const districtFolder = projectFolder.folder(districtFolderName) || projectFolder
             const codePrefix = group.centreCode ? `${sanitizeFilename(group.centreCode)}_` : ''
             const fileName = `${codePrefix}${sanitizeFilename(centreLabel)}_${exportDate}.pdf`
             districtFolder.file(fileName, pdfBlob)
@@ -2604,12 +2935,13 @@ export default function RecruiterAttendance() {
           return
         }
 
-        if (!selectedCentreId || recordsForExport) {
+        if (!selectedCentreId || recordsForExport || allProjectsExport) {
           const grouped = allRecords.reduce((acc, record) => {
-              const key = getRecordCentreKey(record)
+              const projectName = getRecordProjectName(record)
+              const projectKey = allProjectsExport ? getRecordProjectKey(record) : ''
+              const key = JSON.stringify([projectKey, getRecordCentreKey(record)])
               if (!acc[key]) {
-                const centreName = key.split('||')[1]
-                acc[key] = { centreName, centreCode: getRecordCentreCode(record), records: [] }
+                acc[key] = { projectName, centreName: getRecordCentreName(record), centreCode: getRecordCentreCode(record), records: [] }
               }
               acc[key].records.push(record)
               return acc
@@ -2623,7 +2955,6 @@ export default function RecruiterAttendance() {
           const totalGroups = centreGroups.length
           const zip = new JSZip()
           const districtFolderName = sanitizeFilename(selectedDistrictName || 'district')
-          const districtFolder = zip.folder(districtFolderName) || zip
 
           for (let i = 0; i < totalGroups; i += 1) {
             const group = centreGroups[i]
@@ -2636,6 +2967,7 @@ export default function RecruiterAttendance() {
               total: totalGroups,
             })
             const pdfBlob = await createPdfBlob(group.records, {
+              projectTitle: group.projectName,
               districtName: selectedDistrictName,
               centreName: centreLabel
             }, (current, total) => updateLoadingToast({
@@ -2649,6 +2981,10 @@ export default function RecruiterAttendance() {
             })
             const codePrefix = group.centreCode ? `${sanitizeFilename(group.centreCode)}_` : ''
             const fileName = `${codePrefix}${sanitizeFilename(centreLabel)}_${exportDate}.pdf`
+            const projectFolder = allProjectsExport
+              ? zip.folder(sanitizeFilename(group.projectName || 'Unknown project')) || zip
+              : zip
+            const districtFolder = projectFolder.folder(districtFolderName) || projectFolder
             districtFolder.file(fileName, pdfBlob)
           }
 
@@ -2682,12 +3018,17 @@ export default function RecruiterAttendance() {
         return
       }
 
-      if (!selectedLocationId || recordsForExport) {
+      if (!selectedLocationId || recordsForExport || allProjectsExport) {
         const locationGroups = allRecords.reduce((acc, record) => {
-          const key = getRecordLocationKey(record)
+          const projectName = getRecordProjectName(record)
+          const projectKey = allProjectsExport ? getRecordProjectKey(record) : ''
+          const key = JSON.stringify([projectKey, getRecordLocationKey(record)])
           if (!acc[key]) {
-            const locationName = key.split('||')[1]
-            acc[key] = { locationName, records: [] }
+            acc[key] = {
+              locationName: record.location_name || record.location || record.project_location || record.project || 'Unknown location',
+              projectName,
+              records: [],
+            }
           }
           acc[key].records.push(record)
           return acc
@@ -2704,7 +3045,10 @@ export default function RecruiterAttendance() {
         for (let i = 0; i < totalGroups; i += 1) {
           const locationGroup = locationList[i]
           const locationFolderName = sanitizeFilename(locationGroup.locationName || `location-${i + 1}`)
-          const locationFolder = zip.folder(locationFolderName) || zip
+          const projectFolder = allProjectsExport
+            ? zip.folder(sanitizeFilename(locationGroup.projectName || 'Unknown project')) || zip
+            : zip
+          const locationFolder = projectFolder.folder(locationFolderName) || projectFolder
           const locationLabel = locationGroup.locationName || `location-${i + 1}`
           updateLoadingToast({
             title: 'Generating location PDF',
@@ -2713,6 +3057,7 @@ export default function RecruiterAttendance() {
             total: totalGroups,
           })
           const pdfBlob = await createPdfBlob(locationGroup.records, {
+            projectTitle: locationGroup.projectName,
             locationName: locationGroup.locationName
           }, (current, total) => updateLoadingToast({
             title: 'Building rows',
@@ -2789,7 +3134,7 @@ export default function RecruiterAttendance() {
     : (locationOptions.find((l) => String(l.id) === String(selectedLocationId)) || {}).name || (selectedLocationId || 'All locations')
   const projectCentreName = (centreOptions.find((c) => String(c.id) === String(selectedCentreId)) || {}).name || (selectedCentreId || 'All centres')
 
-  const rows = attendance.map((record) => {
+  const rows = attendance.map((record, index) => {
     const checkInImage = record.check_in_image || record.checkin_image || record.checkInImage || record.check_in_photo || record.check_in_img || ''
     const checkOutImage = record.check_out_image || record.checkout_image || record.checkOutImage || record.check_out_photo || record.check_out_img || ''
     const projectLocationRaw = record.project_location || record.projectLocation || record.project
@@ -2829,13 +3174,13 @@ export default function RecruiterAttendance() {
         checked={selectedRows.has(record.attendance_id || record.id)}
         onChange={(e) => handleRowSelect(record.attendance_id || record.id, e.target.checked)}
       />,
-      record.attendance_id || record.id || '—',
+      index + 1,
       record.date || '—',
       record.candidate_name || record.worker_name || record.worker || '—',
-      formatAadhaar(record.aadhar || record.aadhaar || '' ) || '—',
       record.mobile || '—',
+      ...(attendanceMode === 'core' ? [record.project_name || record.projectName || record.project_title || record.project || '—'] : []),
       isWrittenExam ? (record.district_name || record.district || '—') : (record.location_name || record.location || '—'),
-      ...(isWrittenExam ? [record.centre_name || record.centre || record.centreName || record.center || record.center_name || record.centerName || '—'] : []),
+      ...(showWrittenExamCentreControls ? [record.centre_name || record.centre || record.centreName || record.center || record.center_name || record.centerName || '—'] : []),
       record.clock_in || '—',
       record.clock_out || '—',
       <button
@@ -2875,28 +3220,30 @@ export default function RecruiterAttendance() {
         </button>
       ) : '—',
       <Tag key={`${record.id || record.attendance_id}-status`} variant={statusVariant(record.status)}>{record.status || 'Unknown'}</Tag>,
-      <button
-        key={`${record.id || record.attendance_id}-reject`}
-        className="btn btn-danger btn-sm"
-        style={{ padding: '4px 8px', fontSize: '11px' }}
-        disabled={String(record.status).toLowerCase() === 'absent'}
-        onClick={(e) => {
-          e.stopPropagation()
-          setRecordToReject(record)
-          setRejectionComment('')
-          setIsRejectModalOpen(true)
-        }}
-        title="Reject Attendance"
-      >
-        Reject
-      </button>
+      ...(attendanceMode !== 'core' ? [
+        <button
+          key={`${record.id || record.attendance_id}-reject`}
+          className="btn btn-danger btn-sm"
+          style={{ padding: '4px 8px', fontSize: '11px' }}
+          disabled={String(record.status).toLowerCase() === 'absent'}
+          onClick={(e) => {
+            e.stopPropagation()
+            setRecordToReject(record)
+            setRejectionComment('')
+            setIsRejectModalOpen(true)
+          }}
+          title="Reject Attendance"
+        >
+          Reject
+        </button>
+      ] : [])
     ]
   })
 
   return (
     <div className="recruiter-attendance-page">
       <PageHeader
-          title={isWrittenExam ? 'Written Exam Attendance' : 'Recruiter Attendance'}
+          title={pageTitle || (isWrittenExam ? 'Written Exam Attendance' : 'Recruiter Attendance')}
           subtitle={
             isWrittenExam
               ? `Centre-based attendance for written exam projects${projectTitle && projectTitle !== 'All projects' ? ` - ${projectTitle}` : ''}.`
@@ -2906,67 +3253,103 @@ export default function RecruiterAttendance() {
           }
           action={
             <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap', alignItems: 'center' }}>
-              <button
-                className="btn btn-outline btn-sm"
-                type="button"
-                onClick={() => openMembersModal()}
-              >
-                <FontAwesomeIcon icon={faUsers} /> View project members
-              </button>
-              <button
-                className="btn btn-primary btn-sm"
-                type="button"
-                onClick={() => setIsFraudModalOpen(true)}
-              >
-                <FontAwesomeIcon icon={faShieldAlt} /> Fraud Attendance
-              </button>
-              <button 
-                className="btn btn-primary btn-sm" 
-                type="button"
-                onClick={() => setIsRejectedMembersModalOpen(true)}
-              >
-                <FontAwesomeIcon icon={faTimesCircle} /> View rejected members
-              </button>
-              <button 
-                className="btn btn-primary btn-sm" 
-                type="button" 
-                onClick={() => navigate(`/app/recruiter/attendance/payment?id=${selectedProject}${selectedLocationId ? `&locationId=${selectedLocationId}` : ''}${selectedCentreId ? `&centreId=${selectedCentreId}` : ''}${projectType ? `&projectType=${projectType}` : ''}`, { 
-                  state: { 
-                    projectTitle: projectTitle === 'All projects' ? '...' : projectTitle,
-                    startDate: projectDates.start,
-                    endDate: projectDates.end,
-                    projectType,
-                  } 
-                })}
-              >
-                <FontAwesomeIcon icon={faCalculator} /> Attendance Sheet
-              </button>
-              <button className="btn btn-outline btn-sm" type="button" onClick={() => navigate('/app/recruiter/attendance')}>
-                Back to summary
-              </button>
+              {!forcedAttendanceMode && <div className="attendance-mode-switch" role="group" aria-label="Attendance team">
+                <button
+                  type="button"
+                  className={attendanceMode === 'consultant' ? 'active' : ''}
+                  aria-pressed={attendanceMode === 'consultant'}
+                  onClick={() => setAttendanceMode('consultant')}
+                >
+                  Consultant
+                </button>
+                <button
+                  type="button"
+                  className={attendanceMode === 'core' ? 'active' : ''}
+                  aria-label="Use Core attendance"
+                  aria-pressed={attendanceMode === 'core'}
+                  onClick={() => setAttendanceMode('core')}
+                >
+                  Core
+                </button>
+              </div>}
+              {headerActions}
+              {attendanceMode !== 'core' && (
+                <>
+                  <button
+                    className="btn btn-outline btn-sm"
+                    type="button"
+                    onClick={() => openMembersModal()}
+                  >
+                    <FontAwesomeIcon icon={faUsers} /> View project members
+                  </button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    type="button"
+                    onClick={() => setIsFraudModalOpen(true)}
+                  >
+                    <FontAwesomeIcon icon={faShieldAlt} /> Fraud Attendance
+                  </button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    type="button"
+                    onClick={() => setIsRejectedMembersModalOpen(true)}
+                  >
+                    <FontAwesomeIcon icon={faTimesCircle} /> View rejected members
+                  </button>
+                  <button
+                    className="btn btn-primary btn-sm"
+                    type="button"
+                    onClick={() => navigate(`/app/recruiter/attendance/payment?id=${selectedProject}${selectedLocationId ? `&locationId=${selectedLocationId}` : ''}${selectedCentreId ? `&centreId=${selectedCentreId}` : ''}${projectType ? `&projectType=${projectType}` : ''}`, {
+                      state: {
+                        projectTitle: projectTitle === 'All projects' ? '...' : projectTitle,
+                        startDate: projectDates.start,
+                        endDate: projectDates.end,
+                        projectType,
+                      }
+                    })}
+                  >
+                    <FontAwesomeIcon icon={faCalculator} /> Attendance Sheet
+                  </button>
+                </>
+              )}
+              {!hideBackToSummary && (
+                <button className="btn btn-outline btn-sm" type="button" onClick={() => navigate('/app/recruiter/attendance')}>
+                  Back to summary
+                </button>
+              )}
             </div>
           }
         />
+      {topContent}
       <Card className="attendancedata-card">
         <div className="projects-table-project-title">
           Project: <strong>{projectTitle || 'All projects'}</strong>
         </div>
-        <div className="attendance-kpis-chart">
+        {!hideSummary && <div className="attendance-kpis-chart">
           <div className="attendance-kpis">
-            <StatCard
-              icon={<FontAwesomeIcon icon={faMapMarkerAlt} />}
-              value={kpis.totalLocations}
-              label={isWrittenExam ? "Total Districts" : "Total Locations"}
-            />
-          </div>
-          <div className="attendance-chart">
-            {isWrittenExam && selectedDistrictId && centreChartData.length > 0 ? (
-              <CentresAttendanceChart data={centreChartData} />
+            {attendanceMode === 'core' ? (
+              <>
+                <StatCard icon={<FontAwesomeIcon icon={faUsers} />} value={chartData.totalRequired} label="Total Required" />
+                <StatCard icon={<FontAwesomeIcon icon={faCalculator} />} value={chartData.totalAvailable} label="Available" />
+                <StatCard icon={<FontAwesomeIcon icon={faUsers} />} value={chartData.present} label="Present" />
+                <StatCard icon={<FontAwesomeIcon icon={faTimesCircle} />} value={chartData.absent} label="Absent" />
+              </>
             ) : (
-              <AttendanceBarChart data={chartData} />
+              <StatCard
+                icon={<FontAwesomeIcon icon={faMapMarkerAlt} />}
+                value={kpis.totalLocations}
+                label={isWrittenExam ? "Total Districts" : "Total Locations"}
+              />
             )}
           </div>
-        </div>
+          <div className="attendance-chart">
+            {showWrittenExamCentreControls && selectedDistrictId && centreChartData.length > 0 ? (
+              <CentresAttendanceChart key={`${attendanceMode}-centre-attendance-chart`} data={centreChartData} />
+            ) : (
+              <AttendanceBarChart key={`${attendanceMode}-attendance-chart`} data={chartData} />
+            )}
+          </div>
+        </div>}
         <div className="projects-table-filters" style={{ alignItems: 'flex-start' }}>
           <div className="projects-table-filter-group search-group">
             <div className="filter-search-box">
@@ -2981,6 +3364,25 @@ export default function RecruiterAttendance() {
                 }}
               />
             </div>
+          </div>
+
+          <div className="projects-table-filter-group project-group">
+            <div className="filter-label">Project</div>
+            <SearchableProjectSelect
+              options={projectOptions}
+              value={selectedProject}
+              placeholder="All projects"
+              onChange={(projectId) => {
+                setSelectedProject(projectId)
+                setSelectedLocationId('')
+                setSelectedDistrictId('')
+                setSelectedCentreId('')
+                setLocationOptions([])
+                setDistrictOptions([])
+                setCentreOptions([])
+                setOffset(0)
+              }}
+            />
           </div>
 
           {isWrittenExam ? (
@@ -3025,7 +3427,7 @@ export default function RecruiterAttendance() {
             </div>
           )}
 
-          {isWrittenExam && (
+          {showWrittenExamCentreControls && (
             <div className="projects-table-filter-group centre-group">
               <div className="filter-label">Centre</div>
               <select
@@ -3105,6 +3507,11 @@ export default function RecruiterAttendance() {
                       </button>
                     </li>
                     <li>
+                      <button className="dropdown-item" type="button" onClick={() => { exportDateWiseAttendance(); setIsDropdownOpen(false); }}>
+                        <FontAwesomeIcon icon={faFileExcel} /> Export date-wise attendance
+                      </button>
+                    </li>
+                    <li>
                       <button className="dropdown-item" type="button" onClick={() => { setPendingPdfExportTarget('main'); setExportAdvtNo(''); setExportAdvtNoError(''); setIsAdvtNoModalOpen(true); setIsDropdownOpen(false); }}>
                         <FontAwesomeIcon icon={faFilePdf} /> Export as PDF
                       </button>
@@ -3154,7 +3561,7 @@ export default function RecruiterAttendance() {
                 onChange={(e) => handleSelectAll(e.target.checked)}
                 key="select-all"
               />,
-              'ID', 'Date', 'Candidate', 'Aadhaar', 'Mobile', isWrittenExam ? 'District' : 'Location', ...(isWrittenExam ? ['Centre'] : []), 'Clock In', 'Clock Out', 'Check In Image', 'Check Out Image', 'Map', 'Status', 'Action'
+              'S.No', 'Date', 'Candidate', 'Mobile', ...(attendanceMode === 'core' ? ['Project'] : []), isWrittenExam ? 'District' : 'Location', ...(showWrittenExamCentreControls ? ['Centre'] : []), 'Clock In', 'Clock Out', 'Check In Image', 'Check Out Image', 'Map', 'Status', ...(attendanceMode !== 'core' ? ['Action'] : [])
             ]}
             rows={rows}
             emptyMessage={loading ? 'Loading attendance...' : 'No attendance records found.'}
@@ -3219,7 +3626,7 @@ export default function RecruiterAttendance() {
                     <div><span>ID</span><strong>{recordId}</strong></div>
                     <div><span>Date</span><strong>{record.date || '—'}</strong></div>
                     <div><span>{isWrittenExam ? 'District' : 'Location'}</span><strong>{area}</strong></div>
-                    {isWrittenExam && <div><span>Centre</span><strong>{centre || '—'}</strong></div>}
+                    {showWrittenExamCentreControls && <div><span>Centre</span><strong>{centre || '—'}</strong></div>}
                     <div><span>Clock in</span><strong>{record.clock_in || '—'}</strong></div>
                     <div><span>Clock out</span><strong>{record.clock_out || '—'}</strong></div>
                     <div><span>Aadhaar</span><strong>{formatAadhaar(record.aadhar || record.aadhaar || '')}</strong></div>
@@ -3240,18 +3647,20 @@ export default function RecruiterAttendance() {
                           <FontAwesomeIcon icon={faMapMarkerAlt} />
                         </button>
                       )}
-                      <button
-                        type="button"
-                        className="btn btn-danger btn-sm"
-                        disabled={String(record.status).toLowerCase() === 'absent'}
-                        onClick={() => {
-                          setRecordToReject(record)
-                          setRejectionComment('')
-                          setIsRejectModalOpen(true)
-                        }}
-                      >
-                        Reject
-                      </button>
+                      {attendanceMode !== 'core' && (
+                        <button
+                          type="button"
+                          className="btn btn-danger btn-sm"
+                          disabled={String(record.status).toLowerCase() === 'absent'}
+                          onClick={() => {
+                            setRecordToReject(record)
+                            setRejectionComment('')
+                            setIsRejectModalOpen(true)
+                          }}
+                        >
+                          Reject
+                        </button>
+                      )}
                     </div>
                   </div>
                 </article>
@@ -4220,28 +4629,15 @@ export default function RecruiterAttendance() {
             <div style={{ marginBottom: 16 }}>
               <div className="filter-label" style={{ marginBottom: 10 }}>Header details</div>
               <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(170px, 1fr))', gap: 10 }}>
-                <div>
-                  <label htmlFor="modified-pdf-header-date" style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--text3)' }}>
-                    Date in header
-                  </label>
-                  <select
-                    id="modified-pdf-header-date"
-                    className="form-control"
-                    value={modifiedPdfOptions.header.dateMode || 'range'}
-                    onChange={(event) => setModifiedPdfOptions((current) => ({
-                      ...current,
-                      header: { ...current.header, dateMode: event.target.value },
-                    }))}
-                  >
-                    <option value="range">From and to date</option>
-                    <option value="from">Only from date</option>
-                    <option value="to">Only to date</option>
-                    <option value="none">Hide date</option>
-                  </select>
-                </div>
                 {[
+                  ['projectTitle', 'Project title'],
+                  ['date', 'Date'],
                   ['advtNo', 'Advertisement number'],
                   ['centreCode', 'Centre code'],
+                  ['location', isWrittenExam ? 'District' : 'Location'],
+                  ['centre', 'Centre name'],
+                  ['generated', 'Generated date and time'],
+                  ['recordCount', 'Record count'],
                 ].map(([key, label]) => (
                   <label key={key} style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 14 }}>
                     <input
@@ -4256,6 +4652,26 @@ export default function RecruiterAttendance() {
                   </label>
                 ))}
               </div>
+              {modifiedPdfOptions.header.date && (
+                <div style={{ marginTop: 12, maxWidth: 260 }}>
+                  <label htmlFor="modified-pdf-header-date-mode" style={{ display: 'block', marginBottom: 6, fontSize: 12, color: 'var(--text3)' }}>
+                    Date format
+                  </label>
+                  <select
+                    id="modified-pdf-header-date-mode"
+                    className="form-control"
+                    value={modifiedPdfOptions.header.dateMode || 'range'}
+                    onChange={(event) => setModifiedPdfOptions((current) => ({
+                      ...current,
+                      header: { ...current.header, dateMode: event.target.value },
+                    }))}
+                  >
+                    <option value="range">From and to date</option>
+                    <option value="from">Only from date</option>
+                    <option value="to">Only to date</option>
+                  </select>
+                </div>
+              )}
             </div>
 
             <div style={{ marginBottom: 16 }}>
@@ -4390,7 +4806,7 @@ export default function RecruiterAttendance() {
                 type="button"
                 onClick={() => setIsWhatsAppOpen(true)}
                 disabled={selectedMembers.size === 0}
-                style={{display: 'none'}}
+                
               >
                 Send WhatsApp
               </button>
@@ -4399,7 +4815,7 @@ export default function RecruiterAttendance() {
                 type="button"
                 onClick={() => setIsEmailOpen(true)}
                 disabled={selectedMembers.size === 0}
-                style={{display: 'none'}}
+                
               >
                 Send Email
               </button>

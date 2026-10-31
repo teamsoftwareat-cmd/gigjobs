@@ -56,14 +56,14 @@
 
 .modal-sub {
   font-size: 13px;
-  color: #9ca3af;
+  color: #1F2937;
   line-height: 1.6;
 }
 
 .modal-close {
   border: 1px solid rgba(255,255,255,0.1);
   background: transparent;
-  color: #9ca3af;
+  color: #1F2937;
   width: fit-content !important;
   height: 32px;
   border-radius: 8px;
@@ -129,7 +129,7 @@
   transform: translateY(-50%);
   background: none;
   border: none;
-  color: #94a3b8;
+  color: #1F2937;
   cursor: pointer;
 }
 
@@ -166,7 +166,7 @@
 .login-footer {
   margin-top: 12px;
   font-size: 12px;
-  color: #9ca3af;
+  color: #1F2937;
   cursor: pointer;
 }
 

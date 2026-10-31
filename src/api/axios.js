@@ -161,7 +161,7 @@ const performFetch = async (url, options = {}) => {
   }
 }
 
-const request = async (method, url, { data, params, headers, silent = false } = {}) => {
+const request = async (method, url, { data, params, headers, silent = false, keepalive = false } = {}) => {
   const resolvedUrl = resolveUrl(url, params)
   const body = data instanceof FormData ? data : data != null ? JSON.stringify(data) : undefined
   const finalHeaders = buildHeaders(headers, data)
@@ -175,6 +175,7 @@ const request = async (method, url, { data, params, headers, silent = false } = 
     headers: finalHeaders,
     body,
     cache: 'no-store',
+    keepalive,
   })
 
   const parsed = await parseResponse(response)
@@ -242,7 +243,7 @@ const request = async (method, url, { data, params, headers, silent = false } = 
 
 const api = {
   get: (url, config = {}) => request('GET', url, config),
-  post: (url, data, config = {}) => request('POST', url, { data, params: config.params, headers: config.headers }),
+  post: (url, data, config = {}) => request('POST', url, { data, params: config.params, headers: config.headers, silent: config.silent, keepalive: config.keepalive }),
   put: (url, data, config = {}) => request('PUT', url, { data, params: config.params, headers: config.headers }),
   patch: (url, data, config = {}) => request('PATCH', url, { data, params: config.params, headers: config.headers }),
   delete: (url, config = {}) => request('DELETE', url, config),
@@ -253,6 +254,11 @@ const API_BASE = import.meta.env.VITE_API_BASE_URL || ''
 const MOCK_API_BASE = import.meta.env.VITE_MOCK_API_URL || ''
 
 const normalizeBase = (u) => String(u || '').replace(/\/+$/g, '')
+
+export const normalizeProjectIdParam = (projectId) => {
+  const value = String(projectId ?? '')
+  return value.replace(/^CYN-2026-0/i, '')
+}
 
 const BASE = normalizeBase(API_BASE)
 const MOCK_BASE = normalizeBase(MOCK_API_BASE)
@@ -379,6 +385,10 @@ export const candidateAPI = {
       params: requestParams,
     })
   },
+  getAttendanceRequestForm: (registrationId) => api.get(`${BASE}/candidate/attendance/request-form`, {
+    params: { registration_id: registrationId },
+  }),
+  submitAttendanceRequest: (data) => api.post(`${BASE}/candidate/attendance/request-form-post`, data),
 
   getRecentApplications: () => api.get(`${MOCK_BASE}/candidate/dashboard/recent-applications`, { params: { limit: 5 } }),
 
@@ -605,9 +615,11 @@ export const recruiterAPI = {
   getWrittenExamPaymentReports: (params = {}) => api.get(`${BASE}/attendancepaymentsheet/written-exam`, { params }),
   // Server-side payments listing for recruiter UI (supports search/filters/pagination)
   getPaymentsList: (params = {}) => api.get(`${BASE}/employee/payments-list`, { params }),
+  getCandidatePayments: (candidateId, params = {}) => api.get(`${BASE}/employee/candidates/${encodeURIComponent(candidateId)}/payments`, { params }),
   getPaymentSummary: (params = {}) => api.get(`${MOCK_BASE}/attendance-payment-summary`, { params }),
   getWrittenExamPaymentSummary: (params = {}) => api.get(`${MOCK_BASE}/attendance-payment-summary/written-exam`, { params }),
   processExternalPaymentSheet: (formData) => api.post(`${BASE}/employee/payments/external-sheet`, formData),
+  uploadPaymentsFile: (formData) => api.post(`${BASE}/employee/payments/upload`, formData),
   getProjectRates: (projectId) => api.get(`${MOCK_BASE}/projects/${projectId}/rates`),
   saveProjectRates: (projectId, data) => api.post(`${MOCK_BASE}/projects/${projectId}/rates`, data),
   requestAttendanceChange: (data) => api.post(`${BASE}/attendance/change-request`, data),
@@ -671,7 +683,16 @@ export const recruiterAPI = {
   createProject: (data) => api.post(`${BASE}/recruiter/projects`, data),
   createRegularProject: (data) => api.post(`${BASE}/create-regular-projects`, data),
   createWrittenExamProject: (data) => api.post(`${BASE}/create-regular-projects`, data),
-  getProject: (projectId) => api.get(`${BASE}/editProject/${projectId}`),
+  getProject: (projectId) => api.get(`${BASE}/editProject/${encodeURIComponent(normalizeProjectIdParam(projectId))}`),
+  getProjectApplicationForm: (projectId) => api.get(`https://cynosurejobs.net/gig_jobs_backend/gigjobs_cyno/public/api/projects/${encodeURIComponent(normalizeProjectIdParam(projectId))}/application-get-form`),
+  saveProjectApplicationForm: (projectId, data) => api.post(`${BASE}/projects/${encodeURIComponent(normalizeProjectIdParam(projectId))}/application-form`, {
+    project_id: normalizeProjectIdParam(projectId),
+    ...data,
+  }, { silent: true }),
+  submitProjectApplication: (projectId, data) => api.post(`${BASE}/projects/${encodeURIComponent(normalizeProjectIdParam(projectId))}/application-form/submissions`, {
+    ...data,
+    project_id: normalizeProjectIdParam(projectId),
+  }),
   checkAttendanceLinkStatus: (projectId) => api.get(`${BASE}/candidate/attendance/link-status`, { params: { projectId } }),
   setProjectAttendanceStatus: (projectId, status) => api.post(`${BASE}/employee/projects/${projectId}/attendance-status`, { status }),
   updateProject: (projectId, data) => api.post(`${BASE}/projects/${projectId}/update`, data),
@@ -683,6 +704,12 @@ export const recruiterAPI = {
   getCandidates: (params = {}) => api.get(`${BASE}/candidates-registered`, { params }),
   getApplications: (params = {}) => api.get(`${BASE}/employee/applications`, { params }),
   updateApplicationStatus: (applicationId, data = {}) => api.post(`${BASE}/employee/applications/${applicationId}/status`, data),
+  getShortTermHiringCandidates: (params = {}) => api.get('/x7Qp2Lm9/ajax/short_term_hiring_api.php', { params }),
+  shareShortTermHiringCandidates: (data) => api.post(`${BASE}/employee/short-term-hiring/share-with-callers`, data),
+  getShortTermHiringCallStats: (params = {}) => api.get('/x7Qp2Lm9/ajax/get_call_history.php', { params }),
+  getShortTermHiringDailyStats: (params = {}) => api.get('/x7Qp2Lm9/ajax/get_detailed_call_history.php', { params }),
+  updateShortTermHiringStatus: (formData) => api.post('/x7Qp2Lm9/ajax/short_term_hiring_api.php', formData),
+  trackShortTermHiringCall: (formData) => api.post('/x7Qp2Lm9/ajax/store_calling_history.php', formData, { keepalive: true, silent: true }),
   // Mock endpoint for project members (use MOCK_BASE)
   rejectAttendance: (attendanceId, data) => api.post(`${BASE}/attendance/${attendanceId}/reject`, data),
   acceptAttendance: (attendanceId, data = {}) => api.post(`${BASE}/attendance/${attendanceId}/accept`, data),
@@ -699,9 +726,23 @@ export const recruiterAPI = {
   grantExpenseAccess: (data) => api.post(`${BASE}/employee/expense-access`, data),
   revokeExpenseAccess: (data) => api.post(`${BASE}/employee/expense-deactivateExpenseAccess-list`, data),
   getCandidatesWithExpenseAccess: (params = {}) => api.get(`${BASE}/employee/expense-access-list`, { params }),
-  getTimingExpenseProjects: (params = {}) => api.get('https://cynosurejobs.net/gig_jobs_backend/gigjobs_cyno/public/api/employee-timing/projectstable', { params }),
-  getTimingExpenses: (params = {}) => api.get('https://cynosurejobs.net/gig_jobs_backend/gigjobs_cyno/public/api/employee-timing/expenseslist', { params }),
-  getTimingExpenseDetails: (expenseId, params = {}) => api.get(`https://cynosurejobs.net/gig_jobs_backend/gigjobs_cyno/public/api/employee-timing/expense/${expenseId}`, { params }),
+  getTimingExpenseProjects: (params = {}) => api.get(`${BASE}/employee-timing/projectstable`, { params }),
+  mergeTimingExpenseProjects: (data) => api.post(`${BASE}/employee-timing/merge-projects`, data),
+  getTimingExpenseProjectMerges: (params = {}) => api.get(`${BASE}/employee-timing/project-merges`, { params }),
+  unmergeTimingExpenseProject: (data) => api.post(`${BASE}/employee-timing/unmerge-project`, data),
+  getTimingExpenses: (params = {}) => api.get(`${BASE}/employee-timing/gig/expenseslist`, { params }),
+  getTimingExpenseDetails: (expenseId, params = {}) => api.get(`${BASE}/employee-timing/expense/${expenseId}`, { params }),
+  saveTimingExpensePaymentDetails: (data) => api.post(`${BASE}/employee-timing/expense-payment-details`, data),
+  generateTimingExpensePaymentSheet: (data) => api.post(`${BASE}/employee-timing/generate-payment-sheet`, data),
+  confirmTimingExpensePaymentSheet: (data) => api.post(`${BASE}/employee-timing/confirm-payment-sheet`, data),
+  getglobalfinalpaymentsheet: (params = {}) => api.get(`${BASE}/employee-timing/payment-sheets`, { params }),
+  getglobalfinalpaymentsheetdetails: (sheetId, params = {}) => api.get(`${BASE}/employee-timing/payment-sheets-individual/${encodeURIComponent(sheetId)}`, { params }),
+  trackGlobalPaymentSheetDownload: (data) => api.post(`${BASE}/employee-timing/payment-sheets-download`, data),
+  updateGlobalPaymentSheetStatus: (data) => api.post(`${BASE}/employee-timing/payment-sheets-status`, data),
+  getglobaldraftpaymentsheet: (params = {}) => api.get(`${BASE}/employee-timing/draft-payment-sheets`, { params }),
+  getglobaldraftpaymentsheetdetails: (sheetId, params = {}) => api.get(`${BASE}/employee-timing/draft-payment-sheets-individual/${encodeURIComponent(sheetId)}`, { params }),
+  getTimingExpenseVendors: (params = {}) => api.get(`${BASE}/Timing-data/timing-gig/vendorsList`, { params }),
+  getTimingProjectExpenseSummary: (projectId, params = {}) => api.get(`${BASE}/Timing-data/project/expenses/timing/${projectId}`, { params }),
 
   /* ===== CALLING TEAM ===== */
   // params: { search, from, to, offset, limit }
@@ -723,13 +764,35 @@ export const recruiterAPI = {
   // Expected query params: { search, from, to, offset, limit }
   // Expected response shape for modal table: { data: { items: [...], total: number, offset: number, limit: number } }
   getOutsideCandidates: (params = {}) => api.get(`${BASE}/outside-attendance`, { params }),
+  rejectOutsideCandidate: (attendanceId, data = {}) => api.post(`${BASE}/attendance/reject/${attendanceId}`, data),
   getCandidateById: (id, config = {}) => api.get(`${BASE}/candidates/${id}`, config),
+  getCandidateAttendance: (candidateId, params = {}) => api.get(`${BASE}/recruiter/candidates/${candidateId}/attendance`, { params }),
+  getCandidateTravelTickets: (candidateId) => api.get(`${BASE}/employee/candidate-travel-tickets`, {
+    params: { candidate_id: candidateId },
+  }),
+  reassignCandidateAttendance: (candidateId, data = {}) => {
+    const sourceTypes = Array.isArray(data.current?.project_types)
+      ? data.current.project_types
+      : Array.isArray(data.source_project_types)
+        ? data.source_project_types
+        : [data.current?.project_type ?? data.source_project_type ?? data.project_type ?? '']
+    const targetType = String(data.destination?.project_type ?? data.target_project_type ?? '').trim().toLowerCase()
+    const normalizedSourceTypes = sourceTypes.map((type) => String(type).trim().toLowerCase())
+    if (
+      (normalizedSourceTypes.some((type) => type.includes('regular')) && targetType.includes('written'))
+      || (normalizedSourceTypes.some((type) => type.includes('written')) && !targetType.includes('written'))
+    ) {
+      return Promise.reject(new Error('Attendance cannot be reassigned between regular and written projects.'))
+    }
+    return api.post(`${BASE}/recruiter/candidates/${candidateId}/attendance/reassign`, data)
+  },
   postCandidateId: (id, data = {}) => api.post(`${BASE}/recruiter/candidates/${id}/post-id`, { candidate_id: id, ...data }),
   getAadhaarOcrVerification: (id, config = {}) => api.get(`${BASE}/employee/${id}/aadhaar-ocr-verification`, config),
   getInvalidAadhaarData: (id, config = {}) => api.get(`${BASE}/employee/${id}/aadhaar-invalid-data`, config),
   addCandidate: (data) => api.post(`${BASE}/recruiter/candidates/addnew`, data),
   // Alias for bulk upload / recipients import — keeps intent explicit
   uploadRecipients: (formData) => api.post(`${BASE}/candidates/import`, formData),
+  getImportedRecipients: (params = {}) => api.get(`${BASE}/candidates/imported`, { params }),
   uploadVerificationTeamDatabase: (formData) => api.post(`${BASE}/recruiter/verification-team/database`, formData),
   getVerificationTeamDatabaseRecords: (params = {}) => api.get(`${BASE}/recruiter/verification-team/database-list`, { params }),
   getVerificationTeamDatabaseRecordsWithTimer: (params = {}) => api.get(`${BASE}/recruiter/verification-team/database-list-with-timer`, { params }),
@@ -805,6 +868,10 @@ export const recruiterAPI = {
     api.get(`${BASE}/employee/InvalidCandidate`, { params }),
   getRegistrationKycStatus: (params = {}) =>
     api.get(`${BASE}/employee/registration-kyc-status`, { params }),
+  getCandidateJoiningDetails: (params = {}) =>
+    api.get(`${BASE}/employee/control-personal-details-list`, { params }),
+  saveCandidateJoiningDetails: (data = {}) =>
+    api.post(`${BASE}/employee/control-personal-details`, data),
 }
 
 // Mark payments as paid (bulk)
@@ -929,6 +996,32 @@ recruiterAPI.replaceVerifierRecipient = (registrationId, recipientId, data = {},
 // OTP endpoints specific to recruiter flows (avoid using authAPI)
 recruiterAPI.sendMobileOTPforverifiers = (mobile) => api.post(`${BASE}/candidate/send-otp`, { mobile })
 recruiterAPI.verifyMobileOTPforverifiers = (mobile, otp) => api.post(`${BASE}/jobseeker/verify-otp-login`, { mobile, otp })
+
+export const coreRecruiterAPI = {
+  get: api.get,
+  getAttendanceRecords: (params = {}) => api.get(`${BASE}/employee/coreteam/attendance-report`, { params }),
+  getWrittenExamAttendanceRecords: (params = {}) => api.get(`${BASE}/employee/coreteam/attendance-report/written-exam`, { params }),
+  getPresentCounts: (params = {}) => api.get(`${BASE}/employee/coreteam/present-counts`, {
+    params: {
+      projectType: params.projectType,
+      project_id: params.project_id,
+      from: params.from,
+      to: params.to,
+    },
+  }),
+  // rejectAttendance: (attendanceId, data) => api.post(`${BASE}/employee/coreteam/attendance/${attendanceId}/reject`, data),
+  getOutsideCoreCandidates: (params = {}) => api.get(`${BASE}/employee/coreteam/outside-core-attendance`, { params }),
+  assignCoreCandidates: (data) => api.post(`${BASE}/employee/coreteam/assign-project-to-core`, data),
+  getAttendanceRequests: (params = {}) => api.get(`${BASE}/employee/coreteam/attendance-requests`, { params }),
+  updateAttendanceRequests: (requests = []) => api.post(`${BASE}/employee/coreteam/attendance-requests/bulk`, requests),
+  // getFraudAttendanceRecords: (params = {}) => api.get(`${BASE}/employee/coreteam/attendance-report/fraud`, { params }),
+  // acceptAttendance: (attendanceId, data = {}) => api.post(`${BASE}/employee/coreteam/attendance/${attendanceId}/accept`, data),
+  // acceptFraudAttendance: (attendanceId, data = {}) => api.post(`${BASE}/employee/coreteam/attendance/${attendanceId}/accept-fraud`, data),
+  // getProjectCandidates: (params = {}) => api.get(`${BASE}/employee/coreteam/project-candidates`, { params }),
+  // searchAttendanceByCsv: (formData, params = {}) => api.post(`${BASE}/employee/coreteam/attendance/search-csv`, formData, { params }),
+  // sendEmailMessage: (data) => api.post(`${BASE}/employee/coreteam/send-email`, data),
+  // sendWhatsAppMessage: (data) => api.post(`${BASE}/employee/coreteam/send-whatsapp`, data),
+}
 
 export const publicAPI = {
   submitTicket: (data) => api.post(`${BASE}/support-request`, data),

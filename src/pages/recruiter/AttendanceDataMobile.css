@@ -232,14 +232,15 @@
   .recruiter-attendance-page .export-buttons .dropdown-menu {
     left: 0;
     right: auto;
-    width: min(360px, calc(100vw - 32px));
+    width: max-content;
+    min-width: 220px;
     max-width: calc(100vw - 32px);
     overflow: visible;
   }
 
   .recruiter-attendance-page .export-buttons .dropdown-item {
     white-space: normal;
-    overflow-wrap: anywhere;
+    overflow-wrap: break-word;
   }
 
   .recruiter-attendance-page .projects-table-meta > .btn {

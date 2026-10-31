@@ -7,6 +7,7 @@ import { MapModal } from '../../components/ui/MapModal' // Import MapModal
 import { useAuth } from '../../context/AuthContext'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faMapMarkerAlt, faCalendarAlt, faClock, faCheckCircle, faExclamationTriangle } from '@fortawesome/free-solid-svg-icons'
+import { encryptRegistrationId } from '../../utils/faceEnrollLinkCrypto'
 
 const formatDate = (value) => { // Existing function, no change
   if (!value) return '—'
@@ -157,6 +158,19 @@ export default function CandidateAttendancePage() {
     setMapPreview({ isOpen: false, markers: [], title: '' })
   }
 
+  const handleCopyAttendanceRequestLink = async () => {
+    try {
+      const token = await encryptRegistrationId(registrationId)
+      const link = `${window.location.origin}${window.location.pathname}#/attendance/request?registration_id=${encodeURIComponent(token)}`
+      await navigator.clipboard?.writeText(link)
+      window.dispatchEvent(new CustomEvent('apiMessage', {
+        detail: { icon: '✅', message: 'Attendance request link copied.', type: 'success' }
+      }))
+    } catch (error) {
+      console.error('Unable to create attendance request link:', error)
+    }
+  }
+
   const columns = projectType === 'written'
     ? ['S.No', 'Date', 'Clock In', 'Clock Out', 'In Photo', 'Out Photo', 'In Location', 'Out Location', 'Status']
     : ['S.No', 'Date', 'Clock In', 'Clock Out', 'In Photo', 'Out Photo', 'In Location', 'Out Location', 'Status']
@@ -257,9 +271,10 @@ export default function CandidateAttendancePage() {
         title="Attendance Details"
         subtitle={`Project / Location: ${fullTitle}`}
         action={
-          <button className="btn btn-outline btn-sm" onClick={() => navigate('/app/candidate/attendance')}>
-            &larr; Back to Summary
-          </button>
+          <div style={{ display: 'flex', gap: 8, flexWrap: 'wrap' }}>
+            {Number(user?.core) === 1 && <button className="btn btn-primary btn-sm" type="button" onClick={handleCopyAttendanceRequestLink}>Copy Request Link</button>}
+            <button className="btn btn-outline btn-sm" onClick={() => navigate('/app/candidate/attendance')}>&larr; Back to Summary</button>
+          </div>
         }
       />
       

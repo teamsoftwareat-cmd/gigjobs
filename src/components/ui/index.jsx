@@ -81,7 +81,7 @@ export function FormField({ label, error, children }) {
 }
 
 /* ===== DATA TABLE ===== */
-export function DataTable({ columns = [], rows = [], emptyMessage = 'No data found.', getRowClassName = () => '' }) {
+export function DataTable({ columns = [], rows = [], emptyMessage = 'No data found.', getRowClassName = () => '', onRowClick }) {
   return (
     <div className="table-wrap">
       <table>
@@ -92,7 +92,7 @@ export function DataTable({ columns = [], rows = [], emptyMessage = 'No data fou
           {rows.length === 0
             ? <tr><td colSpan={columns.length} style={{ textAlign: 'center', color: 'var(--text3)', padding: '24px' }}>{emptyMessage}</td></tr>
             : rows.map((row, i) => (
-              <tr key={i} className={getRowClassName(row, i)}>{(row || []).map((cell, j) => <td key={j}>{cell}</td>)}</tr>
+              <tr key={i} className={getRowClassName(row, i)} onClick={onRowClick ? (event) => onRowClick(row, i, event) : undefined} style={onRowClick ? { cursor: 'pointer' } : undefined}>{(row || []).map((cell, j) => <td key={j}>{cell}</td>)}</tr>
             ))
           }
         </tbody>

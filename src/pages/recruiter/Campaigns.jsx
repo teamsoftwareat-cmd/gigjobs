@@ -202,7 +202,7 @@ export default function Campaigns() {
   }
 
   const validateScheduledAt = (value) => {
-    if (!value) return { valid: true }
+    if (portal !== 'sms' || !value) return { valid: true }
 
     const selectedDate = new Date(value)
     if (Number.isNaN(selectedDate.getTime())) {
@@ -226,18 +226,20 @@ export default function Campaigns() {
     if (!selectedProject) return setError('Select a project')
     if (!file) return setError('Upload the exported Excel')
 
-    const scheduleValidation = validateScheduledAt(scheduledAt)
+    const scheduleValidation = portal === 'sms' ? validateScheduledAt(scheduledAt) : { valid: true }
     if (!scheduleValidation.valid) return setError(scheduleValidation.message)
 
     setLoading(true)
     setError('')
     const projectId = String(selectedProject).replace(/^proj_/, '')
+    const selectedProjectRecord = projects.find((project) => String(project.id || project.projectId || project.project_id || project.name) === String(selectedProject))
+    const projectName = selectedProjectRecord?.name || selectedProjectRecord?.title || selectedProjectRecord?.projectName || selectedProject
     const form = new FormData()
     form.append('file', file)
     form.append('scheduled_at', scheduledAt ? formatToIST(scheduledAt) : formatToIST(new Date()))
 
     try {
-      await recruiterAPI.notifyCampaign(form, { project_id: projectId, portal, message_type: messageType })
+      await recruiterAPI.notifyCampaign(form, { project_id: projectId, project_name: projectName, portal, message_type: messageType })
       setLoading(false)
       setFile(null)
       setPreview([])
@@ -282,9 +284,12 @@ export default function Campaigns() {
 
           <div className="form-group">
             <label className="form-label">Portal</label>
-            <select className="form-control" value={portal} onChange={(e) => setPortal(e.target.value)}>
+            <select className="form-control" value={portal} onChange={(e) => {
+              setPortal(e.target.value)
+              if (e.target.value !== 'sms') setError('')
+            }}>
               <option value="sms">SMS</option>
-              {/* <option value="whatsapp">WhatsApp</option> */}
+              <option value="whatsapp">WhatsApp</option>
               {/* <option value="email">Email</option> */}
             </select>
           </div>
@@ -327,19 +332,19 @@ export default function Campaigns() {
               onChange={(e) => {
                 const nextValue = e.target.value
                 setScheduledAt(nextValue)
-                const validation = validateScheduledAt(nextValue)
+                const validation = portal === 'sms' ? validateScheduledAt(nextValue) : { valid: true }
                 if (!validation.valid) {
                   setError(validation.message)
                 } else {
                   setError('')
                 }
               }}
-              min={new Date().toISOString().slice(0, 16)}
+              min={portal === 'sms' ? new Date().toISOString().slice(0, 16) : undefined}
             />
           </div>
           <div style={{ alignSelf: 'flex-end' }}>
             <div style={{ fontSize: 13, color: 'var(--text3)' }}>
-              Leave blank to send immediately. If you choose a time, it must be between 9:30 AM and 10:00 PM.
+              Leave blank to send immediately.{portal === 'sms' && ' SMS schedules must be between 9:30 AM and 10:00 PM.'}
             </div>
           </div>
         </div>
@@ -395,7 +400,7 @@ export default function Campaigns() {
             <select className="form-control" value={historyPortalFilter} onChange={(e) => handleHistoryFilterChange(setHistoryPortalFilter)(e.target.value)}>
               <option value="">All portals</option>
               <option value="sms">SMS</option>
-              {/* <option value="whatsapp">WhatsApp</option> */}
+              <option value="whatsapp">WhatsApp</option>
               {/* <option value="email">Email</option> */}
             </select>
           </div>

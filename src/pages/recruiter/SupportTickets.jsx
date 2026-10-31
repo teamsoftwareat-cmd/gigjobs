@@ -226,6 +226,25 @@ export function SupportTickets() {
   // Offcanvas messengers
   const [showEmailMessenger, setShowEmailMessenger] = useState(false)
   const [showWhatsAppMessenger, setShowWhatsAppMessenger] = useState(false)
+  const [supportMode, setSupportMode] = useState(() => {
+    if (typeof window === 'undefined') return 'consultant'
+    return window.localStorage.getItem('recruiter-support-mode') || 'consultant'
+  })
+  const isCoreRole = supportMode === 'core'
+
+  const copySupportLink = async (role) => {
+    try {
+      const supportUrl = new URL(window.location.href)
+      supportUrl.search = ''
+      supportUrl.hash = role === 'core' ? '#/support-request?role=core' : '#/support-request'
+
+      await navigator.clipboard.writeText(supportUrl.toString())
+      await alert(`${role === 'core' ? 'Core' : 'Consultant'} support link copied.`)
+    } catch (error) {
+      console.error('Failed to copy support link', error)
+      await alert('Unable to copy the support link. Please try again.')
+    }
+  }
 
   const selectedProjectType = useMemo(() => {
     const selectedProject = projectOptions.find((option) => option.id === projectFilter)
@@ -233,9 +252,14 @@ export function SupportTickets() {
   }, [projectFilter, projectOptions])
 
   useEffect(() => {
+    window.localStorage.setItem('recruiter-support-mode', supportMode)
+    setOffset(0)
+  }, [supportMode])
+
+  useEffect(() => {
     fetchTickets()
     fetchKPIs()
-  }, [offset, limit, statusFilter, categoryFilter, searchTerm, dateFilter, projectFilter, locationFilter, districtFilter, centreFilter])
+  }, [offset, limit, statusFilter, categoryFilter, searchTerm, dateFilter, projectFilter, locationFilter, districtFilter, centreFilter, isCoreRole])
 
   useEffect(() => {
     const loadProjectOptions = async () => {
@@ -267,6 +291,7 @@ export function SupportTickets() {
     try {
       setLoading(true)
       const params = {
+        ...(isCoreRole ? { role: 'core' } : {}),
         offset,
         limit,
         status: statusFilter !== 'all' ? statusFilter : undefined,
@@ -294,6 +319,7 @@ export function SupportTickets() {
     try {
       setKpisLoading(true)
       const params = {
+        ...(isCoreRole ? { role: 'core' } : {}),
         status: statusFilter !== 'all' ? statusFilter : undefined,
         category: categoryFilter !== 'all' ? categoryFilter : undefined,
         project: projectFilter || undefined,
@@ -324,6 +350,7 @@ export function SupportTickets() {
     try {
       setStatsLoading(true)
       const params = {
+        ...(isCoreRole ? { role: 'core' } : {}),
         dateFrom: dateFilter.from || undefined,
         dateTo: dateFilter.to || undefined,
       }
@@ -338,12 +365,13 @@ export function SupportTickets() {
 
   useEffect(() => {
     fetchStats()
-  }, [dateFilter])
+  }, [dateFilter, isCoreRole])
 
   const handleExportExcel = async () => {
     try {
       setExporting(true)
       const exportParams = {
+        ...(isCoreRole ? { role: 'core' } : {}),
         status: statusFilter !== 'all' ? statusFilter : undefined,
         category: categoryFilter !== 'all' ? categoryFilter : undefined,
         project: projectFilter || undefined,
@@ -360,6 +388,7 @@ export function SupportTickets() {
       const [ticketsResponse, kpisResponse, statsResponse] = await Promise.all([
         recruiterAPI.getSupportTickets(exportParams),
         recruiterAPI.getSupportTicketKPIs({
+          ...(isCoreRole ? { role: 'core' } : {}),
           status: statusFilter !== 'all' ? statusFilter : undefined,
           category: categoryFilter !== 'all' ? categoryFilter : undefined,
           project: projectFilter || undefined,
@@ -371,6 +400,7 @@ export function SupportTickets() {
           dateTo: dateFilter.to || undefined,
         }),
         recruiterAPI.getSupportTicketStats({
+          ...(isCoreRole ? { role: 'core' } : {}),
           dateFrom: dateFilter.from || undefined,
           dateTo: dateFilter.to || undefined,
         }),
@@ -788,14 +818,42 @@ export function SupportTickets() {
           <h1>Support Tickets</h1>
           <p>Manage and resolve candidate support queries</p>
         </div>
-        <button
-          type="button"
-          className="btn btn-primary"
-          onClick={handleExportExcel}
-          disabled={exporting}
-        >
-          <FontAwesomeIcon icon={faFileExcel} /> {exporting ? 'Exporting...' : 'Export Excel'}
-        </button>
+        <div style={{ display: 'flex', alignItems: 'center', gap: '12px', flexWrap: 'wrap' }}>
+          <div className="attendance-mode-switch" role="group" aria-label="Support team">
+            <button
+              type="button"
+              className={supportMode === 'consultant' ? 'active' : ''}
+              aria-pressed={supportMode === 'consultant'}
+              onClick={() => setSupportMode('consultant')}
+            >
+              Consultant
+            </button>
+            <button
+              type="button"
+              className={supportMode === 'core' ? 'active' : ''}
+              aria-pressed={supportMode === 'core'}
+              onClick={() => setSupportMode('core')}
+            >
+              Core
+            </button>
+          </div>
+
+          <button type="button" className="btn btn-secondary" onClick={() => copySupportLink('consultant')}>
+            Copy Consultant Link
+          </button>
+          <button type="button" className="btn btn-secondary" onClick={() => copySupportLink('core')}>
+            Copy Core Link
+          </button>
+
+          <button
+            type="button"
+            className="btn btn-primary"
+            onClick={handleExportExcel}
+            disabled={exporting}
+          >
+            <FontAwesomeIcon icon={faFileExcel} /> {exporting ? 'Exporting...' : 'Export Excel'}
+          </button>
+        </div>
       </div>
 
             {/* Filters Section */}

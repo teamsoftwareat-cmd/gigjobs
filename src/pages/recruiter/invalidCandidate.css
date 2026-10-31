@@ -63,7 +63,7 @@ flex-wrap:wrap;
 .search-box{
 font-size:14px;
 font-weight:500;
-color:#44546f;
+color: #334155;
 }
 
 .search-fields{
@@ -82,7 +82,7 @@ min-width:200px;
 
 .search-field label{
 font-size:13px;
-color:#475569;
+color: #1F2937;
 font-weight:600;
 }
 

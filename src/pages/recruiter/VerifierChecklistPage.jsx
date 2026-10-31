@@ -343,7 +343,7 @@ export default function VerifierChecklistPage() {
             checkbox.style.display = 'inline-block'
             checkbox.style.width = '16px'
             checkbox.style.height = '16px'
-            checkbox.style.border = '1px solid #999'
+            checkbox.style.border = '1px solid #4B5563'
             checkbox.style.margin = '0 auto'
             checkbox.style.verticalAlign = 'middle'
             checkbox.style.backgroundColor = checked ? '#22c55e' : 'transparent'
@@ -352,7 +352,7 @@ export default function VerifierChecklistPage() {
             if (note) {
               const noteDiv = document.createElement('div')
               noteDiv.style.fontSize = '10px'
-              noteDiv.style.color = '#666'
+              noteDiv.style.color = '#374151'
               noteDiv.style.marginTop = '4px'
               noteDiv.style.whiteSpace = 'normal'
               noteDiv.innerText = note
@@ -468,13 +468,13 @@ export default function VerifierChecklistPage() {
 
         <div style={{ overflowX: 'auto' }}>
           {(!selectedTitle || !selectedVenue) ? (
-            <div style={{ color: '#666' }}>Select title and venue to load checklists</div>
+            <div style={{ color: '#374151' }}>Select title and venue to load checklists</div>
           ) : (
             (() => {
               // determine template
               const template = getTemplateForDay(day)
               if (!template || template.length === 0) {
-                return <div style={{ color: '#666' }}>No checklist template for this day ({day})</div>
+                return <div style={{ color: '#374151' }}>No checklist template for this day ({day})</div>
               }
 
               // prepare merged data per centre from server items only (no templates)
@@ -509,7 +509,7 @@ export default function VerifierChecklistPage() {
               const col1Width = 60
               const col2Width = 420
               if (!masterItems || masterItems.length === 0) {
-                return <div style={{ color: '#666' }}>No checklist items available from server for this venue/centres.</div>
+                return <div style={{ color: '#374151' }}>No checklist items available from server for this venue/centres.</div>
               }
 
               const { titleLabel, checklistLabel } = getExportHeader()
@@ -547,7 +547,7 @@ export default function VerifierChecklistPage() {
                                 <div style={{ display: 'flex', justifyContent: 'center' }}>
                                   <input type="checkbox" checked={!!checked} readOnly />
                                 </div>
-                                {note ? <div style={{ fontSize: 11, color: '#666', marginTop: 4 }}>{note}</div> : null}
+                                {note ? <div style={{ fontSize: 11, color: '#374151', marginTop: 4 }}>{note}</div> : null}
                               </td>
                             )
                           })}

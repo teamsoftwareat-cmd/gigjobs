@@ -1,4 +1,4 @@
-﻿import { useEffect, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import {
@@ -138,7 +138,7 @@ function MiniCalendar({ attendance = [], loading, currentMonth = new Date(), onM
           </button>
         </div>
       </div>
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', fontSize: 12, color: '#6b7280', marginBottom: 8 }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(7, 1fr)', fontSize: 12, color: '#374151', marginBottom: 8 }}>
         {['Su', 'Mo', 'Tu', 'We', 'Th', 'Fr', 'Sa'].map((day) => (
           <div key={day} style={{ textAlign: 'center' }}>{day}</div>
         ))}
@@ -340,12 +340,12 @@ export default function CandidateDashboard() {
           <CardHeader title="Today's attendance" />
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12, padding: '10px 12px', borderRadius: 12, background: '#f8fafc', border: '1px solid #eef2f7' }}>
             <div>
-              <div style={{ fontSize: 13, color: '#6b7280' }}>Current status</div>
+              <div style={{ fontSize: 13, color: '#374151' }}>Current status</div>
               <div style={{ fontSize: 18, fontWeight: 700, color: '#111827' }}>{todayStatusLabel}</div>
             </div>
           </div>
           <MiniCalendar attendance={attendanceRecords} loading={loading.attendance} currentMonth={calendarMonth} onMonthChange={handleCalendarMonthChange} />
-          <div style={{ marginTop: 12, display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 12, color: '#6b7280' }}>
+          <div style={{ marginTop: 12, display: 'flex', gap: 10, flexWrap: 'wrap', fontSize: 12, color: '#374151' }}>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: '#dcfce7' }} /> Present</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: '#fee2e2' }} /> Absent</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}><span style={{ width: 10, height: 10, borderRadius: '50%', background: '#fef3c7' }} /> Late</div>
@@ -355,7 +355,7 @@ export default function CandidateDashboard() {
             {loading.attendance ? (
               <div style={{ height: 80, background: '#f3f4f6', borderRadius: 10 }} />
             ) : assignedProjects.length === 0 ? (
-              <div style={{ color: '#6b7280', fontSize: 13 }}>No project assignments loaded yet.</div>
+              <div style={{ color: '#374151', fontSize: 13 }}>No project assignments loaded yet.</div>
             ) : (
               <div style={{ display: 'grid', gap: 8 }}>
                 {assignedProjects.slice(0, 3).map((project, index) => {
@@ -365,7 +365,7 @@ export default function CandidateDashboard() {
                     <div key={`${projectName}-${index}`} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, padding: '8px 10px', borderRadius: 10, background: '#f9fafb', border: '1px solid #f1f5f9' }}>
                       <div>
                         <div style={{ fontWeight: 600, color: '#111827', fontSize: 13 }}>{projectName}</div>
-                        <div style={{ fontSize: 12, color: '#6b7280' }}><FontAwesomeIcon icon={faMapMarkerAlt} /> {locationName}</div>
+                        <div style={{ fontSize: 12, color: '#374151' }}><FontAwesomeIcon icon={faMapMarkerAlt} /> {locationName}</div>
                       </div>
                       <Tag variant="gray">Active</Tag>
                     </div>
@@ -384,7 +384,7 @@ export default function CandidateDashboard() {
           {loading.applications ? (
             <div style={{ height: 220, background: '#f3f4f6', borderRadius: 12 }} />
           ) : applications.length === 0 ? (
-            <div style={{ color: '#6b7280', padding: '24px 0' }}>No recent applications yet.</div>
+            <div style={{ color: '#374151', padding: '24px 0' }}>No recent applications yet.</div>
           ) : (
             <div style={{ display: 'grid', gap: 10 }}>
               {applications.map((app, index) => {
@@ -396,7 +396,7 @@ export default function CandidateDashboard() {
                     <div style={{ display: 'flex', justifyContent: 'space-between', gap: 12, alignItems: 'center' }}>
                       <div>
                         <div style={{ fontWeight: 600, color: '#111827' }}>{title}</div>
-                        <div style={{ fontSize: 12, color: '#6b7280', marginTop: 2 }}>{formatDate(appliedDate)}</div>
+                        <div style={{ fontSize: 12, color: '#374151', marginTop: 2 }}>{formatDate(appliedDate)}</div>
                       </div>
                       <Tag variant={getStatusVariant(status)}>{status}</Tag>
                     </div>
@@ -418,7 +418,7 @@ export default function CandidateDashboard() {
         <Card style={{ boxShadow: '0 8px 24px rgba(15, 23, 42, 0.05)' }}>
           <CardHeader title="Earnings overview" />
           <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: 8, marginBottom: 10 }}>
-            <div style={{ color: '#6b7280', fontSize: 13 }}>Current payout snapshot</div>
+            <div style={{ color: '#374151', fontSize: 13 }}>Current payout snapshot</div>
             <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#2563eb', fontWeight: 700 }}>
               <FontAwesomeIcon icon={faChartLine} /> {formatCurrency(earningsSummary.total || earningsSummary.amount || 0)}
             </div>
@@ -426,7 +426,7 @@ export default function CandidateDashboard() {
           {loading.earnings ? (
             <div style={{ height: 220, background: '#f3f4f6', borderRadius: 12 }} />
           ) : earningsChart.length === 0 ? (
-            <div style={{ color: '#6b7280', padding: '24px 0' }}>No earnings history available yet.</div>
+            <div style={{ color: '#374151', padding: '24px 0' }}>No earnings history available yet.</div>
           ) : (
             <div style={{ height: 260, maxHeight: 260, width: '100%', overflow: 'hidden', padding: '8px 4px 4px', borderRadius: 12, background: '#f8fafc', border: '1px solid #eef2f7' }}>
               <EarningsBarChart data={earningsChart} />

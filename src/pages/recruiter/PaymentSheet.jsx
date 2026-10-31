@@ -2,7 +2,7 @@ import { useState, useEffect, useCallback, useMemo, useRef } from 'react'
 import { useSearchParams, useNavigate, useLocation } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faFileExcel, faArrowLeft, faCalculator, faSearch, faCalendarAlt, faMapMarkerAlt, faMoneyBillWave, faCheckDouble, faUsers, faClock, faProjectDiagram, faSave, faUpload, faFilter, faPlus, faTrash, faCheck, faPencilAlt, faStar } from '@fortawesome/free-solid-svg-icons'
-import { recruiterAPI } from '../../api/axios'
+import { coreRecruiterAPI, recruiterAPI } from '../../api/axios'
 import { PageHeader, Card, DataTable, Modal, FormField, StatCard, LoadingOverlay } from '../../components/ui'
 import { useAlert } from '../../context/AlertContext'
 // Important: Change this import to xlsx-js-style to enable borders and centering
@@ -41,17 +41,31 @@ const parseISOToDate = (isoString) => {
   return new Date(parseInt(parts[0], 10), parseInt(parts[1], 10) - 1, parseInt(parts[2], 10));
 };
 
-export default function RecruiterPaymentSheet() {
+export default function RecruiterPaymentSheet({
+  modalOnly = false,
+  projectIdOverride = '',
+  locationIdOverride = '',
+  districtIdOverride = '',
+  centreIdOverride = '',
+  projectTypeOverride = '',
+  projectTitleOverride = '',
+  startDateOverride = '',
+  endDateOverride = '',
+  roleFilterOverride = '',
+  onClose,
+}) {
   const [searchParams] = useSearchParams()
   const navigate = useNavigate()
   const location = useLocation()
   const { alert } = useAlert()
   const { user } = useAuth()
 
-  const projectId = searchParams.get('id') || searchParams.get('project')
-  const locationId = searchParams.get('locationId') || searchParams.get('location') || ''
-  const districtId = searchParams.get('districtId') || searchParams.get('district') || ''
-  const centreId = searchParams.get('centreId') || searchParams.get('centre') || ''
+  const projectId = projectIdOverride || searchParams.get('id') || searchParams.get('project')
+  const locationId = locationIdOverride || searchParams.get('locationId') || searchParams.get('location') || ''
+  const districtId = districtIdOverride || searchParams.get('districtId') || searchParams.get('district') || ''
+  const centreId = centreIdOverride || searchParams.get('centreId') || searchParams.get('centre') || ''
+  const initialStartDate = startDateOverride || location.state?.startDate || ''
+  const initialEndDate = endDateOverride || location.state?.endDate || ''
 
   const [attendance, setAttendance] = useState([])
   const [loading, setLoading] = useState(false)
@@ -60,10 +74,11 @@ export default function RecruiterPaymentSheet() {
   const [offset, setOffset] = useState(0)
   const [total, setTotal] = useState(0)
   const [stats, setStats] = useState({ totalResources: 0, totalMandays: 0 })
-  const [projectDates, setProjectDates] = useState({ start: location.state?.startDate || '', end: location.state?.endDate || '' })
-  const [fromDate, setFromDate] = useState(location.state?.startDate || '')
-  const [toDate, setToDate] = useState(location.state?.endDate || '')
-  const [projectTitle, setProjectTitle] = useState((location.state?.projectTitle && location.state.projectTitle !== '...') ? location.state.projectTitle : (projectId ? '...' : 'Project'))
+  const [projectDates, setProjectDates] = useState({ start: initialStartDate, end: initialEndDate })
+  const [fromDate, setFromDate] = useState(initialStartDate)
+  const [toDate, setToDate] = useState(initialEndDate)
+  const initialProjectTitle = projectTitleOverride || location.state?.projectTitle
+  const [projectTitle, setProjectTitle] = useState((initialProjectTitle && initialProjectTitle !== '...') ? initialProjectTitle : (projectId ? '...' : 'Project'))
   const [search, setSearch] = useState('')
   const [debouncedSearch, setDebouncedSearch] = useState('')
   const [locationOptions, setLocationOptions] = useState([])
@@ -72,11 +87,11 @@ export default function RecruiterPaymentSheet() {
   const [selectedLocationId, setSelectedLocationId] = useState('')
   const [selectedDistrictId, setSelectedDistrictId] = useState('')
   const [selectedCentreId, setSelectedCentreId] = useState('')
-  const [roleFilter, setRoleFilter] = useState('')
-  const projectType = searchParams.get('projectType') || searchParams.get('project_type') || location.state?.projectType || ''
+  const [roleFilter, setRoleFilter] = useState(roleFilterOverride || searchParams.get('role') || '')
+  const projectType = projectTypeOverride || searchParams.get('projectType') || searchParams.get('project_type') || location.state?.projectType || ''
   const isWrittenExam = projectType === 'writtenExam' || projectType === 'written_exam'
   
-  const [isRateModalOpen, setIsRateModalOpen] = useState(false)
+  const [isRateModalOpen, setIsRateModalOpen] = useState(modalOnly)
   const [rates, setRates] = useState({})
   const [savingRates, setSavingRates] = useState(false)
   const [selectedRows, setSelectedRows] = useState(new Set())
@@ -459,7 +474,28 @@ export default function RecruiterPaymentSheet() {
   const fetchAttendance = useCallback(async () => {
     setLoading(true)
     try {
-      const response = await (isWrittenExam
+      const params = {
+        projectId: projectId || undefined,
+        ...(isWrittenExam
+          ? {
+              districtId: selectedDistrictId || undefined,
+              centreId: selectedCentreId || undefined,
+            }
+          : {
+              locationId: selectedLocationId || undefined,
+              centreId: selectedCentreId || undefined,
+            }),
+        from: fromDate || undefined,
+        to: toDate || undefined,
+        limit,
+        offset,
+        search: debouncedSearch || undefined,
+      }
+      const response = modalOnly
+        ? await (isWrittenExam
+          ? coreRecruiterAPI.getWrittenExamAttendanceRecords(params)
+          : coreRecruiterAPI.getAttendanceRecords(params))
+        : await (isWrittenExam
         ? recruiterAPI.getWrittenExamPaymentReports({
             projectId: projectId || undefined,
             districtId: selectedDistrictId || undefined,
@@ -506,7 +542,7 @@ export default function RecruiterPaymentSheet() {
     } finally {
       setLoading(false)
     }
-  }, [projectId, selectedLocationId, selectedDistrictId, selectedCentreId, fromDate, toDate, limit, offset, isWrittenExam, debouncedSearch, roleFilter])
+  }, [projectId, selectedLocationId, selectedDistrictId, selectedCentreId, fromDate, toDate, limit, offset, isWrittenExam, debouncedSearch, roleFilter, modalOnly])
 
   const extractAttendanceRequestsFromRows = (rows) => {
     const parsed = {}
@@ -1272,7 +1308,7 @@ export default function RecruiterPaymentSheet() {
     const { candidates, dates } = matrix
     
     const rowSelectionKey = (c) => `${c.id}-${c.designation}-${c.locationId}-${c.centreId || ''}`
-    const candidateSelection = paymentApplyScope === 'selected'
+    const candidateSelection = paymentApplyScope === 'selected' && (!modalOnly || selectedRows.size > 0)
       ? candidates.filter(c => selectedRows.has(rowSelectionKey(c)))
       : candidates
 
@@ -2211,8 +2247,8 @@ export default function RecruiterPaymentSheet() {
     }
 
     XLSX.writeFile(wb, `payment_sheet_${projectTitle}_${new Date().toISOString().split('T')[0]}.xlsx`)
-    setIsRateModalOpen(false)
     setGeneratingExcel(false) // End loading
+    closeRateModal()
   }
 
   const effectiveRequestLocationOptions = attendanceRequestDraft.projectId === projectId ? locationOptions : requestLocationOptions
@@ -2404,7 +2440,9 @@ export default function RecruiterPaymentSheet() {
     matrix.dates.reduce((sum, d) => sum + getWorkedWeight(c, d), 0)
   ])
 
-  const selectedCandidates = matrix.candidates.filter(c => selectedRows.has(`${c.id}-${c.designation}-${c.locationId}-${c.centreId || ''}`))
+  const selectedCandidates = modalOnly
+    ? matrix.candidates
+    : matrix.candidates.filter(c => selectedRows.has(`${c.id}-${c.designation}-${c.locationId}-${c.centreId || ''}`))
 
   const filteredCandidates = selectedCandidates.filter(c =>
     (!candidateSearch ||
@@ -2422,10 +2460,16 @@ export default function RecruiterPaymentSheet() {
   const pageNumbers = []
   for (let i = pageStart; i <= pageEnd; i += 1) pageNumbers.push(i)
 
-  return (
-    <div className="recruiter-attendance-page payment-sheet-page">
-      <LoadingOverlay active={generatingExcel} message="Generating Excel, please wait..." />
+  const closeRateModal = () => {
+    setIsRateModalOpen(false)
+    if (modalOnly) onClose?.()
+  }
 
+  return (
+    <>
+      <LoadingOverlay active={generatingExcel} message="Generating Excel, please wait..." />
+      {!modalOnly && (
+    <div className="recruiter-attendance-page payment-sheet-page">
             <button className="btn btn-outline btn-sm" style={{width: 'fit-content'}} onClick={() => navigate(-1)}>
               <FontAwesomeIcon icon={faArrowLeft} /> Back to Details
             </button>
@@ -2664,6 +2708,8 @@ export default function RecruiterPaymentSheet() {
           </div>
         </div>
       </Card>
+      </div>
+      )}
 
       <Modal
         isOpen={manualUploadOpen}
@@ -3027,7 +3073,8 @@ export default function RecruiterPaymentSheet() {
         </div>
       </Modal>
 
-      {/* Team Edit Modal */}
+      {!modalOnly && (
+      /* Team Edit Modal */
       <Modal
         isOpen={teamEditModalOpen}
         onClose={() => setTeamEditModalOpen(false)}
@@ -3135,18 +3182,21 @@ export default function RecruiterPaymentSheet() {
           </div>
         </div>
       </Modal>
+      )}
 
       <Modal
         isOpen={isRateModalOpen}
-        onClose={() => setIsRateModalOpen(false)}
+        onClose={closeRateModal}
         title="Configure Payment Sheet"
         maxWidth="600px"
         footer={
           <div style={{flexWrap: 'nowrap', display: 'flex', gap: '8px', justifyContent: 'flex-end'}}>
-            <button className="btn btn-outline btn-sm" onClick={() => setIsRateModalOpen(false)}>Close</button>
-            <button className="btn btn-secondary btn-sm" onClick={handleSaveRates} disabled={savingRates}>
-              <FontAwesomeIcon icon={faSave} /> {savingRates ? 'Saving...' : 'Save Rates'}
-            </button>
+            <button className="btn btn-outline btn-sm" onClick={closeRateModal}>Close</button>
+            {!modalOnly && (
+              <button className="btn btn-secondary btn-sm" onClick={handleSaveRates} disabled={savingRates}>
+                <FontAwesomeIcon icon={faSave} /> {savingRates ? 'Saving...' : 'Save Rates'}
+              </button>
+            )}
             <button className="btn btn-primary btn-sm" onClick={generatePaymentSheet} disabled={savingRates}>
               <FontAwesomeIcon icon={faFileExcel} /> Generate Excel
             </button>
@@ -3417,6 +3467,7 @@ export default function RecruiterPaymentSheet() {
                   </div>
                 )}
 
+            {!modalOnly && (
             <div className="mt-4 p-3" style={{ background: 'rgba(246, 248, 252, 0.9)', borderRadius: '10px', border: '1px solid var(--border-light)', padding: '16px' }}>
               <div className="text-xs font-bold mb-3">Team Assignment</div>
                 <div style={{ display: 'grid', gridTemplateColumns: '2fr 1fr', gap: '12px', alignItems: 'end' }}>
@@ -3513,6 +3564,7 @@ export default function RecruiterPaymentSheet() {
                 )}
               </div>
             </div>
+            )}
 
 
           </div>
@@ -3520,7 +3572,7 @@ export default function RecruiterPaymentSheet() {
           <div className="mt-4 p-3" style={{ background: 'var(--bg-light)', borderRadius: '8px', borderLeft: '4px solid var(--primary)', padding: '16px' }}>
             <div className="text-xs font-bold mb-1"><FontAwesomeIcon icon={faCheckDouble} /> Selected for Export:</div>
             <div className="flex justify-between items-center">
-              <span className="text-sm">{selectedRows.size} entries selected</span>
+              <span className="text-sm">{modalOnly ? matrix.candidates.length : selectedRows.size} entries selected</span>
               <span className="text-xs text-muted">
                 {selectedLocationId ? `Location: ${locationOptions.find(l => l.id === selectedLocationId)?.name}` : 'All Locations'}
               </span>
@@ -3665,6 +3717,6 @@ export default function RecruiterPaymentSheet() {
         </div>
       </Modal>
 
-    </div>
+    </>
   )
 }

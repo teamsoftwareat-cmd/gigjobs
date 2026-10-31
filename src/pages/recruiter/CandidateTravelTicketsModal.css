@@ -1,0 +1,73 @@
+.candidate-travel-tickets {
+  display: grid;
+  gap: 14px;
+  color: var(--text);
+}
+
+.candidate-travel-tickets-meta {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-light);
+}
+
+.candidate-travel-tickets-meta span,
+.candidate-travel-ticket-row > div > span {
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.candidate-travel-tickets-empty {
+  padding: 24px;
+  border: 1px solid var(--border-light);
+  color: var(--text2);
+  text-align: center;
+}
+
+.candidate-travel-tickets-list {
+  display: grid;
+  gap: 8px;
+  max-height: 60vh;
+  overflow-y: auto;
+}
+
+.candidate-travel-ticket-row {
+  display: grid;
+  grid-template-columns: minmax(130px, .8fr) minmax(0, 1.5fr) auto;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  border: 1px solid var(--border-light);
+  background: var(--card);
+}
+
+.candidate-travel-ticket-row > div {
+  display: grid;
+  gap: 4px;
+  min-width: 0;
+}
+
+.candidate-travel-ticket-file strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.candidate-travel-ticket-row .btn {
+  justify-content: center;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 560px) {
+  .candidate-travel-ticket-row {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+
+  .candidate-travel-ticket-file {
+    grid-column: 1 / -1;
+    grid-row: 2;
+  }
+}

@@ -541,7 +541,7 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
                 {profileImage ? (
                   <img src={profileImage} alt={name} style={{ width: '100%', height: '100%', objectFit: 'cover' }} />
                 ) : (
-                  <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#9ca3af' }}>
+                  <div style={{ height: '100%', display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#475569' }}>
                     <FontAwesomeIcon icon={faUser} size="2x" />
                   </div>
                 )}
@@ -1095,7 +1095,7 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
                     style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', objectFit: 'contain' }}
                   />
                 ) : (
-                  <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+                  <div style={{ textAlign: 'center', color: '#475569' }}>
                     <FontAwesomeIcon icon={faCamera} size="2x" style={{ marginBottom: 8 }} />
                     <div style={{ fontSize: 12 }}>Not Uploaded</div>
                   </div>
@@ -1143,7 +1143,7 @@ function CandidateInfo({ candidateId: candidateIdProp, suppressApiMessages = fal
                     style={{ maxWidth: '100%', maxHeight: '100%', width: 'auto', height: 'auto', objectFit: 'contain' }}
                   />
                 ) : (
-                  <div style={{ textAlign: 'center', color: '#94a3b8' }}>
+                  <div style={{ textAlign: 'center', color: '#475569' }}>
                     <FontAwesomeIcon icon={faCamera} size="2x" style={{ marginBottom: 8 }} />
                     <div style={{ fontSize: 12 }}>Not Uploaded</div>
                   </div>

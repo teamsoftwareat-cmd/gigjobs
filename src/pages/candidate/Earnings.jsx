@@ -1,12 +1,41 @@
-import { useEffect, useState } from 'react'
-import { Card, CardHeader, PageHeader, Tag, DataTable } from '../../components/ui/index'
-import { EarningsLineChart } from '../../components/ui/Charts'
+import { useEffect, useMemo, useState } from 'react'
+import { Card, PageHeader, Tag, DataTable } from '../../components/ui/index'
+import { EarningsPieChart } from '../../components/ui/Charts'
 import { candidateAPI } from '../../api/axios'
 import { useAuth } from '../../context/AuthContext'
 
-const formatCurrency = (v) => {
-  const n = Number(v) || 0
-  return `Rs ${n.toLocaleString('en-IN')}`
+const formatCurrency = (value) => `Rs ${Number(value || 0).toLocaleString('en-IN')}`
+const formatPaymentDate = (date) => {
+  if (!date) return '—'
+  const parsedDate = new Date(date)
+  if (Number.isNaN(parsedDate.getTime())) return '—'
+  return parsedDate.toLocaleDateString('en-IN', {
+    day: '2-digit',
+    month: 'short',
+    year: 'numeric',
+  })
+}
+
+const getPayouts = (response) => {
+  const payload = response?.data?.data ?? response?.data ?? response ?? {}
+  const rows = Array.isArray(payload)
+    ? payload
+    : payload?.payouts || payload?.payments || payload?.payment_history || payload?.payout_history || payload?.items || payload?.records || payload?.earnings || []
+
+  if (!Array.isArray(rows)) return []
+
+  return rows.map((item, index) => {
+    const rawPayoutType = String(item?.payout_type || item?.payoutType || item?.type || '').toLowerCase()
+    return {
+      id: item?.id ?? item?.payout_id ?? item?.payment_id ?? index,
+      project: item?.project_name || item?.projectName || item?.project?.name || item?.project || '—',
+      amount: Number(item?.amount ?? item?.total_amount ?? item?.net_amount ?? item?.earnings ?? 0),
+      feeType: item?.fee_type || item?.type_of_fee || item?.feeType || item?.payment_type || item?.type || 'Earnings',
+      date: item?.payment_date || item?.payout_date || item?.date || item?.paid_at || item?.created_at || '',
+      payoutType: rawPayoutType.includes('expense') || rawPayoutType.includes('reimburse') ? 'expenses' : 'salary',
+      status: item?.payment_status || item?.status || 'Pending',
+    }
+  })
 }
 
 const statusVariant = (status) => {
@@ -20,54 +49,64 @@ const statusVariant = (status) => {
 
 export function CandidateEarnings() {
   const { user } = useAuth()
-  const registrationId = user?.registrationId || user?.userId || localStorage.getItem('registration_id')
-
-  const [loading, setLoading] = useState(false)
-  const [error, setError] = useState(null)
-  const [summary, setSummary] = useState({})
-  const [chartData, setChartData] = useState([])
-  const [payouts, setPayouts] = useState([])
   const currentYear = new Date().getFullYear()
+  const registrationId = user?.registrationId || user?.registration_id || localStorage.getItem('registration_id') || ''
   const [yearFilter, setYearFilter] = useState(currentYear)
   const [payoutType, setPayoutType] = useState('all')
-
-  const payoutLabel = payoutType === 'all' ? 'All payouts' : payoutType === 'salary' ? 'Salary' : 'Expenses'
-  const payoutCount = payouts.length
-  const totalAmount = payouts.reduce((sum, p) => sum + Number(p.amount || p.paid_amount || p.amount_paid || p.value || 0), 0)
-  const averagePayout = payoutCount ? totalAmount / payoutCount : 0
-  const successfulPayouts = payouts.filter((p) => {
-    const status = String(p.status || p.payment_status || p.state || '').toLowerCase()
-    return /credit|paid|success|completed/.test(status)
-  }).length
-  const successRate = payoutCount ? `${Math.round((successfulPayouts / payoutCount) * 100)}%` : '—'
-  const periodLabel = summary.periodLabel || String(yearFilter)
+  const [breakdownBy, setBreakdownBy] = useState('project')
+  const [payoutData, setPayoutData] = useState([])
+  const [loading, setLoading] = useState(Boolean(registrationId))
+  const [loadError, setLoadError] = useState(false)
 
   useEffect(() => {
-    const id = registrationId || 'usr_001'
+    let isMounted = true
+
+    if (!registrationId) {
+      setPayoutData([])
+      setLoading(false)
+      return () => {
+        isMounted = false
+      }
+    }
+
     setLoading(true)
-    setError(null)
-
-    const params = { year: yearFilter }
-    if (payoutType !== 'all') params.payout_type = payoutType
-
-    candidateAPI.getEarnings(id, params).then((res) => {
-      const payload = res?.data || {}
-      const sum = payload.summary || payload.payment_summary || payload || {}
-      setSummary({
-        total: sum.total || payload.total || 0,
-        periodLabel: sum.period || payload.period || String(yearFilter),
+    setLoadError(false)
+    candidateAPI.getEarnings(registrationId, { year: yearFilter })
+      .then((response) => {
+        if (isMounted) setPayoutData(getPayouts(response))
+      })
+      .catch((error) => {
+        console.error('Unable to load candidate earnings:', error)
+        if (isMounted) {
+          setPayoutData([])
+          setLoadError(true)
+        }
+      })
+      .finally(() => {
+        if (isMounted) setLoading(false)
       })
 
-      const rawChart = payload.chart || payload.earnings_chart || payload.earnings || payload.data || []
-      const mappedChart = Array.isArray(rawChart) ? rawChart.map((d) => ({ day: d.day || d.label || d.date || '', amount: Number(d.amount || d.value || d.earnings || 0) })) : []
-      setChartData(mappedChart)
+    return () => {
+      isMounted = false
+    }
+  }, [registrationId, yearFilter])
 
-      const rawPayouts = payload.payouts || payload.history || payload.payout_history || []
-      setPayouts(Array.isArray(rawPayouts) ? rawPayouts : [])
-    }).catch((err) => {
-      setError(err?.message || 'Failed to load earnings')
-    }).finally(() => setLoading(false))
-  }, [registrationId, yearFilter, payoutType])
+  const payoutLabel = payoutType === 'all' ? 'All payouts' : payoutType === 'salary' ? 'Salary' : 'Expenses'
+  const payouts = useMemo(() => payoutData.filter((payout) => (
+    (!payout.date || Number(String(payout.date).slice(0, 4)) === yearFilter) &&
+    (payoutType === 'all' || payout.payoutType === payoutType)
+  )), [payoutData, yearFilter, payoutType])
+  const payoutCount = payouts.length
+  const totalAmount = payouts.reduce((sum, payout) => sum + payout.amount, 0)
+  const averagePayout = payoutCount ? totalAmount / payoutCount : 0
+  const breakdown = useMemo(() => {
+    const totals = new Map()
+    payouts.forEach((payout) => {
+      const label = breakdownBy === 'project' ? payout.project : payout.feeType
+      totals.set(label, (totals.get(label) || 0) + payout.amount)
+    })
+    return Array.from(totals, ([label, amount]) => ({ label, amount }))
+  }, [payouts, breakdownBy])
 
   return (
     <div className="candidate-earnings-page earnings-page">
@@ -81,8 +120,8 @@ export function CandidateEarnings() {
           <div className="earnings-hero-head">
             <div>
               <div className="earnings-hero-pretitle">Earnings dashboard</div>
-              <div className="earnings-hero-title">{loading ? 'Loading…' : formatCurrency(summary.total)}</div>
-              <div className="earnings-hero-period">{periodLabel === String(yearFilter) ? `Year ${yearFilter}` : `Period ${periodLabel}`}</div>
+              <div className="earnings-hero-title">{formatCurrency(totalAmount)}</div>
+              <div className="earnings-hero-period">Year {yearFilter}</div>
             </div>
             <Tag variant="teal">{payoutLabel}</Tag>
           </div>
@@ -91,15 +130,15 @@ export function CandidateEarnings() {
 
           <div className="earnings-hero-badges">
             <div className="earnings-hero-badge">
-              <strong>{loading ? '—' : formatCurrency(totalAmount)}</strong>
-              <span>Total paid</span>
+              <strong>{formatCurrency(totalAmount)}</strong>
+              <span>Total earnings</span>
             </div>
             <div className="earnings-hero-badge">
-              <strong>{loading ? '—' : formatCurrency(averagePayout)}</strong>
-              <span>Average payout</span>
+              <strong>{formatCurrency(averagePayout)}</strong>
+              <span>Average payment</span>
             </div>
             <div className="earnings-hero-badge">
-              <strong>{loading ? '—' : payoutCount}</strong>
+              <strong>{payoutCount}</strong>
               <span>Payments</span>
             </div>
           </div>
@@ -140,17 +179,35 @@ export function CandidateEarnings() {
         <Card className="earnings-card chart-card">
           <div className="chart-card-head">
             <div>
-              <h2>Income trend</h2>
-              <p className="chart-card-subtitle">Track your payout momentum across the selected year.</p>
+              <h2>Earnings breakdown</h2>
+              <p className="chart-card-subtitle">Compare earnings by project or fee type.</p>
+            </div>
+            <div className="earnings-breakdown-toggle" role="group" aria-label="Breakdown grouping">
+              <button
+                type="button"
+                className={`earnings-breakdown-button${breakdownBy === 'project' ? ' active' : ''}`}
+                aria-pressed={breakdownBy === 'project'}
+                onClick={() => setBreakdownBy('project')}
+              >
+                Project
+              </button>
+              <button
+                type="button"
+                className={`earnings-breakdown-button${breakdownBy === 'fee' ? ' active' : ''}`}
+                aria-pressed={breakdownBy === 'fee'}
+                onClick={() => setBreakdownBy('fee')}
+              >
+                Fee type
+              </button>
             </div>
           </div>
-          <div className="earnings-chart-wrapper">
+          <div className="earnings-chart-wrapper earnings-pie-chart-wrapper">
             {loading ? (
-              <div className="earnings-chart-empty">Loading chart data…</div>
-            ) : chartData.length === 0 ? (
-              <div className="earnings-chart-empty">No earnings trend available for this filter.</div>
+              <div className="earnings-chart-empty">Loading earnings...</div>
+            ) : breakdown.length === 0 ? (
+              <div className="earnings-chart-empty">No earnings available for this filter.</div>
             ) : (
-              <EarningsLineChart data={chartData} />
+              <EarningsPieChart data={breakdown} />
             )}
           </div>
         </Card>
@@ -158,53 +215,56 @@ export function CandidateEarnings() {
         <Card className="earnings-card history-card">
           <div className="history-card-head">
             <div>
-              <h2>Recent payouts</h2>
-              <p className="history-card-subtitle">Recent payments and their status, updated automatically.</p>
+              <h2>Payment history</h2>
+              <p className="history-card-subtitle">Project earnings, fee types, and payment dates.</p>
             </div>
-            <span className="chart-card-badge">{loading ? 'Loading' : `${payoutCount} records`}</span>
+            <span className="chart-card-badge">{payoutCount} records</span>
           </div>
 
-          {loading ? (
-            <div className="earnings-loading">Loading payout history…</div>
-          ) : error ? (
-            <div className="earnings-error">{error}</div>
-          ) : (
-            <>
-              <div className="earnings-history-table earnings-history-desktop">
-                <DataTable
-                  columns={["Date", "Amount", "Project", "Status"]}
-                  rows={(payouts || []).map((p, i) => [
-                    <span key={`date-${i}`} className="earnings-history-cell-date">{p.date || p.paid_at || p.created_at || '—'}</span>,
-                    <span key={`amt-${i}`} className="earnings-history-cell-amount">{formatCurrency(p.amount || p.paid_amount || p.amount_paid || p.value)}</span>,
-                    <span key={`proj-${i}`} className="earnings-history-cell-project">{p.project || p.projectName || p.project_title || p.description || '—'}</span>,
-                    <Tag variant={statusVariant(p.status || p.payment_status || p.state)}>{p.status || p.payment_status || p.state || 'Unknown'}</Tag>
-                  ])}
-                  emptyMessage="No payout history available"
-                />
-              </div>
+          <div className="earnings-history-table earnings-history-desktop">
+            {loading ? (
+              <div className="earnings-history-empty">Loading payment history...</div>
+            ) : loadError ? (
+              <div className="earnings-history-empty">Unable to load payment history.</div>
+            ) : (
+              <DataTable
+                columns={['Project Name', 'Amount', 'Type of Fee', 'Payment Date']}
+                rows={payouts.map((payout) => [
+                  <strong key={`project-${payout.id}`} className="earnings-history-cell-project">{payout.project}</strong>,
+                  <span key={`amount-${payout.id}`} className="earnings-history-cell-amount">{formatCurrency(payout.amount)}</span>,
+                  <Tag key={`fee-${payout.id}`} variant="teal">{payout.feeType}</Tag>,
+                  <span key={`date-${payout.id}`} className="earnings-history-cell-date">{formatPaymentDate(payout.date)}</span>,
+                ])}
+                emptyMessage="No payout history available for this filter"
+              />
+            )}
+          </div>
 
-              <div className="earnings-history-mobile">
-                {(payouts || []).length === 0 ? (
-                  <div className="earnings-history-empty">No payout history available</div>
-                ) : (
-                  (payouts || []).map((p, i) => (
-                    <div key={`mobile-${i}`} className="earnings-history-row">
-                      <div className="earnings-history-row-top">
-                        <div>
-                          <div className="earnings-history-row-date">{p.date || p.paid_at || p.created_at || '—'}</div>
-                          <div className="earnings-history-row-project">{p.project || p.projectName || p.project_title || p.description || 'Untitled payout'}</div>
-                        </div>
-                        <div className="earnings-history-row-amount">{formatCurrency(p.amount || p.paid_amount || p.amount_paid || p.value)}</div>
-                      </div>
-                      <div className="earnings-history-row-meta">
-                        <Tag variant={statusVariant(p.status || p.payment_status || p.state)}>{p.status || p.payment_status || p.state || 'Unknown'}</Tag>
-                      </div>
+          <div className="earnings-history-mobile">
+            {loading ? (
+              <div className="earnings-history-empty">Loading payment history...</div>
+            ) : loadError ? (
+              <div className="earnings-history-empty">Unable to load payment history.</div>
+            ) : payouts.length === 0 ? (
+              <div className="earnings-history-empty">No payout history available for this filter</div>
+            ) : (
+              payouts.map((payout) => (
+                <div key={`mobile-${payout.id}`} className="earnings-history-row">
+                  <div className="earnings-history-row-top">
+                    <div>
+                      <div className="earnings-history-row-project">{payout.project}</div>
+                      <div className="earnings-history-row-date">{formatPaymentDate(payout.date)}</div>
                     </div>
-                  ))
-                )}
-              </div>
-            </>
-          )}
+                    <div className="earnings-history-row-amount">{formatCurrency(payout.amount)}</div>
+                  </div>
+                  <div className="earnings-history-row-meta">
+                    <Tag variant="teal">{payout.feeType}</Tag>
+                    <Tag variant={statusVariant(payout.status)}>{payout.status}</Tag>
+                  </div>
+                </div>
+              ))
+            )}
+          </div>
         </Card>
       </div>
     </div>

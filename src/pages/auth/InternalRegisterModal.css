@@ -37,7 +37,7 @@
 }
 
 .register-description {
-  color: #475569;
+  color: #1F2937;
   font-size: 14px;
   max-width: 440px;
   line-height: 1.75;
@@ -74,7 +74,7 @@
   left: 14px;
   top: 50%;
   transform: translateY(-50%);
-  color: #94a3b8;
+  color: #1F2937;
   pointer-events: none;
 }
 
@@ -105,7 +105,7 @@
   height: 42px;
   background: #f8fafc;
   border: 1px solid #e2e8f0;
-  color: #475569;
+  color: #1F2937;
 }
 
 /* Light mode overrides for internal registration modal */

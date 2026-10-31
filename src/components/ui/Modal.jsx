@@ -1,8 +1,32 @@
-import React from 'react'
+import React, { useEffect } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faTimes } from '@fortawesome/free-solid-svg-icons'
 
+let openModalCount = 0
+let previousBodyOverflow = ''
+let previousDocumentOverflow = ''
+
 export function Modal({ isOpen, onClose, title, children, footer, maxWidth = '540px', closeOnBackdropClick = false, fullScreen = false, zIndex = 11000 }) {
+  useEffect(() => {
+    if (!isOpen) return undefined
+
+    if (openModalCount === 0) {
+      previousBodyOverflow = document.body.style.overflow
+      previousDocumentOverflow = document.documentElement.style.overflow
+      document.body.style.overflow = 'hidden'
+      document.documentElement.style.overflow = 'hidden'
+    }
+    openModalCount += 1
+
+    return () => {
+      openModalCount = Math.max(0, openModalCount - 1)
+      if (openModalCount === 0) {
+        document.body.style.overflow = previousBodyOverflow
+        document.documentElement.style.overflow = previousDocumentOverflow
+      }
+    }
+  }, [isOpen])
+
   if (!isOpen) return null
   const overlayStyle = fullScreen ? { padding: 0, alignItems: 'flex-start', zIndex } : { zIndex }
   const modalStyle = fullScreen ? { width: '100%', maxWidth: '100%', height: '100%', maxHeight: '100vh', borderRadius: 0 } : { maxWidth }

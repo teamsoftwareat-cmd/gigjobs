@@ -19,7 +19,7 @@
 
 .ticket-header p {
   font-size: 14px;
-  color: #666;
+  color: #374151;
   margin: 0;
 }
 
@@ -47,7 +47,7 @@
 .form-group label {
   font-size: 12px;
   font-weight: 600;
-  color: #666;
+  color: #374151;
   text-transform: uppercase;
   letter-spacing: 0.5px;
 }
@@ -74,7 +74,7 @@
 
 .form-group input:disabled {
   background: #f9fafb;
-  color: #999;
+  color: #4B5563;
   cursor: not-allowed;
 }
 
@@ -133,7 +133,7 @@
 
 .upload-icon {
   font-size: 32px;
-  color: #999;
+  color: #4B5563;
 }
 
 .upload-text {
@@ -149,7 +149,7 @@
 
 .upload-text p {
   font-size: 12px;
-  color: #666;
+  color: #374151;
   margin: 0;
 }
 
@@ -195,14 +195,14 @@
 
 .file-size {
   font-size: 12px;
-  color: #999;
+  color: #4B5563;
   flex-shrink: 0;
 }
 
 .btn-remove {
   background: none;
   border: none;
-  color: #999;
+  color: #4B5563;
   cursor: pointer;
   padding: 4px 6px;
   font-size: 14px;
@@ -216,7 +216,7 @@
 
 .file-info {
   font-size: 12px;
-  color: #666;
+  color: #374151;
   margin-top: 8px;
   margin-bottom: 0;
 }
@@ -291,14 +291,14 @@
 
 .support-success-state p {
   font-size: 14px;
-  color: #666;
+  color: #374151;
   margin: 0 0 8px 0;
   line-height: 1.6;
 }
 
 .ticket-ref {
   font-size: 12px !important;
-  color: #999;
+  color: #4B5563;
 }
 
 /* Responsive */

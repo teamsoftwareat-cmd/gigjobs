@@ -721,7 +721,7 @@ const PoliceReportTemplate = ({ candidate = {}, ocrData = null }) => {
             {registrationImage ? (
               <img src={registrationImage} alt="Registration" style={{ maxWidth: '100%', maxHeight: 160, objectFit: 'contain' }} />
             ) : (
-              <span style={{ color: '#999', fontSize: 10 }}>No photo</span>
+              <span style={{ color: '#4B5563', fontSize: 10 }}>No photo</span>
             )}
           </div>
         </div>
@@ -731,7 +731,7 @@ const PoliceReportTemplate = ({ candidate = {}, ocrData = null }) => {
             {uidaiImage ? (
               <img src={uidaiImage} alt="UIDAI" style={{ maxWidth: '100%', maxHeight: 160, objectFit: 'contain' }} />
             ) : (
-              <span style={{ color: '#999', fontSize: 10 }}>No photo</span>
+              <span style={{ color: '#4B5563', fontSize: 10 }}>No photo</span>
             )}
           </div>
         </div>
@@ -799,7 +799,7 @@ const PoliceReportTemplate = ({ candidate = {}, ocrData = null }) => {
             {aadhaarFront ? (
               <img src={aadhaarFront} alt="Aadhaar Front" style={{ maxWidth: '100%', maxHeight: 120, objectFit: 'contain' }} />
             ) : (
-              <span style={{ color: '#999', fontSize: 10 }}>Not available</span>
+              <span style={{ color: '#4B5563', fontSize: 10 }}>Not available</span>
             )}
           </div>
         </div>
@@ -809,7 +809,7 @@ const PoliceReportTemplate = ({ candidate = {}, ocrData = null }) => {
             {aadhaarBack ? (
               <img src={aadhaarBack} alt="Aadhaar Back" style={{ maxWidth: '100%', maxHeight: 120, objectFit: 'contain' }} />
             ) : (
-              <span style={{ color: '#999', fontSize: 10 }}>Not available</span>
+              <span style={{ color: '#4B5563', fontSize: 10 }}>Not available</span>
             )}
           </div>
         </div>
@@ -880,7 +880,7 @@ const KycReportTemplate = ({ candidate = {}, ocrData = null, agreementMode = fal
             {registrationImage ? (
               <img src={registrationImage} alt="Registration" style={{ maxWidth: '100%', maxHeight: 160, objectFit: 'contain' }} />
             ) : (
-              <span style={{ color: '#999', fontSize: noteFontSize }}>No photo</span>
+              <span style={{ color: '#4B5563', fontSize: noteFontSize }}>No photo</span>
             )}
           </div>
         </div>
@@ -890,7 +890,7 @@ const KycReportTemplate = ({ candidate = {}, ocrData = null, agreementMode = fal
             {uidaiImage ? (
               <img src={uidaiImage} alt="UIDAI" style={{ maxWidth: '100%', maxHeight: 160, objectFit: 'contain' }} />
             ) : (
-              <span style={{ color: '#999', fontSize: noteFontSize }}>No photo</span>
+              <span style={{ color: '#4B5563', fontSize: noteFontSize }}>No photo</span>
             )}
           </div>
         </div>
@@ -936,7 +936,7 @@ const KycReportTemplate = ({ candidate = {}, ocrData = null, agreementMode = fal
               {aadhaarFront ? (
                 <img src={aadhaarFront} style={{ width: '100%', height: '100%', objectFit: 'cover', maxHeight: 260 }} />
               ) : (
-                <span style={{ color: '#999', fontSize: noteFontSize }}>Not available</span>
+                <span style={{ color: '#4B5563', fontSize: noteFontSize }}>Not available</span>
               )}
             </div>
           </div>
@@ -946,7 +946,7 @@ const KycReportTemplate = ({ candidate = {}, ocrData = null, agreementMode = fal
               {aadhaarBack ? (
                 <img src={aadhaarBack} style={{ width: '100%', height: '100%', objectFit: 'cover', maxHeight: 260 }} />
               ) : (
-                <span style={{ color: '#999', fontSize: noteFontSize }}>Not available</span>
+                <span style={{ color: '#4B5563', fontSize: noteFontSize }}>Not available</span>
               )}
             </div>
           </div>
@@ -959,7 +959,7 @@ const KycReportTemplate = ({ candidate = {}, ocrData = null, agreementMode = fal
               {aadhaarFront ? (
                 <img src={aadhaarFront} alt="Aadhaar Front" style={{ maxWidth: '100%', maxHeight: 120, objectFit: 'contain' }} />
               ) : (
-                <span style={{ color: '#999', fontSize: 10 }}>Not available</span>
+                <span style={{ color: '#4B5563', fontSize: 10 }}>Not available</span>
               )}
             </div>
           </div>
@@ -969,7 +969,7 @@ const KycReportTemplate = ({ candidate = {}, ocrData = null, agreementMode = fal
               {aadhaarBack ? (
                 <img src={aadhaarBack} alt="Aadhaar Back" style={{ maxWidth: '100%', maxHeight: 120, objectFit: 'contain' }} />
               ) : (
-                <span style={{ color: '#999', fontSize: 10 }}>Not available</span>
+                <span style={{ color: '#4B5563', fontSize: 10 }}>Not available</span>
               )}
             </div>
           </div>
@@ -1435,7 +1435,7 @@ const AgreementTemplate = ({ candidate = {}, agreementData = {}, pageNumber = 1,
                 {profileImage ? (
                   <img src={profileImage} alt="Passport" style={{ maxWidth: '100%', maxHeight: '100%', objectFit: 'cover' }} />
                 ) : (
-                  <span style={{ fontSize: '9pt', color: '#999' }}>Not available</span>
+                  <span style={{ fontSize: '9pt', color: '#4B5563' }}>Not available</span>
                 )}
               </div>
             </div>
@@ -1495,13 +1495,13 @@ const AgreementTemplate = ({ candidate = {}, agreementData = {}, pageNumber = 1,
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '18px', marginBottom: '16px' }}>
           <div style={{ textAlign: 'center' }}>
             <div style={{ width: '140px', height: '52px', border: '1px solid #000', borderRadius: '100px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', fontSize: '9pt', letterSpacing: '0.5px' }}>
-              <span style={{ color: '#999' }}></span>
+              <span style={{ color: '#4B5563' }}></span>
             </div>
             <div style={{ marginTop: '6px', fontSize: '8.5pt', fontWeight: 700 }}>LTI for consultant</div>
           </div>
           <div style={{ textAlign: 'center' }}>
             <div style={{ width: '140px', height: '52px', border: '1px solid #000', borderRadius: '100px', margin: '0 auto', display: 'flex', alignItems: 'center', justifyContent: 'center', backgroundColor: '#fff', fontSize: '9pt', letterSpacing: '0.5px' }}>
-              <span style={{ color: '#999' }}></span>
+              <span style={{ color: '#4B5563' }}></span>
             </div>
             <div style={{ marginTop: '6px', fontSize: '8.5pt', fontWeight: 700 }}>LTI for witness</div>
           </div>

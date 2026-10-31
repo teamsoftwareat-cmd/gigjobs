@@ -828,7 +828,7 @@ export default function CallingTeam() {
                     style={{ height: 36 }}
                     disabled={!recipientProjectId}
                   />
-                  <div style={{ marginTop: 8, fontSize: 11, color: '#666' }}>
+                  <div style={{ marginTop: 8, fontSize: 11, color: '#374151' }}>
                     {recipientFile ? (
                       <span style={{ color: '#059669', fontWeight: 500 }}>✓ {recipientFile.name}</span>
                     ) : (
@@ -843,7 +843,7 @@ export default function CallingTeam() {
                     >
                       Download template
                     </button>
-                    <span style={{ fontSize: 11, color: '#6b7280' }}>Headers should match the sample template.</span>
+                    <span style={{ fontSize: 11, color: '#374151' }}>Headers should match the sample template.</span>
                   </div>
                 </div>
                 <button
@@ -883,7 +883,7 @@ export default function CallingTeam() {
           {recipientLoading ? (
             <div style={{ padding: 28, textAlign: 'center', color: '#555' }}>Loading recipients…</div>
           ) : recipientRows.length === 0 ? (
-            <div style={{ padding: 28, textAlign: 'center', color: '#666' }}>
+            <div style={{ padding: 28, textAlign: 'center', color: '#374151' }}>
               No recipients found. Enter a search term or upload a file to begin.
             </div>
           ) : (
@@ -996,8 +996,8 @@ export default function CallingTeam() {
             <div>
               <div style={{ marginBottom: 4, fontSize: 12, color: '#4b5563' }}>Recipient</div>
               <div style={{ fontWeight: 600 }}>{selectedRecipientForReassign.name || selectedRecipientForReassign.full_name || '-'}</div>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>{selectedRecipientForReassign.phone || selectedRecipientForReassign.mobile || ''}</div>
-              <div style={{ fontSize: 12, color: '#6b7280' }}>{selectedRecipientForReassign.aadhaar || selectedRecipientForReassign.aadhaarNumber || ''}</div>
+              <div style={{ fontSize: 12, color: '#374151' }}>{selectedRecipientForReassign.phone || selectedRecipientForReassign.mobile || ''}</div>
+              <div style={{ fontSize: 12, color: '#374151' }}>{selectedRecipientForReassign.aadhaar || selectedRecipientForReassign.aadhaarNumber || ''}</div>
             </div>
 
             <div style={{ display: 'grid', gap: 12 }}>

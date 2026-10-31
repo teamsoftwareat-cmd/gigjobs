@@ -17,12 +17,12 @@ export const ROLES = {
           { icon: 'user-circle', label: 'My Profile', page: '/app/candidate/profile' },
           // { icon: 'search', label: 'Browse Jobs', page: '/app/candidate/jobs' },
           // { icon: 'clipboard-list', label: 'My Applications', page: '/app/candidate/applications'},
-          // { icon: 'rupee-sign', label: 'Earnings & Payouts', page: '/app/candidate/earnings' },
+          { icon: 'rupee-sign', label: 'Earnings & Payouts', page: '/app/candidate/earnings' },
         ]
       },
       {
         section: 'More', items: [
-          // { icon: 'clock', label: 'Attendance', page: '/app/candidate/attendance' },
+          { icon: 'clock', label: 'Attendance', page: '/app/candidate/attendance' },
           { icon: 'phone', label: 'Calling', page: '/app/candidate/calling' },
           { icon: 'user-check', label: 'Verifier', page: '/app/candidate/verifier' },
           { icon: 'file-invoice-dollar', label: 'Expenses', page: '/app/candidate/expenses' },
@@ -43,9 +43,11 @@ export const ROLES = {
           { icon: 'tachometer-alt', label: 'Dashboard', page: '/app/recruiter/dashboard' },
           { icon: 'project-diagram', label: 'Projects', page: '/app/recruiter/projects' },
           { icon: 'clock', label: 'Attendance', page: '/app/recruiter/attendance' },
+          { icon: 'user-plus', label: 'Add Core Team', page: '/app/recruiter/calling-team/add-candidates' },
           { icon: 'users', label: 'Candidate Database', page: '/app/recruiter/candidate-database' },
           { icon: 'file-invoice-dollar', label: 'Expenses', page: '/app/recruiter/expenses' },
-          { icon: 'money-bill-wave', label: 'Payments', page: '/app/recruiter/payments' },
+          { icon: 'clock', label: 'Timing Expenses', page: '/app/recruiter/timing-expenses' },
+          { icon: 'money-bill-wave', label: 'Payments', page: '/app/recruiter/payments-new' },
         ]
       },
       {
@@ -111,9 +113,10 @@ export const ROLES = {
           { icon: 'tachometer-alt', label: 'Dashboard', page: '/app/recruiter/dashboard' },
           { icon: 'project-diagram', label: 'Projects', page: '/app/recruiter/projects' },
           { icon: 'clock', label: 'Attendance', page: '/app/recruiter/attendance' },
+          { icon: 'user-plus', label: 'Add Core Team', page: '/app/recruiter/calling-team/add-candidates' },
           { icon: 'users', label: 'Candidate Database', page: '/app/recruiter/candidate-database' },
           { icon: 'file-invoice-dollar', label: 'Expenses', page: '/app/recruiter/expenses' },
-          { icon: 'money-bill-wave', label: 'Payments', page: '/app/recruiter/payments' },
+          { icon: 'money-bill-wave', label: 'Payments', page: '/app/recruiter/payments-new' },
         ]
       },
       {
@@ -162,9 +165,10 @@ export const ROLES = {
           { icon: 'tachometer-alt', label: 'Dashboard', page: '/app/recruiter/dashboard' },
           { icon: 'project-diagram', label: 'Projects', page: '/app/recruiter/projects' },
           { icon: 'clock', label: 'Attendance', page: '/app/recruiter/attendance' },
+          { icon: 'user-plus', label: 'Add Core Team', page: '/app/recruiter/calling-team/add-candidates' },
           { icon: 'users', label: 'Candidate Database', page: '/app/recruiter/candidate-database' },
           { icon: 'file-invoice-dollar', label: 'Expenses', page: '/app/recruiter/expenses' },
-          { icon: 'money-bill-wave', label: 'Payments', page: '/app/recruiter/payments' },
+          { icon: 'money-bill-wave', label: 'Payments', page: '/app/recruiter/payments-new' },
         ]
       },
       {
@@ -270,7 +274,8 @@ export function AuthProvider({ children }) {
         try {
           restoredUser = JSON.parse(savedUserJson)
           setAuthToken(token)
-          setUser(restoredUser)
+          const restoredRoleConfig = ROLES[restoredUser.role] || ROLES.candidate
+          setUser(buildUser({ ...restoredRoleConfig, ...restoredUser }, restoredUser))
           setAuthChecked(true)
           return
         } catch {
@@ -445,6 +450,7 @@ export function AuthProvider({ children }) {
         email: userData.email,
         mobile: userData.mobile || mobile,
         aadhaar: userData.aadhaar || responseData?.aadhaar || responseData?.user?.aadhaar,
+        core: responseData?.core ?? top?.core,
         calling: userData.calling,
         expenses: userData.expenses,
         verifier,

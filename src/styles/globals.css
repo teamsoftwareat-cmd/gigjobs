@@ -20,8 +20,8 @@
   --card: #FFFFFF;
   --border: #DDE3EC;
   --text: #1A2740;
-  --text2: #4A5568;
-  --text3: #8899AA;
+  --text2: #475467;
+  --text3: #667085;
   --sidebar-w: 250px;
   --header-h: 64px;
   --input-bg: #F2F5F9;
@@ -41,8 +41,8 @@
   --card: #161B22;
   --border: #2D3748;
   --text: #E6EDF3;
-  --text2: #8B949E;
-  --text3: #6E7681;
+  --text2: #C7D0DA;
+  --text3: #AAB4C0;
   --input-bg: #21262D;
   --header-bg: #161B22;
   --modal-bg: #161B22;
@@ -169,11 +169,11 @@ h1, h2, h3, h4, h5 { font-family: 'Sora', sans-serif; }
 .sidebar-nav::-webkit-scrollbar-thumb { background: rgba(255,255,255,0.1); border-radius: 4px; }
 
 .nav-section { margin-bottom: 20px; }
-.nav-section-title { color: var(--text3); font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; padding: 4px 12px 8px; }
+.nav-section-title { color: rgba(255,255,255,0.72); font-size: 12px; text-transform: uppercase; letter-spacing: 1.5px; padding: 4px 12px 8px; }
 .nav-item {
   display: flex; align-items: center; gap: 12px; padding: 10px 12px;
   border-radius: 8px; cursor: pointer; transition: all 0.2s;
-  color: rgba(255,255,255,0.6); font-size: 13.5px; font-weight: 500; margin-bottom: 2px;
+  color: rgba(255,255,255,0.86); font-size: 13.5px; font-weight: 500; margin-bottom: 2px;
   text-decoration: none;
 }
 .nav-item:hover { background: rgba(255,255,255,0.07); color: white; }
@@ -558,6 +558,50 @@ h1, h2, h3, h4, h5 { font-family: 'Sora', sans-serif; }
   margin-bottom: 20px;
 }
 
+.earnings-breakdown-toggle {
+  display: inline-flex;
+  flex: 0 0 auto;
+  align-items: center;
+  gap: 3px;
+  padding: 4px;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  background: var(--bg);
+}
+
+.earnings-breakdown-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--text2);
+  cursor: pointer;
+  font: inherit;
+  font-size: 12px;
+  font-weight: 600;
+  white-space: nowrap;
+  transition: background-color 0.16s ease, color 0.16s ease;
+}
+
+.earnings-breakdown-button:hover:not(.active) {
+  background: var(--card);
+  color: var(--text);
+}
+
+.earnings-breakdown-button.active {
+  background: var(--teal);
+  color: #fff;
+}
+
+.earnings-breakdown-button:focus-visible {
+  outline: 2px solid var(--teal);
+  outline-offset: 2px;
+}
+
 .chart-card-head h2,
 .history-card-head h2 {
   margin: 0;
@@ -814,6 +858,15 @@ h1, h2, h3, h4, h5 { font-family: 'Sora', sans-serif; }
 
   .earnings-history-desktop {
     display: none;
+  }
+
+  .chart-card-head {
+    flex-wrap: wrap;
+    align-items: center;
+  }
+
+  .earnings-breakdown-toggle {
+    margin-left: auto;
   }
 
   .earnings-history-mobile {
@@ -2083,7 +2136,8 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   position: fixed; inset: 0; background: rgba(0,0,0,0.55); z-index: 200;
   display: flex; align-items: center; justify-content: center; padding: 20px;
   backdrop-filter: blur(4px);
-  overflow-y: auto;
+  overflow: hidden;
+  overscroll-behavior: none;
 }
 .modal {
   display: flex;
@@ -2452,7 +2506,7 @@ input:checked + .slider:before { transform: translateX(18px); }
   align-items: center;
   cursor: pointer;
   padding: 6px 12px 8px;
-  color: var(--text3);
+  color: #ccc;
   font-weight: 600;
 }
 .nav-section-caret { transition: transform 0.18s ease; color: var(--text3); }
@@ -2507,6 +2561,141 @@ input:checked + .slider:before { transform: translateX(18px); }
   .earnings-history-row-amount { min-width: auto; text-align: left; }
   .land-nav { padding: 16px 20px; }
   .land-nav-links { display: none; }
+}
+
+@media (max-width: 768px) {
+  .candidate-earnings-page {
+    gap: 16px;
+    padding: 14px;
+  }
+
+  .candidate-earnings-page .earnings-card {
+    min-width: 0;
+    padding: 18px;
+    border-radius: 20px;
+  }
+
+  .candidate-earnings-page .earnings-top-grid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 16px;
+  }
+
+  .candidate-earnings-page .earnings-hero-head,
+  .candidate-earnings-page .earnings-panel-head {
+    flex-wrap: wrap;
+    gap: 12px;
+  }
+
+  .candidate-earnings-page .earnings-hero-title {
+    font-size: 28px;
+    overflow-wrap: anywhere;
+  }
+
+  .candidate-earnings-page .earnings-hero-copy {
+    font-size: 14px;
+    line-height: 1.6;
+    margin-bottom: 18px;
+  }
+
+  .candidate-earnings-page .earnings-hero-badges {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+    margin-bottom: 0;
+  }
+
+  .candidate-earnings-page .earnings-hero-badge {
+    min-width: 0;
+    padding: 14px;
+    border-radius: 14px;
+  }
+
+  .candidate-earnings-page .earnings-hero-badge:last-child {
+    grid-column: 1 / -1;
+  }
+
+  .candidate-earnings-page .earnings-hero-badge strong {
+    font-size: 18px;
+    overflow-wrap: anywhere;
+  }
+
+  .candidate-earnings-page .earnings-hero-badge span {
+    font-size: 11px;
+  }
+
+  .candidate-earnings-page .earnings-panel-filters {
+    gap: 12px;
+    margin-bottom: 0;
+  }
+
+  .candidate-earnings-page .earnings-content-grid {
+    gap: 16px;
+  }
+
+  .candidate-earnings-page .chart-card,
+  .candidate-earnings-page .history-card {
+    min-height: 0;
+  }
+
+  .candidate-earnings-page .chart-card-head,
+  .candidate-earnings-page .history-card-head {
+    flex-direction: column;
+    gap: 12px;
+    margin-bottom: 16px;
+  }
+
+  .candidate-earnings-page .chart-card-head h2,
+  .candidate-earnings-page .history-card-head h2 {
+    font-size: 18px;
+  }
+
+  .candidate-earnings-page .earnings-breakdown-toggle {
+    width: 100%;
+    margin-left: 0;
+  }
+
+  .candidate-earnings-page .earnings-breakdown-button {
+    flex: 1;
+    min-height: 40px;
+  }
+
+  .candidate-earnings-page .earnings-chart-wrapper {
+    min-height: 260px;
+    padding: 12px;
+    border-radius: 16px;
+  }
+
+  .candidate-earnings-page .earnings-chart-empty {
+    padding: 20px 14px;
+  }
+
+  .candidate-earnings-page .earnings-history-row {
+    gap: 10px;
+    padding: 14px;
+    border-radius: 14px;
+    margin-bottom: 10px;
+  }
+
+  .candidate-earnings-page .earnings-history-row-top {
+    flex-wrap: nowrap;
+    align-items: flex-start;
+    gap: 10px;
+  }
+
+  .candidate-earnings-page .earnings-history-row-project {
+    margin-top: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .candidate-earnings-page .earnings-history-row-amount {
+    min-width: 0;
+    font-size: 16px;
+    text-align: right;
+  }
+
+  .candidate-earnings-page .earnings-history-row-meta {
+    flex-wrap: wrap;
+    gap: 8px;
+  }
 }
 
 .skeleton-card {

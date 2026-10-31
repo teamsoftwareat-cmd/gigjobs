@@ -773,7 +773,7 @@ export default function VerificationTeamList() {
           </div>
 
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginTop: '18px', flexWrap: 'wrap', gap: '12px' }}>
-            <div style={{ color: '#6b7280' }}>
+            <div style={{ color: '#374151' }}>
               Showing {firstRow}–{lastRow} of {total}
             </div>
             <div style={{ display: 'flex', alignItems: 'center', gap: '8px', flexWrap: 'wrap' }}>
@@ -814,12 +814,12 @@ export default function VerificationTeamList() {
           }}
         >
           <div style={{ display: 'grid', gap: '16px' }}>
-            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '13px', color: '#6b7280' }}>
-              <span style={{ fontWeight: 700, color: activeStep >= 1 ? '#111827' : '#9ca3af' }}>1. Mobile</span>
+            <div style={{ display: 'flex', gap: '8px', alignItems: 'center', fontSize: '13px', color: '#374151' }}>
+              <span style={{ fontWeight: 700, color: activeStep >= 1 ? '#111827' : '#475569' }}>1. Mobile</span>
               <span>›</span>
-              <span style={{ fontWeight: 700, color: activeStep >= 2 ? '#111827' : '#9ca3af' }}>2. Details</span>
+              <span style={{ fontWeight: 700, color: activeStep >= 2 ? '#111827' : '#475569' }}>2. Details</span>
               <span>›</span>
-              <span style={{ fontWeight: 700, color: activeStep >= 3 ? '#111827' : '#9ca3af' }}>3. OTP</span>
+              <span style={{ fontWeight: 700, color: activeStep >= 3 ? '#111827' : '#475569' }}>3. OTP</span>
             </div>
 
             {activeStep === 1 && (
@@ -850,7 +850,7 @@ export default function VerificationTeamList() {
                         boxShadow: '0 12px 24px rgba(0,0,0,0.08)'
                       }}>
                         {candidateLoading ? (
-                          <div style={{ padding: '10px', color: '#6b7280' }}>Looking up registered mobile numbers…</div>
+                          <div style={{ padding: '10px', color: '#374151' }}>Looking up registered mobile numbers…</div>
                         ) : candidateSuggestions.length > 0 ? (
                           candidateSuggestions.map((candidate) => (
                             <button
@@ -870,16 +870,16 @@ export default function VerificationTeamList() {
                               }}
                             >
                               <div style={{ fontWeight: 600 }}>{candidate.name || 'Registered candidate'}</div>
-                              <div style={{ fontSize: 12, color: '#6b7280' }}>{candidate.mobile}{candidate.email ? ` • ${candidate.email}` : ''}</div>
+                              <div style={{ fontSize: 12, color: '#374151' }}>{candidate.mobile}{candidate.email ? ` • ${candidate.email}` : ''}</div>
                             </button>
                           ))
                         ) : (
-                          <div style={{ padding: '10px', color: '#6b7280' }}>No registered mobile numbers found.</div>
+                          <div style={{ padding: '10px', color: '#374151' }}>No registered mobile numbers found.</div>
                         )}
                       </div>
                     )}
                   </div>
-                  <div style={{ fontSize: 12, color: form.registrationId ? '#166534' : '#6b7280', marginTop: '6px' }}>
+                  <div style={{ fontSize: 12, color: form.registrationId ? '#166534' : '#374151', marginTop: '6px' }}>
                     {form.registrationId
                       ? `✓ Registered mobile selected: ${form.phone}`
                       : 'Type a mobile number and select a registered suggestion.'}
@@ -980,7 +980,7 @@ export default function VerificationTeamList() {
                 <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '10px' }}>
                   <div>
                     <div style={{ fontWeight: 600, marginBottom: '6px' }}>Mobile OTP verification</div>
-                    <div style={{ color: '#6b7280' }}>
+                    <div style={{ color: '#374151' }}>
                       {otpVerified
                         ? 'Verified mobile will be used for this verifier.'
                         : 'Send OTP to the entered mobile number and verify before saving.'}

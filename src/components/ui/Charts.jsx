@@ -3,7 +3,7 @@ import {
   CategoryScale, LinearScale, BarElement, LineElement,
   PointElement, ArcElement, Title, Tooltip, Legend, Filler,
 } from 'chart.js'
-import { Bar, Line, Doughnut } from 'react-chartjs-2'
+import { Bar, Line, Doughnut, Pie } from 'react-chartjs-2'
 import { useTheme } from '../../context/ThemeContext'
 
 ChartJS.register(
@@ -149,6 +149,53 @@ export function EarningsLineChart({ data = [] }) {
               grid: { display: false }
             }
           }
+        }}
+      />
+    </div>
+  )
+}
+
+export function EarningsPieChart({ data = [] }) {
+  const { text } = useChartColors()
+  const colors = ['#0E7C86', '#1AA8B5', '#F4A130', '#6D75C7', '#44A581', '#E27777']
+
+  return (
+    <div className="chart-container">
+      <Pie
+        data={{
+          labels: data.map((item) => item.label),
+          datasets: [{
+            data: data.map((item) => item.amount),
+            backgroundColor: data.map((_, index) => colors[index % colors.length]),
+            borderColor: 'white',
+            borderWidth: 3,
+            hoverOffset: 8,
+          }],
+        }}
+        options={{
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: {
+              position: 'bottom',
+              labels: {
+                color: text,
+                usePointStyle: true,
+                pointStyle: 'circle',
+                padding: 18,
+                boxWidth: 8,
+              },
+            },
+            tooltip: {
+              callbacks: {
+                label: (context) => {
+                  const total = context.dataset.data.reduce((sum, value) => sum + value, 0)
+                  const percentage = total ? Math.round((context.parsed / total) * 100) : 0
+                  return ` ${context.label}: Rs ${context.parsed.toLocaleString('en-IN')} (${percentage}%)`
+                },
+              },
+            },
+          },
         }}
       />
     </div>

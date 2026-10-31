@@ -410,7 +410,7 @@ export default function DocumentExportHistory() {
                   ...base,
                   minHeight: '38px',
                   borderColor: '#d1d5db',
-                  '&:hover': { borderColor: '#9ca3af' },
+                  '&:hover': { borderColor: '#475569' },
                 }),
               }}
             />
@@ -544,7 +544,7 @@ export default function DocumentExportHistory() {
                 onChange={(e) => handleSelectAll(e.target.checked)}
                 title={allSelected ? 'Deselect all' : 'Select all on this page'}
               />
-              <span style={{ fontSize: '0.85rem', color: '#666' }}>
+              <span style={{ fontSize: '0.85rem', color: '#374151' }}>
                 {allSelected ? `All ${records.length} records selected` : `Select all ${records.length} records`}
               </span>
             </div>
@@ -601,7 +601,7 @@ export default function DocumentExportHistory() {
             {pageNumbers.map((page, index) => {
               if (page === 'ellipsis') {
                 return (
-                  <span key={`ellipsis-${index}`} style={{ padding: '6px 4px', color: '#6b7280' }}>
+                  <span key={`ellipsis-${index}`} style={{ padding: '6px 4px', color: '#374151' }}>
                     ...
                   </span>
                 )
