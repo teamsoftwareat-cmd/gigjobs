@@ -181,7 +181,10 @@ export default function CandidateAttendanceCalendar({ isOpen, onClose, candidate
   const [areaOptions, setAreaOptions] = useState({})
   const [selections, setSelections] = useState({})
   const [initialSelections, setInitialSelections] = useState({})
-  const [calendarMonth, setCalendarMonth] = useState('')
+  const [calendarMonth, setCalendarMonth] = useState(() => {
+    const now = new Date()
+    return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
+  })
   const [selectedDate, setSelectedDate] = useState('')
   const [viewMode, setViewMode] = useState('calendar')
   const [loading, setLoading] = useState(false)
@@ -212,7 +215,7 @@ export default function CandidateAttendanceCalendar({ isOpen, onClose, candidate
     setAreaOptions({})
 
     Promise.all([
-      candidateAPI.getAttendanceRequestForm(candidate.registrationId),
+      candidateAPI.getAttendanceRequestForm(candidate.registrationId, { month: calendarMonth }),
       recruiterAPI.getProjects({ limit: 1000 }),
     ])
       .then(([attendanceResponse, projectResponse]) => {
@@ -231,8 +234,8 @@ export default function CandidateAttendanceCalendar({ isOpen, onClose, candidate
         setProjects(nextProjects)
         setSelections(initial)
         setInitialSelections(initial)
-        setCalendarMonth(dateRows[0]?.date.slice(0, 7) || '')
-        setSelectedDate(dateRows[0]?.date || '')
+        const firstDateInMonth = dateRows.find((row) => row.date.startsWith(calendarMonth))?.date
+        setSelectedDate(firstDateInMonth || dateRows[0]?.date || '')
       })
       .catch((loadError) => {
         if (cancelled) return
@@ -244,7 +247,7 @@ export default function CandidateAttendanceCalendar({ isOpen, onClose, candidate
       })
 
     return () => { cancelled = true }
-  }, [candidate?.registrationId, isOpen])
+  }, [calendarMonth, candidate?.registrationId, isOpen])
 
   useEffect(() => {
     if (!isOpen) return

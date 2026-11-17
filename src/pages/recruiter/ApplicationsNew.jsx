@@ -19,6 +19,7 @@ const COLUMNS = [
   'Email',
   'Aadhaar',
   'Area',
+  'Work Location',
   'Friend Name',
   'Friend Number',
   'Created At',
@@ -519,6 +520,7 @@ export default function ApplicationsNew() {
         <td>{getCellValue(candidate.email_id)}</td>
         <td>{getCellValue(candidate.aadhar)}</td>
         <td>{getCellValue(candidate.area)}</td>
+        <td>{getCellValue(candidate.work_location)}</td>
         <td>{getCellValue(candidate.friend_name)}</td>
         <td>{getCellValue(candidate.friend_number)}</td>
         <td>{getCellValue(candidate.created_at)}</td>
@@ -616,6 +618,7 @@ export default function ApplicationsNew() {
             <div><span>Created at</span><strong>{getCellValue(candidate.created_at)}</strong></div>
             <div><span>Updated at</span><strong>{getCellValue(candidate.updated_at)}</strong></div>
             <div><span>Remarks</span><strong>{getCellValue(candidate.reason)}</strong></div>
+            <div><span>Work location</span><strong>{getCellValue(candidate.work_location)}</strong></div>
             <div><span>Travel to</span><strong>{getCellValue(candidate.travel_to)}</strong></div>
             <div><span>Away duration</span><strong>{getCellValue(candidate.away_duration)}</strong></div>
             <div><span>Education</span><strong>{getCellValue(candidate.education)}</strong></div>

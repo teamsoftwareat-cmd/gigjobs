@@ -2147,9 +2147,12 @@ textarea.form-control { resize: vertical; min-height: 80px; }
   box-shadow: 0 30px 60px rgba(0,0,0,0.25); border: 1px solid var(--border);
   animation: modalIn 0.3s ease;
 }
+.modal.has-overlay-content { position: relative; }
+.modal-overlay-content { position: absolute; inset: 0; z-index: 20; pointer-events: none; }
 @keyframes modalIn { from { opacity:0; transform: scale(0.95) translateY(20px); } to { opacity:1; transform: scale(1) translateY(0); } }
 .modal-header { padding: 22px 24px 16px; border-bottom: 1px solid var(--border); display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; }
 .modal-title { font-family: 'Sora', sans-serif; font-weight: 700; font-size: 17px; white-space: normal; word-break: break-word; overflow-wrap: anywhere; max-width: calc(100% - 60px); min-width: 0; }
+.modal-header-actions { display: flex; flex: 0 0 auto; align-items: center; gap: 8px; margin-left: auto; }
 .modal-close { width: 32px; height: 32px; border-radius: 8px; border: 1px solid var(--border); background: none; cursor: pointer; display: flex; align-items: center; justify-content: center; color: var(--text3); transition: all 0.2s; font-size: 14px; }
 .modal-close:hover { background: var(--bg); color: var(--text); }
 .modal-body { flex: 1; min-height: 0; padding: 20px 24px; overflow-y: auto; overflow-x: hidden; overscroll-behavior: contain; -webkit-overflow-scrolling: touch; }

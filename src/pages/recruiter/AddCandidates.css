@@ -9,7 +9,7 @@
 
 .add-candidates-table {
   width: 100%;
-  min-width: 2216px;
+  min-width: 2316px;
   table-layout: fixed;
   border-collapse: collapse;
   border-spacing: 0;
@@ -31,6 +31,7 @@
 .add-candidates-table col:nth-child(13) { width: 135px; }
 .add-candidates-table col:nth-child(14) { width: 135px; }
 .add-candidates-table col:nth-child(15) { width: 135px; }
+.add-candidates-table col:nth-child(16) { width: 100px; }
 
 .add-candidates-table th,
 .add-candidates-table td {
