@@ -385,8 +385,8 @@ export const candidateAPI = {
       params: requestParams,
     })
   },
-  getAttendanceRequestForm: (registrationId) => api.get(`${BASE}/candidate/attendance/request-form`, {
-    params: { registration_id: registrationId },
+  getAttendanceRequestForm: (registrationId, params = {}) => api.get(`${BASE}/candidate/attendance/request-form`, {
+    params: { ...params, registration_id: registrationId },
   }),
   submitAttendanceRequest: (data) => api.post(`${BASE}/candidate/attendance/request-form-post`, data),
 
@@ -733,7 +733,7 @@ export const recruiterAPI = {
   getTimingExpenses: (params = {}) => api.get(`${BASE}/employee-timing/gig/expenseslist`, { params }),
   getTimingExpenseDetails: (expenseId, params = {}) => api.get(`${BASE}/employee-timing/expense/${expenseId}`, { params }),
   saveTimingExpensePaymentDetails: (data) => api.post(`${BASE}/employee-timing/expense-payment-details`, data),
-  generateTimingExpensePaymentSheet: (data) => api.post(`${BASE}/employee-timing/generate-payment-sheet`, data),
+  generateExpensePaymentSheet: (data) => api.post(`${BASE}/employee-timing/generate-payment-sheet`, data),
   confirmTimingExpensePaymentSheet: (data) => api.post(`${BASE}/employee-timing/confirm-payment-sheet`, data),
   getglobalfinalpaymentsheet: (params = {}) => api.get(`${BASE}/employee-timing/payment-sheets`, { params }),
   getglobalfinalpaymentsheetdetails: (sheetId, params = {}) => api.get(`${BASE}/employee-timing/payment-sheets-individual/${encodeURIComponent(sheetId)}`, { params }),
@@ -792,7 +792,9 @@ export const recruiterAPI = {
   addCandidate: (data) => api.post(`${BASE}/recruiter/candidates/addnew`, data),
   // Alias for bulk upload / recipients import — keeps intent explicit
   uploadRecipients: (formData) => api.post(`${BASE}/candidates/import`, formData),
-  getImportedRecipients: (params = {}) => api.get(`${BASE}/candidates/imported`, { params }),
+  getImportedRecipients: (params = {}) => api.get(`${BASE}/employee/fetchcandidate_remote`, { params }),
+  getImportedRecipientStateCounts: () => api.get(`${BASE}/employee/remote/candidate-state-counts`),
+  getImportedRecipientLocationOptions: (params = {}) => api.get(`${BASE}/employee/remote/candidate-location-options`, { params }),
   uploadVerificationTeamDatabase: (formData) => api.post(`${BASE}/recruiter/verification-team/database`, formData),
   getVerificationTeamDatabaseRecords: (params = {}) => api.get(`${BASE}/recruiter/verification-team/database-list`, { params }),
   getVerificationTeamDatabaseRecordsWithTimer: (params = {}) => api.get(`${BASE}/recruiter/verification-team/database-list-with-timer`, { params }),
@@ -1001,6 +1003,23 @@ export const coreRecruiterAPI = {
   get: api.get,
   getAttendanceRecords: (params = {}) => api.get(`${BASE}/employee/coreteam/attendance-report`, { params }),
   getWrittenExamAttendanceRecords: (params = {}) => api.get(`${BASE}/employee/coreteam/attendance-report/written-exam`, { params }),
+  getAttendancePaymentSheet: (attendanceId) => api.get(`${BASE}/employee/coreteam/attendance-payment-sheet`, {
+    params: { attendance_id: attendanceId },
+  }),
+  getSavedAttendanceSheet: (params = {}) => api.get(`${BASE}/employee/coreteam/attendance-sheet`, { params }),
+  saveAttendancePaymentSheet: (records) => api.post(`${BASE}/employee/coreteam/attendance-payment-sheet`, records),
+  generateAttendancePaymentSheet: (data) => api.post(`${BASE}/employee-timing/generate-attendance-payment-sheet`, data),
+  confirmAttendancePaymentSheet: (data) => api.post(`${BASE}/employee/coreteam/confirm-attendance-payment-sheet`, data),
+  getCoreTeamDraftPaymentSheets: (params = {}) => api.get(`${BASE}/employee/coreteam/draft-payment-sheets`, { params }),
+  getCoreTeamDraftPaymentSheetDetails: (sheetId, params = {}) => api.get(`${BASE}/employee/coreteam/draft-payment-sheet-details/${encodeURIComponent(sheetId)}`, { params }),
+  moveCoreTeamDraftPaymentSheetToMain: (data) => api.post(`${BASE}/employee/coreteam/move-draft-payment-sheet-to-main`, data),
+  getConsultantDraftPaymentSheets: (params = {}) => api.get(`${MOCK_BASE}/employee/consultant/draft-payment-sheets`, { params }),
+  getConsultantDraftPaymentSheetDetails: (sheetId, params = {}) => api.get(`${MOCK_BASE}/employee/consultant/draft-payment-sheets-individual/${encodeURIComponent(sheetId)}`, { params }),
+  getCoreTeamPaymentSheets: (params = {}) => api.get(`${BASE}/employee/coreteam/final-payment-sheets`, { params }),
+  getCoreTeamPaymentSheetDetails: (sheetId, params = {}) => api.get(`${BASE}/employee/coreteam/final-payment-sheet-details/${encodeURIComponent(sheetId)}`, { params }),
+  updateAttendancePaymentSheetsStatus: (data) => api.post(`${BASE}/employee/attendance/payment-sheets/status`, data),
+  getConsultantPaymentSheets: (params = {}) => api.get(`${MOCK_BASE}/employee/consultant/payment-sheets`, { params }),
+  getConsultantPaymentSheetDetails: (sheetId, params = {}) => api.get(`${MOCK_BASE}/employee/consultant/payment-sheets-individual/${encodeURIComponent(sheetId)}`, { params }),
   getPresentCounts: (params = {}) => api.get(`${BASE}/employee/coreteam/present-counts`, {
     params: {
       projectType: params.projectType,

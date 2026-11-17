@@ -1,0 +1,725 @@
+.core-saved-sheet {
+  --saved-sheet-ink: #15334f;
+  --saved-sheet-muted: #45677f;
+  --saved-sheet-line: #b7cbdc;
+  display: grid;
+  gap: 18px;
+  color: var(--saved-sheet-ink);
+}
+
+.core-saved-sheet-embedded {
+  display: grid;
+  gap: 16px;
+  min-width: 0;
+}
+
+.core-saved-sheet-inline-header {
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--border-light, #d6e0e8);
+}
+
+.core-saved-sheet-inline-header span {
+  color: var(--teal, #168a82);
+  font-size: 11px;
+  font-weight: 800;
+}
+
+.core-saved-sheet-inline-header h2 {
+  margin: 4px 0 0;
+  color: #15334f;
+  font-family: 'Sora', sans-serif;
+  font-size: 20px;
+}
+
+.core-saved-sheet-inline-header > strong {
+  color: #45677f;
+  font-size: 12px;
+  text-align: right;
+}
+
+.core-saved-sheet-filters {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(150px, 1fr)) auto;
+  align-items: end;
+  gap: 12px;
+}
+
+.core-saved-sheet-filters label,
+.core-saved-sheet-name {
+  display: grid;
+  gap: 6px;
+  color: var(--saved-sheet-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.core-saved-sheet-generated-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+  width: fit-content;
+  max-width: 100%;
+  padding: 4px;
+  border: 1px solid var(--saved-sheet-line);
+  border-radius: 6px;
+  background: #e7f0f5;
+}
+
+.core-saved-sheet-generated-tabs button {
+  min-height: 34px;
+  padding: 7px 12px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--saved-sheet-muted);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.core-saved-sheet-generated-tabs button[aria-selected='true'] {
+  background: var(--card, #fff);
+  color: var(--saved-sheet-ink);
+  box-shadow: 0 1px 3px rgb(21 51 79 / 16%);
+}
+
+.core-saved-sheet-generated-tabs button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.core-saved-sheet-section {
+  display: grid;
+  gap: 10px;
+  min-width: 0;
+}
+
+.core-saved-sheet-section > header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.core-saved-sheet-section > header h3 {
+  margin: 0;
+  color: var(--saved-sheet-ink);
+  font-size: 15px;
+}
+
+.core-saved-sheet-section > header > span {
+  color: var(--saved-sheet-muted);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.core-saved-sheet-reset {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 7px;
+  margin-right: auto;
+  white-space: nowrap;
+}
+
+.core-saved-sheet-table-wrap {
+  max-height: min(42vh, 480px);
+  min-width: 0;
+  overflow: auto;
+  border: 1px solid var(--saved-sheet-line);
+  background: var(--card, #fff);
+}
+
+.core-saved-sheet-table {
+  width: max-content;
+  min-width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 12px;
+}
+
+.core-saved-sheet-table th,
+.core-saved-sheet-table td {
+  max-width: 300px;
+  padding: 8px 10px;
+  border-right: 1px solid var(--saved-sheet-line);
+  border-bottom: 1px solid var(--saved-sheet-line);
+  text-align: left;
+  vertical-align: top;
+  overflow-wrap: anywhere;
+}
+
+.core-saved-sheet-table thead th {
+  position: sticky;
+  top: 0;
+  z-index: 1;
+  background: #e7f0f5;
+  color: var(--saved-sheet-ink);
+  white-space: nowrap;
+}
+
+.core-saved-sheet-table td small {
+  display: block;
+  margin-top: 3px;
+  color: var(--saved-sheet-muted);
+}
+
+.core-saved-sheet-table .is-deduction {
+  color: #a33b2f;
+  font-weight: 700;
+}
+
+.core-saved-sheet-matrix-title {
+  padding: 10px 12px;
+  background: #15334f;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  text-align: center;
+}
+
+.core-saved-sheet-matrix-range {
+  margin-top: -10px;
+  padding: 6px 12px;
+  background: #d9eaf7;
+  color: #15334f;
+  font-size: 11px;
+  text-align: center;
+}
+
+.core-saved-sheet-search {
+  display: block;
+  width: min(100%, 360px);
+}
+
+.core-saved-sheet-summary-table {
+  width: 100%;
+}
+
+.core-saved-sheet-summary-table th:nth-child(n + 2),
+.core-saved-sheet-summary-table td:nth-child(n + 2) {
+  text-align: right;
+}
+
+.core-saved-sheet-summary-table td:first-child small {
+  color: var(--saved-sheet-muted);
+}
+
+.core-saved-sheet-expand,
+.core-saved-sheet-category-error button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--teal, #168a82);
+  font: inherit;
+  font-weight: 700;
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.core-saved-sheet-detail-row td {
+  background: #f3f8fa;
+  text-align: left !important;
+}
+
+.core-saved-sheet-category-list {
+  display: grid;
+  gap: 6px 20px;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+}
+
+.core-saved-sheet-category-list > div,
+.core-saved-sheet-category-error {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.core-saved-sheet-category-error {
+  justify-content: flex-start;
+  color: #a33b2f;
+}
+
+.core-saved-sheet-matrix th,
+.core-saved-sheet-matrix td {
+  max-width: 240px;
+  padding: 7px 9px;
+  white-space: nowrap;
+}
+
+.core-saved-sheet-matrix th:first-child,
+.core-saved-sheet-matrix td:first-child {
+  position: sticky;
+  left: 0;
+  z-index: 2;
+  width: 44px;
+  min-width: 44px;
+  max-width: 44px;
+  box-sizing: border-box;
+  background: var(--card, #fff);
+}
+
+.core-saved-sheet-matrix th:nth-child(2),
+.core-saved-sheet-matrix td:nth-child(2) {
+  position: sticky;
+  left: 44px;
+  z-index: 2;
+  width: 180px;
+  min-width: 180px;
+  max-width: 180px;
+  box-sizing: border-box;
+  background: var(--card, #fff);
+}
+
+.core-saved-sheet-matrix thead th {
+  background: #244a6b;
+  color: #fff;
+  text-align: center;
+}
+
+.core-saved-sheet-matrix thead th:first-child,
+.core-saved-sheet-matrix thead th:nth-child(2) {
+  z-index: 4;
+  background: #244a6b;
+}
+
+.core-saved-sheet-matrix thead th.attendance-date,
+.core-saved-sheet-matrix td.attendance-date {
+  min-width: 76px;
+  text-align: center;
+}
+
+.core-saved-sheet-deduction-indicator-cell {
+  min-width: 58px;
+  text-align: center !important;
+}
+
+.core-saved-sheet-deduction-indicator {
+  display: inline-grid;
+  width: 30px;
+  height: 30px;
+  place-items: center;
+  padding: 0;
+  border: 0;
+  border-radius: 50%;
+  background: #fff0ef;
+  color: #b42318;
+  font-size: 17px;
+  cursor: pointer;
+}
+
+.core-saved-sheet-deduction-indicator:hover,
+.core-saved-sheet-deduction-indicator:focus-visible {
+  background: #fdd9d6;
+  outline: 2px solid #b42318;
+  outline-offset: 2px;
+}
+
+.core-saved-sheet-deduction-indicator.is-selected {
+  background: #ffe2cc;
+  color: #a33b2f;
+}
+
+.core-saved-sheet-deduction-review {
+  display: grid;
+  gap: 16px;
+}
+
+.core-saved-sheet-deduction-review > div {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 16px;
+  padding-bottom: 12px;
+  border-bottom: 1px solid var(--saved-sheet-line);
+}
+
+.core-saved-sheet-deduction-review > div span {
+  color: var(--saved-sheet-muted);
+  font-size: 13px;
+}
+
+.core-saved-sheet-deduction-review > div strong {
+  color: #b42318;
+  font-size: 20px;
+}
+
+.core-saved-sheet-deduction-review ul {
+  display: grid;
+  gap: 8px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.core-saved-sheet-deduction-review li {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--saved-sheet-line);
+  font-size: 13px;
+}
+
+.core-saved-sheet-deduction-review li span {
+  min-width: 0;
+  color: var(--saved-sheet-muted);
+  overflow-wrap: anywhere;
+}
+
+.core-saved-sheet-deduction-apply {
+  display: flex;
+  align-items: flex-start;
+  gap: 9px;
+  padding: 12px;
+  border: 1px solid var(--saved-sheet-line);
+  background: #f3f8fa;
+  color: var(--saved-sheet-ink);
+  font-size: 13px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.core-saved-sheet-deduction-apply input {
+  margin: 2px 0 0;
+  accent-color: var(--teal, #168a82);
+}
+
+.core-saved-sheet-total-row td {
+  background: #d9eaf7;
+  color: #15334f;
+  font-weight: 800;
+}
+
+.core-saved-sheet-matrix .core-saved-sheet-total-row td:first-child,
+.core-saved-sheet-matrix .core-saved-sheet-total-row td:nth-child(2) {
+  background: #d9eaf7;
+}
+
+.core-saved-sheet-types {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px 18px;
+}
+
+.core-saved-sheet-type-actions {
+  display: flex;
+  gap: 12px;
+}
+
+.core-saved-sheet-type-actions button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--teal, #168a82);
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.core-saved-sheet-types label {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  min-height: 34px;
+  color: var(--saved-sheet-ink);
+  font-size: 13px;
+}
+
+.core-saved-sheet-types input,
+.core-saved-sheet-ack input {
+  accent-color: var(--teal, #168a82);
+}
+
+.core-saved-sheet-empty-label,
+.core-saved-sheet-note {
+  color: var(--saved-sheet-muted);
+  font-size: 12px;
+}
+
+.core-saved-sheet-note {
+  margin: 0;
+  padding-left: 10px;
+  border-left: 3px solid var(--saffron, #e0a535);
+}
+
+.core-saved-sheet-calculation-note {
+  margin: 0;
+  color: var(--saved-sheet-muted);
+  font-size: 12px;
+}
+
+.core-saved-sheet-calculation-table td:nth-child(3) {
+  min-width: 250px;
+  white-space: normal;
+}
+
+.core-saved-sheet-earnings-breakdown {
+  display: grid;
+  gap: 5px;
+  min-width: 230px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.core-saved-sheet-earnings-breakdown li {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.core-saved-sheet-earnings-breakdown li > span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.core-saved-sheet-earnings-breakdown li small {
+  display: block;
+  margin-top: 2px;
+  color: var(--saved-sheet-muted);
+}
+
+.core-saved-sheet-earnings-breakdown li > strong {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.core-saved-sheet-calculation-table td.is-negative-balance {
+  color: #b42318;
+  font-weight: 800;
+}
+
+.core-saved-sheet-selection-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.core-saved-sheet-selection-grid fieldset {
+  display: grid;
+  align-content: start;
+  gap: 10px;
+  min-width: 0;
+  margin: 0;
+  padding: 12px;
+  border: 1px solid var(--saved-sheet-line);
+}
+
+.core-saved-sheet-selection-grid legend {
+  padding: 0 5px;
+  color: var(--saved-sheet-ink);
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.core-saved-sheet-option-list {
+  display: grid;
+  gap: 2px;
+  max-height: 220px;
+  overflow: auto;
+  border: 1px solid var(--saved-sheet-line);
+}
+
+.core-saved-sheet-option-list label {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  min-width: 0;
+  padding: 7px 9px;
+  color: var(--saved-sheet-ink);
+  font-size: 12px;
+}
+
+.core-saved-sheet-option-list label + label {
+  border-top: 1px solid var(--saved-sheet-line);
+}
+
+.core-saved-sheet-option-list input {
+  flex: 0 0 auto;
+  margin: 2px 0 0;
+  accent-color: var(--teal, #168a82);
+}
+
+.core-saved-sheet-option-list span {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+
+.core-saved-sheet-option-list small {
+  display: block;
+  margin-top: 2px;
+  color: var(--saved-sheet-muted);
+}
+
+.core-saved-sheet-date-scopes {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.core-saved-sheet-date-scopes button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid var(--saved-sheet-line);
+  background: var(--card, #fff);
+  color: var(--saved-sheet-ink);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
+}
+
+.core-saved-sheet-date-scopes button.active {
+  border-color: var(--teal, #168a82);
+  background: color-mix(in srgb, var(--teal, #168a82) 10%, white);
+  color: var(--teal, #168a82);
+  font-weight: 700;
+}
+
+.core-saved-sheet-date-range {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.core-saved-sheet-date-range label {
+  display: grid;
+  gap: 6px;
+  color: var(--saved-sheet-muted);
+  font-size: 12px;
+  font-weight: 700;
+}
+
+.core-saved-sheet-calendar-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 10px 14px;
+  color: var(--saved-sheet-muted);
+  font-size: 12px;
+}
+
+.core-saved-sheet-calendar-actions span {
+  margin-right: auto;
+  font-weight: 700;
+}
+
+.core-saved-sheet-calendar-actions button {
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--teal, #168a82);
+  font: inherit;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.core-saved-sheet-calendar-wrap {
+  min-width: 0;
+  padding: 8px;
+  border: 1px solid var(--saved-sheet-line);
+  background: var(--card, #fff);
+}
+
+.core-saved-sheet-calendar {
+  --rdp-accent-color: var(--teal, #168a82);
+  --rdp-accent-background-color: color-mix(in srgb, var(--teal, #168a82) 14%, white);
+  --rdp-today-color: var(--saved-sheet-ink);
+  max-width: 100%;
+  margin: 0 auto;
+}
+
+.core-saved-sheet-calendar .rdp-months {
+  justify-content: center;
+}
+
+.core-saved-sheet-calendar .rdp-month,
+.core-saved-sheet-calendar .rdp-month_grid {
+  width: 100%;
+}
+
+.core-saved-sheet-name {
+  max-width: 520px;
+  margin-bottom: 2px;
+}
+
+.core-saved-sheet-ack {
+  display: flex;
+  align-items: flex-start;
+  gap: 8px;
+  max-width: 620px;
+  color: var(--saved-sheet-muted);
+  font-size: 12px;
+  line-height: 1.45;
+}
+
+.core-saved-sheet-ack input {
+  flex: 0 0 auto;
+  margin: 2px 0 0;
+}
+
+.core-saved-sheet-footer {
+  display: flex;
+  justify-content: flex-end;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.core-saved-sheet-empty {
+  padding: 22px 12px;
+  color: var(--saved-sheet-muted);
+  text-align: center;
+  font-size: 13px;
+}
+
+@media (max-width: 640px) {
+  .core-saved-sheet-filters {
+    grid-template-columns: 1fr;
+  }
+
+  .core-saved-sheet-filters .btn {
+    justify-content: center;
+  }
+
+  .core-saved-sheet-section > header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 4px;
+  }
+
+  .core-saved-sheet-selection-grid,
+  .core-saved-sheet-date-range {
+    grid-template-columns: 1fr;
+  }
+
+  .core-saved-sheet-deduction-option {
+    padding-left: 0;
+    border-left: 0;
+  }
+
+  .core-saved-sheet-inline-header {
+    align-items: flex-start;
+    flex-direction: column;
+    gap: 5px;
+  }
+
+  .core-saved-sheet-inline-header > strong {
+    text-align: left;
+  }
+
+  .core-saved-sheet-footer {
+    justify-content: stretch;
+  }
+
+  .core-saved-sheet-footer .btn {
+    flex: 1 1 100%;
+    justify-content: center;
+  }
+}

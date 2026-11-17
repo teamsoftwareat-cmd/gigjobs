@@ -1,5 +1,6 @@
 import { useState, useEffect, useRef } from 'react'
 import { Card, Button, Modal, LoadingOverlay, EmailMessenger, WhatsAppMessenger } from '../../components/ui/index'
+import MultiSelectDropdown from '../../components/Common/MultiSelectDropdown'
 import { recruiterAPI } from '../../api/axios'
 import { useAlert } from '../../context/AlertContext'
 
@@ -111,7 +112,15 @@ export default function RecipientsDatabase() {
   const [candidateListLoading, setCandidateListLoading] = useState(false)
   const [candidateListError, setCandidateListError] = useState('')
   const [candidateListPage, setCandidateListPage] = useState(1)
-  const [candidateListPageSize] = useState(10)
+  const [candidateListPageSize, setCandidateListPageSize] = useState(10)
+  const [candidateFilters, setCandidateFilters] = useState({ name: '', mobile: '', location: [], state: [] })
+  const [candidateStateOptions, setCandidateStateOptions] = useState([])
+  const [candidateStateLoading, setCandidateStateLoading] = useState(false)
+  const [candidateStateError, setCandidateStateError] = useState('')
+  const [candidateLocationSearch, setCandidateLocationSearch] = useState('')
+  const [candidateLocationOptions, setCandidateLocationOptions] = useState([])
+  const [candidateLocationLoading, setCandidateLocationLoading] = useState(false)
+  const [candidateLocationError, setCandidateLocationError] = useState('')
   const [selectedCandidates, setSelectedCandidates] = useState(new Map())
   const [bulkWhatsAppOpen, setBulkWhatsAppOpen] = useState(false)
   const [bulkEmailOpen, setBulkEmailOpen] = useState(false)
@@ -168,6 +177,10 @@ export default function RecipientsDatabase() {
         const response = await recruiterAPI.getImportedRecipients({
           offset: (candidateListPage - 1) * candidateListPageSize,
           limit: candidateListPageSize,
+          search: candidateFilters.name.trim() || undefined,
+          mobile: candidateFilters.mobile.trim() || undefined,
+          location: candidateFilters.location.join(',') || undefined,
+          states: candidateFilters.state.join(',') || undefined,
         })
         const data = response?.data?.data || response?.data || {}
         const items = data.items || data.candidates || data.results || []
@@ -187,15 +200,115 @@ export default function RecipientsDatabase() {
       }
     }
 
-    loadCandidates()
+    const timer = window.setTimeout(loadCandidates, 300)
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
+  }, [candidateListOpen, candidateListPage, candidateListPageSize, candidateFilters])
+
+  useEffect(() => {
+    if (!candidateListOpen) return undefined
+
+    let active = true
+    setCandidateStateLoading(true)
+    setCandidateStateError('')
+    recruiterAPI.getImportedRecipientStateCounts()
+      .then((response) => {
+        const data = response?.data?.data || response?.data || {}
+        const states = Array.isArray(data.states) ? data.states : []
+        if (active) {
+          setCandidateStateOptions(states.map((item) => {
+            const state = typeof item === 'string' ? item : String(item.state || item.state_name || item.name || '')
+            const count = typeof item === 'string' ? null : Number(item.count ?? item.candidate_count ?? item.total ?? 0)
+            return { state: state.trim(), count: Number.isFinite(count) ? count : null }
+          }).filter((item) => item.state))
+        }
+      })
+      .catch(() => {
+        if (active) {
+          setCandidateStateOptions([])
+          setCandidateStateError('Unable to load states and candidate counts.')
+        }
+      })
+      .finally(() => {
+        if (active) setCandidateStateLoading(false)
+      })
+
     return () => { active = false }
-  }, [candidateListOpen, candidateListPage, candidateListPageSize])
+  }, [candidateListOpen])
+
+  useEffect(() => {
+    const states = candidateFilters.state
+    if (!candidateListOpen || !states.length) {
+      setCandidateLocationOptions([])
+      setCandidateLocationLoading(false)
+      setCandidateLocationError('')
+      return undefined
+    }
+
+    const search = candidateLocationSearch.trim()
+    if (search.length > 0 && search.length < 3) {
+      setCandidateLocationOptions([])
+      setCandidateLocationLoading(false)
+      setCandidateLocationError('')
+      return undefined
+    }
+
+    let active = true
+    const timer = window.setTimeout(async () => {
+      setCandidateLocationLoading(true)
+      setCandidateLocationError('')
+      try {
+        const response = await recruiterAPI.getImportedRecipientLocationOptions({
+          states: states.join(','),
+          search: search || undefined,
+          limit: 10,
+        })
+        const data = response?.data?.data || response?.data || {}
+        const locations = Array.isArray(data.locations) ? data.locations : Array.isArray(data.items) ? data.items : Array.isArray(data.results) ? data.results : []
+        if (active) {
+          setCandidateLocationOptions(locations.map((item) => {
+            const name = typeof item === 'string'
+              ? item
+              : String(item.name || item.location || item.area || item.locality || item.city || item.value || '')
+            const rawCount = typeof item === 'string' ? null : item.count ?? item.candidate_count ?? item.total
+            const count = rawCount === null || rawCount === undefined || rawCount === '' ? null : Number(rawCount)
+            return {
+              value: name,
+              label: count !== null && Number.isFinite(count) ? `${name} (${count.toLocaleString()})` : name,
+            }
+          }).filter((item) => item.value))
+        }
+      } catch (loadError) {
+        if (active) {
+          setCandidateLocationOptions([])
+          setCandidateLocationError('Unable to load area and locality results for the selected state.')
+        }
+      } finally {
+        if (active) setCandidateLocationLoading(false)
+      }
+    }, 300)
+
+    return () => {
+      active = false
+      window.clearTimeout(timer)
+    }
+  }, [candidateListOpen, candidateFilters.state, candidateLocationSearch])
 
   const getCandidateId = (candidate) => String(candidate.id ?? candidate.candidate_id ?? candidate.candidateId ?? candidate._id ?? candidate.new_id ?? candidate.newId ?? '')
   const getCandidateName = (candidate) => String(candidate.name || candidate.full_name || candidate.fullName || candidate.candidate_name || '—')
-  const getCandidateMobile = (candidate) => String(candidate.mobile || candidate.phone || candidate.whatsapp || candidate.mobile_number || candidate.phone_number || '').trim()
-  const getCandidateEmail = (candidate) => String(candidate.email || candidate.email_address || candidate.primary_email || '').trim()
-  const getCandidateAadhaar = (candidate) => String(candidate.aadhaar || candidate.aadhaar_number || candidate.aadhaarNumber || candidate.aadhar || candidate.aadhar_number || candidate.Aadhaar || '—')
+  const getCandidateMobile = (candidate) => String(candidate.mobile || candidate.mobile_no || candidate.phone || candidate.whatsapp || candidate.mobile_number || candidate.phone_number || '').trim()
+  const getCandidateEmail = (candidate) => String(candidate.email || candidate.email_id || candidate.email_address || candidate.primary_email || '').trim()
+  const getCandidateArea = (candidate) => String(candidate.area || candidate.city || candidate.current_area || candidate.location_area || '—')
+  const getCandidateLocality = (candidate) => String(candidate.locality || candidate.current_locality || candidate.sub_locality || '—')
+  const getCandidateState = (candidate) => String(candidate.state || candidate.state_name || candidate.current_state || '—')
+  const getCandidateAge = (candidate) => {
+    const age = candidate.age ?? candidate.candidate_age
+    if (age === null || age === undefined || age === '') return '—'
+    const numericAge = Number(age)
+    return Number.isFinite(numericAge) ? String(Number(numericAge.toFixed(2))) : String(age)
+  }
   const selectedCandidateRows = [...selectedCandidates.values()]
   const selectedWhatsAppRecipients = selectedCandidateRows.filter((candidate) => getCandidateId(candidate) && getCandidateMobile(candidate))
   const selectedEmailRecipients = selectedCandidateRows.filter((candidate) => getCandidateEmail(candidate))
@@ -1461,9 +1574,106 @@ export default function RecipientsDatabase() {
         )}
       >
         <div>
+          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10, marginBottom: 12 }}>
+            {[
+              ['name', 'Name'],
+              ['mobile', 'Mobile number']
+            ].map(([key, label]) => (
+              <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+                <span>{label}</span>
+                <input
+                  type="search"
+                  value={candidateFilters[key]}
+                  onChange={(event) => {
+                    const value = event.target.value
+                    setCandidateFilters((current) => ({ ...current, [key]: value }))
+                    setCandidateListPage(1)
+                  }}
+                  placeholder={`Search ${label.toLowerCase()}`}
+                  style={{ minWidth: 0, padding: '8px 10px', border: '1px solid #dfe5ef', borderRadius: 6 }}
+                />
+              </label>
+            ))}
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+              <span>State</span>
+              {candidateStateLoading ? (
+                <div style={{ padding: '8px 10px', border: '1px solid #dfe5ef', borderRadius: 6, color: '#5b6e8c' }}>Loading states...</div>
+              ) : candidateStateOptions.length ? (
+                <MultiSelectDropdown
+                  options={candidateStateOptions.map(({ state, count }) => ({
+                    value: state,
+                    label: count === null ? state : `${state} (${count.toLocaleString()})`,
+                  }))}
+                  selectedValues={candidateFilters.state}
+                  onChange={(state) => {
+                    setCandidateFilters((current) => ({ ...current, state, location: [] }))
+                    setCandidateLocationSearch('')
+                    setCandidateListPage(1)
+                  }}
+                  placeholder="All states"
+                  menuMaxHeight={160}
+                  scrollSelectedValues
+                />
+              ) : (
+                <div style={{ padding: '8px 10px', border: '1px solid #dfe5ef', borderRadius: 6, color: '#5b6e8c' }}>No states available</div>
+              )}
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
+              <span>Area / Locality</span>
+              {!candidateFilters.state.length ? (
+                <div style={{ padding: '8px 10px', border: '1px solid #dfe5ef', borderRadius: 6, color: '#5b6e8c' }}>Choose a state first</div>
+              ) : (
+                <MultiSelectDropdown
+                  options={candidateLocationOptions}
+                  selectedValues={candidateFilters.location}
+                  onChange={(location) => {
+                    setCandidateFilters((current) => ({ ...current, location }))
+                    setCandidateListPage(1)
+                  }}
+                  onSearch={(search) => {
+                    setCandidateLocationSearch(search)
+                    setCandidateLocationOptions([])
+                  }}
+                  allowCustomValues={false}
+                  noOptionsMessage={candidateLocationLoading
+                    ? 'Searching locations...'
+                    : candidateLocationSearch.trim().length > 0 && candidateLocationSearch.trim().length < 3
+                    ? 'Type at least 3 characters to search'
+                    : candidateLocationSearch.trim().length >= 3
+                      ? 'No matching locations found'
+                      : 'No locations found for this state'}
+                  placeholder="Search area or locality"
+                  menuMaxHeight={160}
+                  searchResetKey={candidateFilters.state.join('|')}
+                  scrollSelectedValues
+                />
+              )}
+            </div>
+          </div>
+          {candidateStateError && <div role="alert" style={{ color: '#b42318', marginBottom: 10 }}>{candidateStateError}</div>}
+          {candidateLocationError && <div role="alert" style={{ color: '#b42318', marginBottom: 10 }}>{candidateLocationError}</div>}
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 12 }}>
             <strong>{candidateListTotal.toLocaleString()} candidates</strong>
-            {candidateListLoading && <span style={{ color: '#5b6e8c' }}>Loading candidates...</span>}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
+              {candidateListLoading && <span style={{ color: '#5b6e8c' }}>Loading candidates...</span>}
+              <label htmlFor="candidate-list-page-size" style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                <span>Show entries</span>
+                <select
+                  id="candidate-list-page-size"
+                  value={candidateListPageSize}
+                  disabled={candidateListLoading}
+                  onChange={(event) => {
+                    setCandidateListPage(1)
+                    setCandidateListPageSize(Number(event.target.value))
+                  }}
+                  style={{ padding: '6px 8px', border: '1px solid #dfe5ef', borderRadius: 6, background: '#fff' }}
+                >
+                  {[10, 25, 50, 100, 500].map((pageSize) => (
+                    <option key={pageSize} value={pageSize}>{pageSize}</option>
+                  ))}
+                </select>
+              </label>
+            </div>
           </div>
           {candidateListError && (
             <div role="alert" style={{ color: '#b42318', padding: '12px 0' }}>{candidateListError}</div>
@@ -1481,16 +1691,16 @@ export default function RecipientsDatabase() {
                       onChange={(event) => toggleVisibleCandidates(event.target.checked)}
                     />
                   </th>
-                  {['S.No', 'Name', 'Mobile', 'Email', 'Aadhaar'].map((column) => (
+                  {['S.No', 'Name', 'Mobile', 'Email', 'Area', 'Locality', 'State', 'Age'].map((column) => (
                     <th key={column} style={{ padding: 10, textAlign: 'left', whiteSpace: 'nowrap' }}>{column}</th>
                   ))}
                 </tr>
               </thead>
               <tbody>
                 {candidateListLoading ? (
-                  <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center' }}>Loading candidate records...</td></tr>
+                  <tr><td colSpan={9} style={{ padding: 24, textAlign: 'center' }}>Loading candidate records...</td></tr>
                 ) : candidateList.length === 0 ? (
-                  <tr><td colSpan={6} style={{ padding: 24, textAlign: 'center', color: '#5b6e8c' }}>No candidate records found.</td></tr>
+                  <tr><td colSpan={9} style={{ padding: 24, textAlign: 'center', color: '#5b6e8c' }}>No candidate records found.</td></tr>
                 ) : candidateList.map((candidate, index) => {
                   const id = getCandidateId(candidate)
                   return (
@@ -1508,7 +1718,10 @@ export default function RecipientsDatabase() {
                       <td style={{ padding: 10 }}>{getCandidateName(candidate)}</td>
                       <td style={{ padding: 10, whiteSpace: 'nowrap' }}>{getCandidateMobile(candidate) || '—'}</td>
                       <td style={{ padding: 10 }}>{getCandidateEmail(candidate) || '—'}</td>
-                      <td style={{ padding: 10, whiteSpace: 'nowrap' }}>{getCandidateAadhaar(candidate)}</td>
+                      <td style={{ padding: 10 }}>{getCandidateArea(candidate)}</td>
+                      <td style={{ padding: 10 }}>{getCandidateLocality(candidate)}</td>
+                      <td style={{ padding: 10 }}>{getCandidateState(candidate)}</td>
+                      <td style={{ padding: 10, whiteSpace: 'nowrap' }}>{getCandidateAge(candidate)}</td>
                     </tr>
                   )
                 })}

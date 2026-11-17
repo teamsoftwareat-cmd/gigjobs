@@ -168,13 +168,18 @@ export const ROLES = {
           { icon: 'user-plus', label: 'Add Core Team', page: '/app/recruiter/calling-team/add-candidates' },
           { icon: 'users', label: 'Candidate Database', page: '/app/recruiter/candidate-database' },
           { icon: 'file-invoice-dollar', label: 'Expenses', page: '/app/recruiter/expenses' },
+          { icon: 'clock', label: 'Timing Expenses', page: '/app/recruiter/timing-expenses' },
           { icon: 'money-bill-wave', label: 'Payments', page: '/app/recruiter/payments-new' },
         ]
       },
       {
         section: 'Calling Team', items: [
           { icon: 'users', label: 'Calling Team List', page: '/app/recruiter/calling-team/list' },
-          { icon: 'file-upload', label: 'Recipients Database', page: '/app/recruiter/calling-team/recipients' }
+          { icon: 'file-upload', label: 'Recipients Database', page: '/app/recruiter/calling-team/recipients' },
+          { icon: 'users', label: 'Verification Team List', page: '/app/recruiter/verification-team/list' },
+          { icon: 'file-upload', label: 'Verification Team Database', page: '/app/recruiter/verification-team/recipients' },
+          { icon: 'clipboard-list', label: 'Verifier Checklists', page: '/app/recruiter/verification-team/checklists' },
+          { icon: 'dashboard', label: 'Verifier Dashboard', page: '/app/recruiter/verification-team/dashboard' },
           // { icon: 'tasks', label: 'Candidate Status', page: '/app/recruiter/calling-team/status' },
         ]
       },
@@ -188,13 +193,19 @@ export const ROLES = {
         section: 'Verification', items: [
           { icon: 'id-card', label: 'Aadhaar Valid', page: '/app/recruiter/validCandidate' },
           { icon: 'id-card', label: 'Aadhaar Invalid', page: '/app/recruiter/InvalidCandidate' },
-          { icon: 'user-check', label: 'KYC', page: '/app/recruiter/verification/kyc' },
+          // { icon: 'qrcode', label: 'Registration / KYC', page: '/app/attendance/registration-kyc-status' },
+          { icon: 'user-check', label: 'Check KYC', page: '/app/recruiter/check-kyc' },
+          { icon: 'image-portrait', label: 'Face Matching', page: '/app/recruiter/face-matching' }
         ]
       },
       {
         section: 'More', items: [
+          { icon: 'message', label: 'Campaigns', page: '/app/recruiter/campaigns' },
+          { icon: 'certificate', label: 'Certifications', page: '/app/recruiter/certifications' },
+          { icon: 'history', label: 'Document History', page: '/app/recruiter/document-history' },
+          { icon: 'user', label: 'Applications', page: '/app/recruiter/applications' },
           { icon: 'headset', label: 'Support Tickets', page: '/app/recruiter/support-tickets' },
-          { icon: 'headset', label: 'Approve attendance', page: '/app/recruiter/approvals-tickets' }
+          { icon: 'check', label: 'Approve attendance', page: '/app/recruiter/approvals-tickets' }
         ]
       }
     ]

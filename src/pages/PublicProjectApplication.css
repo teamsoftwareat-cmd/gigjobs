@@ -276,6 +276,10 @@
   font-size: 12px;
 }
 
+.public-app-decider-link > div:first-child span {
+  overflow-wrap: anywhere;
+}
+
 .public-app-contact-actions {
   display: flex;
   gap: 7px;
@@ -470,6 +474,44 @@
   color: #344054;
   font-size: 13px;
   line-height: 1.4;
+}
+
+.public-app-decider-location {
+  display: grid;
+  gap: 8px;
+  margin: 0 0 14px;
+  padding: 13px 14px;
+  border: 1px solid #d5dde7;
+  border-left: 4px solid var(--public-teal);
+  border-radius: 6px;
+  background: #f7fafb;
+}
+
+.public-app-decider-action {
+  margin: 4px 0 12px;
+  padding-top: 12px;
+  border-top: 1px solid #e1e7ed;
+}
+
+.public-app-decider-location h3,
+.public-app-decider-location p {
+  margin: 0;
+}
+
+.public-app-decider-location h3 {
+  color: #263b58;
+  font-size: 14px;
+}
+
+.public-app-decider-location p {
+  color: var(--public-muted);
+  font-size: 13px;
+  line-height: 1.5;
+}
+
+.public-app-decider-location .public-app-button {
+  width: fit-content;
+  text-decoration: none;
 }
 
 .public-app-checkbox {

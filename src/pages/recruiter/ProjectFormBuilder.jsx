@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faArrowLeft, faCopy, faEye, faGripVertical, faPlus, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons'
@@ -9,6 +9,7 @@ import { formatProjectFacts, formatWorkingDays } from '../../utils/projectFormat
 import { CORE_APPLICANT_FIELDS, ensureCoreApplicantFields, isCoreApplicantField } from '../../utils/applicationFormFields'
 import { generateApplicationFormFromDescription } from '../../utils/describeApplicationForm'
 import { getApplicationTranslationIssues } from '../../utils/applicationFormTranslation'
+import { getApplicationFieldOptions, getMatchingDeciderRules, isApplicationFieldVisible, isApplicationSectionVisible } from '../../utils/applicationFormConditions'
 import './ProjectFormBuilder.css'
 
 const DEFAULT_FIELDS = [
@@ -47,6 +48,31 @@ const createSectionFieldDraft = (index = 1) => ({
   hint: '',
   options: '',
 })
+const createDeciderRule = () => ({
+  id: globalThis.crypto?.randomUUID?.() || `decider-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`,
+  answer: '',
+  actionType: 'input',
+  label: '',
+  inputType: 'text',
+  placeholder: '',
+  required: true,
+  options: '',
+  title: '',
+  text: '',
+  url: '',
+  buttonLabel: '',
+  phone: '',
+})
+const moveItemRelativeTo = (items, draggedItem, targetItem, afterTarget) => {
+  const sourceIndex = items.indexOf(draggedItem)
+  const targetIndex = items.indexOf(targetItem)
+  if (sourceIndex < 0 || targetIndex < 0 || sourceIndex === targetIndex) return items
+  const next = [...items]
+  next.splice(sourceIndex, 1)
+  const insertionIndex = targetIndex + (afterTarget ? 1 : 0) - (sourceIndex < targetIndex ? 1 : 0)
+  next.splice(insertionIndex, 0, draggedItem)
+  return next
+}
 const isWillingToWorkField = (field) => (
   /willing.*work|work.*willing/.test(String(field.name || '').toLowerCase())
   || /are you willing to work at this job/i.test(
@@ -187,6 +213,7 @@ const FIELD_TYPES = [
   ['email', 'email'],
   ['number', 'number'],
   ['date', 'date'],
+  ['url', 'url'],
   ['textarea', 'longText'],
   ['select', 'dropdown'],
   ['checkbox', 'checkbox'],
@@ -201,7 +228,7 @@ const BUILDER_TEXT = {
     contactTeam: 'Contact team', addContact: 'Add contact', urgencyNote: 'Urgency note', contactName: 'Contact name', name: 'Name', phoneNumber: 'Phone number', removeContact: 'Remove contact', noContacts: 'No contacts added.',
     applicationFormText: 'Application form text', formTitle: 'Form title', formIntroduction: 'Form introduction', confirmationHeading: 'Confirmation heading', submitButton: 'Submit button', successHeading: 'Success heading', successMessage: 'Success message', whatsAppShareButton: 'WhatsApp share button', whatsAppShareMessage: 'WhatsApp share message', callButton: 'Call button', footer: 'Footer',
     applicantDetails: 'Applicant details', standardFieldsNote: 'These standard fields are always included on the application.', fixedField: 'Fixed field', label: 'Label', placeholder: 'Placeholder', hint: 'Hint', required: 'Required', optional: 'Optional',
-    additionalQuestions: 'Application fields', additionalQuestionsNote: 'Set each field or section position below to reorder it. Move fields between sections using the section selector.', addField: 'Add field', moveFieldUp: 'Move field up', moveFieldDown: 'Move field down', moveUp: 'Move up', moveDown: 'Move down', duplicateField: 'Duplicate field', removeField: 'Remove field', removeLabel: 'Remove', position: 'Position', addSection: 'Add section', sectionName: 'Section name', newSectionName: 'New section', removeSection: 'Remove section', lastQuestion: 'Last question', createSection: 'Create section', cancel: 'Cancel', addSectionField: 'Add field', customSectionDescription: 'Create a section and configure its custom application fields.', sectionNameRequired: 'Enter a name for this section.', sectionFieldRequired: 'Add at least one field with a label.', fieldOptions: 'Options (one per line)', fieldRequiredToggle: 'Required field',
+    additionalQuestions: 'Application fields', additionalQuestionsNote: 'Drag the handles to reorder fields and sections. Move fields between sections using the section selector.', addField: 'Add field', moveFieldUp: 'Move field up', moveFieldDown: 'Move field down', moveUp: 'Move up', moveDown: 'Move down', duplicateField: 'Duplicate field', removeField: 'Remove field', removeLabel: 'Remove', position: 'Position', addSection: 'Add section', sectionName: 'Section name', newSectionName: 'New section', removeSection: 'Remove section', lastQuestion: 'Last question', createSection: 'Create section', cancel: 'Cancel', addSectionField: 'Add field', customSectionDescription: 'Create a section and configure its custom application fields.', sectionNameRequired: 'Enter a name for this section.', sectionFieldRequired: 'Add at least one field with a label.', fieldOptions: 'Options (one per line)', fieldRequiredToggle: 'Required field',
     formBuilderTab: 'Form Builder', describeFormTab: 'Describe Form', languages: 'Languages', translationReview: 'I reviewed this translation for accuracy and completeness. Names, brands, numbers, and locations may remain unchanged.', translationIncompleteCount: '{count} text items still need a translation.', describeFormTitle: 'Describe your form', describeFormHelp: 'Paste a description with section headings and list the fields under each heading. Field types and required status are inferred from the wording.', describeFormPlaceholder: 'Example:\nPersonal details:\n- Age (required, number)\n- Preferred work location (optional)\nAvailability:\n- Available start date\n- Available shifts (options: Morning, Evening)', createFormFromDescription: 'Create', describeFormEmpty: 'Enter a form description first.', describeFormNoFields: 'No application fields were identified. Add section headings and list the fields under each heading.', describeFormSuccess: 'Form generated. Review it in Preview before saving.', describeFormInfo: 'Generated fields are editable. Standard applicant name, email, and mobile fields remain included.',
     type: 'Type', group: 'Group', noGroup: 'No group', friendDetails: 'Friend details', confirmations: 'Confirmations', optionsPerLine: 'Options, one per line', requiredField: 'Required field', requiredFieldHelp: 'Applicants must answer this question to submit', noFields: 'No fields added. Use “Add field” to start.',
     fixedDetails: 'fixed details', additionalQuestionsCount: 'additional questions', saveForm: 'Save form', saving: 'Saving…', preview: 'Preview', closePreview: 'Close preview', project: 'Project', trainingDateNotSet: 'Training date not set', trainingDatePassed: 'Training date has passed', selectTrainingDate: 'Select a training date to preview the countdown',
@@ -209,7 +236,9 @@ const BUILDER_TEXT = {
     removeItemConfirm: 'Remove this {item} from the application page?', removeItemTitle: 'Remove {item}', remove: 'Remove', jobDetail: 'job detail', applicantPointSingular: 'applicant point', contact: 'contact', item: 'item',
     itemRemoved: '{item} removed.', itemAdded: '{item} added.', newQuestionAdded: 'A new question was added to the application.', removeQuestionConfirm: 'Remove “{label}” from the application?', questionRemoved: 'The question was removed from the application.', questionCopyAdded: 'A copy of the question was added.',
     formSaved: 'Form saved for this project.', formSavedNotice: 'Your application form was saved successfully.', formSaveFailed: 'The form could not be saved.', formSaveTryAgain: 'The form could not be saved. Please try again.', noSavedForm: 'No saved form was loaded. You can configure a new form and save it here.',
-    fieldTypes: { shortText: 'Short text', mobileNumber: 'Mobile number', email: 'Email', number: 'Number', date: 'Date', longText: 'Long text', dropdown: 'Dropdown', checkbox: 'Checkbox' },
+    fieldTypes: { shortText: 'Short text', mobileNumber: 'Mobile number', email: 'Email', number: 'Number', date: 'Date', url: 'URL', longText: 'Long text', dropdown: 'Dropdown', checkbox: 'Checkbox' },
+    sectionDescription: 'Section text or map URL',
+    enableDeciderControls: 'Enable decider controls', deciderAnswer: 'When the answer is', deciderAction: 'Then show', deciderInput: 'An input field', deciderLocation: 'A location block', deciderLink: 'A link button', deciderCall: 'A call button', deciderFieldLabel: 'Input label', deciderInputType: 'Input type', deciderPlaceholder: 'Placeholder', deciderRequired: 'Required input', deciderOptions: 'Options, one per line', deciderTitle: 'Block title', deciderText: 'Location or help text', deciderUrl: 'Map or destination URL', deciderButtonLabel: 'Button label', deciderPhone: 'Phone number', addDeciderRule: 'Add answer rule', removeDeciderRule: 'Remove answer rule',
   },
   hi: {
     builderHeading: 'आवेदन पेज', builderDescription: 'नौकरी की जानकारी, आवेदकों के लिए निर्देश और आवेदन फ़ील्ड संपादित करें।', pageLanguage: 'पेज की भाषा',
@@ -219,7 +248,7 @@ const BUILDER_TEXT = {
     contactTeam: 'संपर्क टीम', addContact: 'संपर्क जोड़ें', urgencyNote: 'आवेदन संबंधी सूचना', contactName: 'संपर्क का नाम', name: 'नाम', phoneNumber: 'फ़ोन नंबर', removeContact: 'संपर्क हटाएँ', noContacts: 'कोई संपर्क नहीं जोड़ा गया।',
     applicationFormText: 'आवेदन फ़ॉर्म का टेक्स्ट', formTitle: 'फ़ॉर्म का शीर्षक', formIntroduction: 'फ़ॉर्म का परिचय', confirmationHeading: 'पुष्टि का शीर्षक', submitButton: 'सबमिट बटन', successHeading: 'सफलता का शीर्षक', successMessage: 'सफलता का संदेश', whatsAppShareButton: 'WhatsApp साझा करने का बटन', whatsAppShareMessage: 'WhatsApp साझा करने का संदेश', callButton: 'कॉल बटन', footer: 'फ़ुटर',
     applicantDetails: 'आवेदक की जानकारी', standardFieldsNote: 'ये सामान्य फ़ील्ड आवेदन में हमेशा शामिल रहते हैं।', fixedField: 'स्थिर फ़ील्ड', label: 'लेबल', placeholder: 'प्लेसहोल्डर', hint: 'संकेत', required: 'ज़रूरी', optional: 'वैकल्पिक',
-    additionalQuestions: 'आवेदन फ़ील्ड', additionalQuestionsNote: 'क्रम बदलने के लिए हर फ़ील्ड या सेक्शन की स्थिति चुनें। सेक्शन चयन से फ़ील्ड दूसरे सेक्शन में ले जाएँ।', addField: 'फ़ील्ड जोड़ें', moveFieldUp: 'फ़ील्ड ऊपर ले जाएँ', moveFieldDown: 'फ़ील्ड नीचे ले जाएँ', moveUp: 'ऊपर ले जाएँ', moveDown: 'नीचे ले जाएँ', duplicateField: 'फ़ील्ड की कॉपी बनाएँ', removeField: 'फ़ील्ड हटाएँ', removeLabel: 'हटाएँ', position: 'क्रम', addSection: 'सेक्शन जोड़ें', sectionName: 'सेक्शन का नाम', newSectionName: 'नया सेक्शन', removeSection: 'सेक्शन हटाएँ', lastQuestion: 'आख़िरी सवाल',
+    additionalQuestions: 'आवेदन फ़ील्ड', additionalQuestionsNote: 'फ़ील्ड और सेक्शन का क्रम बदलने के लिए हैंडल खींचें। सेक्शन चयन से फ़ील्ड दूसरे सेक्शन में ले जाएँ।', addField: 'फ़ील्ड जोड़ें', moveFieldUp: 'फ़ील्ड ऊपर ले जाएँ', moveFieldDown: 'फ़ील्ड नीचे ले जाएँ', moveUp: 'ऊपर ले जाएँ', moveDown: 'नीचे ले जाएँ', duplicateField: 'फ़ील्ड की कॉपी बनाएँ', removeField: 'फ़ील्ड हटाएँ', removeLabel: 'हटाएँ', position: 'क्रम', addSection: 'सेक्शन जोड़ें', sectionName: 'सेक्शन का नाम', newSectionName: 'नया सेक्शन', removeSection: 'सेक्शन हटाएँ', lastQuestion: 'आख़िरी सवाल',
     type: 'प्रकार', group: 'समूह', noGroup: 'कोई समूह नहीं', friendDetails: 'दोस्त की जानकारी', confirmations: 'पुष्टियाँ', optionsPerLine: 'विकल्प, हर पंक्ति में एक', requiredField: 'अनिवार्य फ़ील्ड', requiredFieldHelp: 'सबमिट करने के लिए आवेदक को इस सवाल का जवाब देना होगा', noFields: 'कोई फ़ील्ड नहीं है। शुरू करने के लिए “फ़ील्ड जोड़ें” चुनें।',
     fixedDetails: 'स्थिर जानकारी', additionalQuestionsCount: 'अतिरिक्त सवाल', saveForm: 'फ़ॉर्म सहेजें', saving: 'सहेजा जा रहा है…', preview: 'पूर्वावलोकन', closePreview: 'पूर्वावलोकन बंद करें', project: 'प्रोजेक्ट', trainingDateNotSet: 'प्रशिक्षण की तारीख तय नहीं है', trainingDatePassed: 'प्रशिक्षण की तारीख बीत चुकी है', selectTrainingDate: 'उलटी गिनती देखने के लिए प्रशिक्षण की तारीख चुनें',
     friendPrompt: 'क्या आप दोस्त के साथ आवेदन कर रहे हैं? उनकी जानकारी यहाँ जोड़ें (वैकल्पिक)', untitledField: 'बिना शीर्षक वाला फ़ील्ड', selectOption: 'एक विकल्प चुनें', loadingSavedForm: 'सहेजा गया फ़ॉर्म लोड हो रहा है…', applicationForm: 'आवेदन फ़ॉर्म',
@@ -236,7 +265,7 @@ const BUILDER_TEXT = {
     contactTeam: 'தொடர்புக் குழு', addContact: 'தொடர்பைச் சேர்க்க', urgencyNote: 'அவசரக் குறிப்பு', contactName: 'தொடர்புப் பெயர்', name: 'பெயர்', phoneNumber: 'தொலைபேசி எண்', removeContact: 'தொடர்பை நீக்க', noContacts: 'தொடர்புகள் எதுவும் சேர்க்கப்படவில்லை.',
     applicationFormText: 'விண்ணப்பப் படிவ உரை', formTitle: 'படிவத் தலைப்பு', formIntroduction: 'படிவ அறிமுகம்', confirmationHeading: 'உறுதிப்படுத்தல் தலைப்பு', submitButton: 'சமர்ப்பிக்கும் பொத்தான்', successHeading: 'வெற்றி தலைப்பு', successMessage: 'வெற்றி செய்தி', whatsAppShareButton: 'WhatsApp பகிர்வு பொத்தான்', whatsAppShareMessage: 'WhatsApp பகிர்வு செய்தி', callButton: 'அழைப்பு பொத்தான்', footer: 'அடிப்பகுதி',
     applicantDetails: 'விண்ணப்பதாரர் விவரங்கள்', standardFieldsNote: 'இந்த வழக்கமான புலங்கள் விண்ணப்பத்தில் எப்போதும் இடம்பெறும்.', fixedField: 'நிலையான புலம்', label: 'லேபிள்', placeholder: 'இடம்காட்டி', hint: 'குறிப்பு', required: 'கட்டாயம்', optional: 'விருப்பம்',
-    additionalQuestions: 'விண்ணப்பப் புலங்கள்', additionalQuestionsNote: 'வரிசையை மாற்ற ஒவ்வொரு புலம் அல்லது பிரிவின் இடத்தையும் தேர்ந்தெடுக்கவும். பிரிவு தேர்வைப் பயன்படுத்தி புலங்களை நகர்த்தவும்.', addField: 'புலத்தைச் சேர்க்க', moveFieldUp: 'புலத்தை மேலே நகர்த்த', moveFieldDown: 'புலத்தை கீழே நகர்த்த', moveUp: 'மேலே நகர்த்த', moveDown: 'கீழே நகர்த்த', duplicateField: 'புலத்தை நகலெடுக்க', removeField: 'புலத்தை நீக்க', removeLabel: 'நீக்கு', position: 'இடம்', addSection: 'பிரிவைச் சேர்க்கவும்', sectionName: 'பிரிவு பெயர்', newSectionName: 'புதிய பிரிவு', removeSection: 'பிரிவை அகற்றவும்', lastQuestion: 'கடைசி கேள்வி',
+    additionalQuestions: 'விண்ணப்பப் புலங்கள்', additionalQuestionsNote: 'புலங்கள் மற்றும் பிரிவுகளை மறுவரிசைப்படுத்த கைப்பிடிகளை இழுக்கவும். பிரிவு தேர்வைப் பயன்படுத்தி புலங்களை நகர்த்தவும்.', addField: 'புலத்தைச் சேர்க்க', moveFieldUp: 'புலத்தை மேலே நகர்த்த', moveFieldDown: 'புலத்தை கீழே நகர்த்த', moveUp: 'மேலே நகர்த்த', moveDown: 'கீழே நகர்த்த', duplicateField: 'புலத்தை நகலெடுக்க', removeField: 'புலத்தை நீக்க', removeLabel: 'நீக்கு', position: 'இடம்', addSection: 'பிரிவைச் சேர்க்கவும்', sectionName: 'பிரிவு பெயர்', newSectionName: 'புதிய பிரிவு', removeSection: 'பிரிவை அகற்றவும்', lastQuestion: 'கடைசி கேள்வி',
     type: 'வகை', group: 'குழு', noGroup: 'குழு இல்லை', friendDetails: 'நண்பர் விவரங்கள்', confirmations: 'உறுதிப்படுத்தல்கள்', optionsPerLine: 'விருப்பங்கள், ஒவ்வொரு வரியிலும் ஒன்று', requiredField: 'கட்டாயப் புலம்', requiredFieldHelp: 'சமர்ப்பிக்க விண்ணப்பதாரர் இந்தக் கேள்விக்குப் பதிலளிக்க வேண்டும்', noFields: 'புலங்கள் எதுவும் சேர்க்கப்படவில்லை. தொடங்க “புலத்தைச் சேர்க்க” என்பதைத் தேர்ந்தெடுக்கவும்.',
     fixedDetails: 'நிலையான விவரங்கள்', additionalQuestionsCount: 'கூடுதல் கேள்விகள்', saveForm: 'படிவத்தைச் சேமிக்க', saving: 'சேமிக்கப்படுகிறது…', preview: 'முன்னோட்டம்', closePreview: 'முன்னோட்டத்தை மூட', project: 'திட்டம்', trainingDateNotSet: 'பயிற்சி தேதி அமைக்கப்படவில்லை', trainingDatePassed: 'பயிற்சி தேதி கடந்துவிட்டது', selectTrainingDate: 'கவுண்ட்டவுனைக் காண பயிற்சி தேதியைத் தேர்ந்தெடுக்கவும்',
     friendPrompt: 'நண்பருடன் விண்ணப்பிக்கிறீர்களா? அவர்களின் விவரங்களை இங்கே சேர்க்கவும் (விருப்பம்)', untitledField: 'தலைப்பில்லா புலம்', selectOption: 'ஒரு விருப்பத்தைத் தேர்ந்தெடுக்கவும்', loadingSavedForm: 'சேமித்த படிவம் ஏற்றப்படுகிறது…', applicationForm: 'விண்ணப்பப் படிவம்',
@@ -535,12 +564,15 @@ export default function ProjectFormBuilder() {
   const location = useLocation()
   const navigate = useNavigate()
   const { confirm: showConfirm } = useAlert()
+  const languageMenuRef = useRef(null)
   const [language, setLanguage] = useState('en')
   const [editorTab, setEditorTab] = useState('build')
+  const [builderStep, setBuilderStep] = useState(BUILDER_SECTIONS[0])
   const [enabledLanguages, setEnabledLanguages] = useState(DEFAULT_ENABLED_LANGUAGES)
   const [formDescription, setFormDescription] = useState('')
   const [descriptionError, setDescriptionError] = useState('')
   const [previewOpen, setPreviewOpen] = useState(false)
+  const [previewAnswers, setPreviewAnswers] = useState({})
   const [content, setContent] = useState(DEFAULT_CONTENT)
   const [fields, setFields] = useState(DEFAULT_FIELDS)
   const [sectionOrder, setSectionOrder] = useState(BUILDER_SECTIONS)
@@ -556,6 +588,7 @@ export default function ProjectFormBuilder() {
     let active = true
     setEditorTab('build')
     setLanguage('en')
+    setPreviewAnswers({})
     setEnabledLanguages(DEFAULT_ENABLED_LANGUAGES)
     setFormDescription('')
     setDescriptionError('')
@@ -657,6 +690,16 @@ export default function ProjectFormBuilder() {
     }
   }, [previewOpen])
 
+  useEffect(() => {
+    const closeLanguageMenuOnOutsideClick = (event) => {
+      const languageMenu = languageMenuRef.current
+      if (languageMenu?.open && !languageMenu.contains(event.target)) languageMenu.open = false
+    }
+
+    document.addEventListener('pointerdown', closeLanguageMenuOnOutsideClick)
+    return () => document.removeEventListener('pointerdown', closeLanguageMenuOnOutsideClick)
+  }, [])
+
   const updateField = (fieldId, changes) => {
     setFields((current) => current.map((field) => field.id === fieldId ? { ...field, ...changes } : field))
     setContent((current) => Object.fromEntries(Object.entries(current).map(([locale, localeContent]) => [
@@ -720,6 +763,7 @@ export default function ProjectFormBuilder() {
   }
 
   const copy = content[language] || content.en
+  const builderStepIndex = Math.max(0, sectionOrder.indexOf(builderStep))
   const t = (key, values = {}) => {
     const translation = BUILDER_TEXT.en.fieldTypes?.[key]
       ?? BUILDER_TEXT.en[key]
@@ -735,44 +779,23 @@ export default function ProjectFormBuilder() {
   const previewFieldGroups = orderedFieldGroups
     .map((group) => ({
       group,
-      fields: fields.filter((field) => getBuilderFieldGroup(field, customFieldSections) === group && !isWillingToWorkField(field)),
+      fields: fields.filter((field) => getBuilderFieldGroup(field, customFieldSections) === group
+        && !isWillingToWorkField(field)
+        && isApplicationFieldVisible(field, previewAnswers, fields)),
     }))
     .filter((group) => group.fields.length > 0)
-  const willingToWorkFields = fields.filter(isWillingToWorkField)
-  const fieldGroupPosition = (group) => orderedFieldGroups.indexOf(group) + 1
-  const updateFieldGroupPosition = (group, position) => {
-    setFieldGroupOrder((current) => {
-      const currentGroups = [...new Set([...current, ...customFieldSections.map((section) => section.id)])]
-      const next = currentGroups.filter((item) => item !== group)
-      next.splice(Math.max(0, Math.min(position - 1, next.length)), 0, group)
-      return next
+  const previewDeciderActions = fields
+    .filter((field) => isApplicationFieldVisible(field, previewAnswers, fields))
+    .filter((field) => {
+      const section = customFieldSections.find((item) => item.id === field.group)
+      return !section || isApplicationSectionVisible(section, previewAnswers, fields)
     })
-  }
+    .flatMap((field) => getMatchingDeciderRules(field, previewAnswers)
+      .filter((rule) => rule.actionType !== 'input'))
+  const willingToWorkFields = fields.filter(isWillingToWorkField)
   const sectionProps = (section) => ({
     style: { order: 2 + sectionOrder.indexOf(section) },
   })
-  const sectionPosition = (section) => (
-    <label className="form-builder-position-control" onClick={(event) => event.stopPropagation()}>
-      <span>{t('position')}</span>
-      <select
-        className="form-control"
-        aria-label={`${t('position')}: ${t(section)}`}
-        value={sectionOrder.indexOf(section) + 1}
-        onChange={(event) => {
-          const targetIndex = Number(event.target.value) - 1
-          setSectionOrder((current) => {
-            const previousIndex = current.indexOf(section)
-            const next = [...current]
-            next.splice(previousIndex, 1)
-            next.splice(targetIndex, 0, section)
-            return next
-          })
-        }}
-      >
-        {sectionOrder.map((_, index) => <option key={index} value={index + 1}>{index + 1}</option>)}
-      </select>
-    </label>
-  )
   const trainingCountdown = getTrainingCountdownLabel(copy.trainingDate, language, copy)
   const translationIssues = language === 'en'
     ? []
@@ -807,6 +830,26 @@ export default function ProjectFormBuilder() {
   const updateFieldOptions = (fieldId, value) => updateField(fieldId, language === 'en'
     ? { options: value }
     : { translatedOptions: { ...(fields.find((field) => field.id === fieldId)?.translatedOptions || {}), [language]: value } })
+
+  const toggleDeciderControls = (field, enabled) => updateField(field.id, {
+    deciderEnabled: enabled,
+    deciderRules: enabled && !field.deciderRules?.length ? [createDeciderRule()] : field.deciderRules || [],
+  })
+
+  const updateDeciderRule = (fieldId, ruleId, changes) => setFields((current) => current.map((field) => (
+    field.id === fieldId
+      ? { ...field, deciderRules: (field.deciderRules || []).map((rule) => rule.id === ruleId ? { ...rule, ...changes } : rule) }
+      : field
+  )))
+
+  const addDeciderRule = (field) => updateField(field.id, {
+    deciderEnabled: true,
+    deciderRules: [...(field.deciderRules || []), createDeciderRule()],
+  })
+
+  const removeDeciderRule = (field, ruleId) => updateField(field.id, {
+    deciderRules: (field.deciderRules || []).filter((rule) => rule.id !== ruleId),
+  })
 
   const updateAllLocalesList = (key, updateItems) => {
     setContent((current) => Object.fromEntries(Object.entries(current).map(([locale, localeContent]) => [
@@ -854,7 +897,12 @@ export default function ProjectFormBuilder() {
     const id = globalThis.crypto?.randomUUID?.() || `field-${Date.now()}-${Math.random().toString(36).slice(2, 7)}`
     setFields((current) => {
       const index = current.findIndex((item) => item.id === field.id)
-      const duplicate = { ...field, id, name: `field_${Date.now()}` }
+      const duplicate = {
+        ...field,
+        id,
+        name: `field_${Date.now()}`,
+        deciderRules: (field.deciderRules || []).map((rule) => ({ ...rule, id: createDeciderRule().id })),
+      }
       return [...current.slice(0, index + 1), duplicate, ...current.slice(index + 1)]
     })
     notify('success', t('questionCopyAdded'))
@@ -929,13 +977,44 @@ export default function ProjectFormBuilder() {
     reorderFacts(fromIndex, insertionIndex)
   }
 
-  const reorderFieldGroup = (group, position) => {
-    if (group === '') return
-    setFieldGroupOrder((current) => {
-      const next = current.filter((item) => item !== group)
-      next.splice(Math.max(0, Math.min(position - 1, next.length)), 0, group)
-      return next
-    })
+  const reorderBuilderSection = (draggedSection, targetSection, afterTarget) => {
+    setSectionOrder((current) => moveItemRelativeTo(current, draggedSection, targetSection, afterTarget))
+  }
+
+  const reorderFieldGroup = (draggedGroup, targetGroup, afterTarget) => {
+    setFieldGroupOrder((current) => moveItemRelativeTo(
+      [...new Set([...current, ...customFieldSections.map((section) => section.id)])],
+      draggedGroup,
+      targetGroup,
+      afterTarget,
+    ))
+  }
+
+  const startOrderDrag = (event, itemType, itemId) => {
+    event.dataTransfer.effectAllowed = 'move'
+    event.dataTransfer.setData('text/plain', `order:${itemType}:${itemId}`)
+  }
+
+  const handleBuilderSectionDrop = (event, targetSection, axis = 'x') => {
+    event.preventDefault()
+    const transfer = event.dataTransfer.getData('text/plain')
+    if (!transfer.startsWith('order:section:')) return
+    const draggedSection = transfer.slice('order:section:'.length)
+    if (draggedSection === targetSection) return
+    const bounds = event.currentTarget.getBoundingClientRect()
+    const pointer = axis === 'x' ? event.clientX : event.clientY
+    const midpoint = axis === 'x' ? bounds.left + bounds.width / 2 : bounds.top + bounds.height / 2
+    reorderBuilderSection(draggedSection, targetSection, pointer > midpoint)
+  }
+
+  const handleFieldGroupDrop = (event, targetGroup) => {
+    event.preventDefault()
+    const transfer = event.dataTransfer.getData('text/plain')
+    if (!transfer.startsWith('order:group:')) return
+    const draggedGroup = transfer.slice('order:group:'.length)
+    if (draggedGroup === targetGroup) return
+    const bounds = event.currentTarget.getBoundingClientRect()
+    reorderFieldGroup(draggedGroup, targetGroup, event.clientY > bounds.top + bounds.height / 2)
   }
 
   const updateCustomSectionTitle = (sectionId, value) => {
@@ -1050,6 +1129,7 @@ export default function ProjectFormBuilder() {
 
     const preservedFields = fields.filter((field) => isCoreApplicantField(field) || isWillingToWorkField(field))
     setFields(keepWillingToWorkLast([...preservedFields, ...generated.fields]))
+    setPreviewAnswers({})
     setLanguage('en')
     setCustomFieldSections(generated.sections)
     setFieldGroupOrder([...FIELD_GROUPS, ...generated.sections.map((section) => section.id)])
@@ -1133,6 +1213,80 @@ export default function ProjectFormBuilder() {
     }
   }
 
+  const renderDeciderRule = (field, rule, index) => (
+    <div className="form-builder-decider-rule" key={rule.id}>
+      <div className="form-builder-decider-rule-heading">
+        <strong>{t('deciderAnswer')} {index + 1}</strong>
+        <button type="button" className="form-builder-remove" onClick={() => removeDeciderRule(field, rule.id)}>
+          <FontAwesomeIcon icon={faTrash} /><span>{t('removeDeciderRule')}</span>
+        </button>
+      </div>
+      <div className="form-builder-field-grid">
+        <label className="form-builder-control">
+          <span>{t('deciderAnswer')}</span>
+          <input className="form-control" value={rule.answer || ''} onChange={(event) => updateDeciderRule(field.id, rule.id, { answer: event.target.value })} placeholder={t('deciderAnswer')} />
+        </label>
+        <label className="form-builder-control">
+          <span>{t('deciderAction')}</span>
+          <select className="form-control" value={rule.actionType || 'input'} onChange={(event) => updateDeciderRule(field.id, rule.id, { actionType: event.target.value, ...(event.target.value === 'input' ? { required: true } : {}) })}>
+            <option value="input">{t('deciderInput')}</option>
+            <option value="location">{t('deciderLocation')}</option>
+            <option value="link">{t('deciderLink')}</option>
+            <option value="call">{t('deciderCall')}</option>
+          </select>
+        </label>
+        {rule.actionType === 'input' && <>
+          <label className="form-builder-control">
+            <span>{t('deciderFieldLabel')}</span>
+            <input className="form-control" value={rule.label || ''} onChange={(event) => updateDeciderRule(field.id, rule.id, { label: event.target.value })} />
+          </label>
+          <label className="form-builder-control">
+            <span>{t('deciderInputType')}</span>
+            <select className="form-control" value={rule.inputType || 'text'} onChange={(event) => updateDeciderRule(field.id, rule.id, { inputType: event.target.value })}>
+              {FIELD_TYPES.map(([value, typeLabel]) => <option key={value} value={value}>{t(typeLabel)}</option>)}
+            </select>
+          </label>
+          <label className="form-builder-control">
+            <span>{t('deciderPlaceholder')}</span>
+            <input className="form-control" value={rule.placeholder || ''} onChange={(event) => updateDeciderRule(field.id, rule.id, { placeholder: event.target.value })} />
+          </label>
+          {rule.inputType === 'select' && <label className="form-builder-control form-builder-options">
+            <span>{t('deciderOptions')}</span>
+            <textarea className="form-control" rows="3" value={rule.options || ''} onChange={(event) => updateDeciderRule(field.id, rule.id, { options: event.target.value })} />
+          </label>}
+          <label className="form-builder-required-toggle">
+            <input type="checkbox" checked={Boolean(rule.required)} onChange={(event) => updateDeciderRule(field.id, rule.id, { required: event.target.checked })} />
+            <span><strong>{t('deciderRequired')}</strong></span>
+          </label>
+        </>}
+        {rule.actionType === 'location' && <>
+          <label className="form-builder-control">
+            <span>{t('deciderTitle')}</span>
+            <input className="form-control" value={rule.title || ''} onChange={(event) => updateDeciderRule(field.id, rule.id, { title: event.target.value })} />
+          </label>
+          <label className="form-builder-control">
+            <span>{t('deciderText')}</span>
+            <textarea className="form-control" rows="2" value={rule.text || ''} onChange={(event) => updateDeciderRule(field.id, rule.id, { text: event.target.value })} />
+          </label>
+          <label className="form-builder-control">
+            <span>{t('deciderUrl')}</span>
+            <input className="form-control" type="url" value={rule.url || ''} onChange={(event) => updateDeciderRule(field.id, rule.id, { url: event.target.value })} />
+          </label>
+        </>}
+        {['link', 'call'].includes(rule.actionType) && <>
+          <label className="form-builder-control">
+            <span>{t('deciderButtonLabel')}</span>
+            <input className="form-control" value={rule.buttonLabel || ''} onChange={(event) => updateDeciderRule(field.id, rule.id, { buttonLabel: event.target.value })} />
+          </label>
+          <label className="form-builder-control">
+            <span>{rule.actionType === 'link' ? t('deciderUrl') : t('deciderPhone')}</span>
+            <input className="form-control" type={rule.actionType === 'link' ? 'url' : 'tel'} value={rule.actionType === 'link' ? rule.url || '' : rule.phone || ''} onChange={(event) => updateDeciderRule(field.id, rule.id, rule.actionType === 'link' ? { url: event.target.value } : { phone: event.target.value })} />
+          </label>
+        </>}
+      </div>
+    </div>
+  )
+
   const renderBuilderField = (field, index, groupFields) => {
     const fixed = isCoreApplicantField(field)
     const group = getBuilderFieldGroup(field, customFieldSections)
@@ -1168,18 +1322,6 @@ export default function ProjectFormBuilder() {
             <small>{t(FIELD_TYPES.find(([value]) => value === field.type)?.[1] || 'shortText')} · {field.required ? t('required') : t('optional')}</small>
           </div>
           <div className="form-builder-field-actions">
-            <label className="form-builder-position-control">
-              <span>{t('position')}</span>
-              <select
-                className="form-control"
-                aria-label={`${t('position')}: ${label}`}
-                value={groupPosition}
-                disabled={isWillingToWorkField(field)}
-                onChange={(event) => moveFieldToPosition(field.id, group, Number(event.target.value))}
-              >
-                {groupFields.map((_, position) => <option key={position} value={position + 1}>{position + 1}</option>)}
-              </select>
-            </label>
             {fixed
               ? <span className="form-builder-fixed-badge">{t('fixedField')}</span>
               : <>
@@ -1242,29 +1384,80 @@ export default function ProjectFormBuilder() {
           <input type="checkbox" checked={Boolean(field.required)} onChange={(event) => updateField(field.id, { required: event.target.checked })} />
           <span><strong>{t('requiredField')}</strong><small>{t('requiredFieldHelp')}</small></span>
         </label>}
+        <label className="form-builder-required-toggle form-builder-decider-toggle">
+          <input type="checkbox" checked={Boolean(field.deciderEnabled)} onChange={(event) => toggleDeciderControls(field, event.target.checked)} />
+          <span><strong>{t('enableDeciderControls')}</strong></span>
+        </label>
+        {field.deciderEnabled && <div className="form-builder-decider-editor">
+          {(field.deciderRules || []).map((rule, ruleIndex) => renderDeciderRule(field, rule, ruleIndex))}
+          <button type="button" className="btn btn-outline btn-sm" onClick={() => addDeciderRule(field)}>
+            <FontAwesomeIcon icon={faPlus} /> {t('addDeciderRule')}
+          </button>
+        </div>}
       </article>
     )
   }
 
   const renderPreviewField = (field) => {
     const label = getLocalized(field.label, language) || t('untitledField')
+    const options = getApplicationFieldOptions(field)
+    const localizedOptions = getLocaleOptions(field, language).split('\n')
     return (
       <div className={`form-preview-field${field.type === 'checkbox' ? ' checkbox' : ''}`} key={field.id}>
         {field.type === 'checkbox' ? (
-          <label><input type="checkbox" disabled /> <span>{label}{field.required && <b> *</b>}</span></label>
+          <label><input type="checkbox" checked={Boolean(previewAnswers[field.name])} onChange={(event) => setPreviewAnswers((current) => ({ ...current, [field.name]: event.target.checked }))} /> <span>{label}{field.required && <b> *</b>}</span></label>
         ) : (
           <>
             <label>{label}{field.required && <b> *</b>}</label>
             {field.type === 'textarea'
-              ? <textarea className="form-control" rows="2" disabled placeholder={getLocalized(field.placeholder, language)} />
+              ? <textarea className="form-control" rows="2" value={previewAnswers[field.name] || ''} placeholder={getLocalized(field.placeholder, language)} onChange={(event) => setPreviewAnswers((current) => ({ ...current, [field.name]: event.target.value }))} />
               : field.type === 'select'
-                ? <select className="form-control" disabled><option>{t('selectOption')}</option>{(Array.isArray(field.options) ? field.options : String(field.options || '').split('\n')).filter(Boolean).map((option) => <option key={option}>{option}</option>)}</select>
-                : <input className="form-control" type={field.type || 'text'} disabled placeholder={getLocalized(field.placeholder, language)} />}
+                ? <select className="form-control" value={previewAnswers[field.name] || ''} onChange={(event) => setPreviewAnswers((current) => ({ ...current, [field.name]: event.target.value }))}><option value="">{t('selectOption')}</option>{options.map((option, index) => <option key={option} value={option}>{localizedOptions[index] || option}</option>)}</select>
+                : <input className="form-control" type={field.type || 'text'} value={previewAnswers[field.name] || ''} placeholder={getLocalized(field.placeholder, language)} onChange={(event) => setPreviewAnswers((current) => ({ ...current, [field.name]: event.target.value }))} />}
             {getLocalized(field.hint, language) && <small>{getLocalized(field.hint, language)}</small>}
           </>
         )}
+        {getMatchingDeciderRules(field, previewAnswers).filter((rule) => rule.actionType === 'input').map((rule) => {
+          if (rule.actionType === 'input') {
+            const name = `decider_${rule.id}`
+            const ruleOptions = getApplicationFieldOptions({ options: rule.options })
+            if (rule.inputType === 'checkbox') return <div className="form-preview-field checkbox" key={rule.id}>
+              <label><input type="checkbox" checked={Boolean(previewAnswers[name])} onChange={(event) => setPreviewAnswers((current) => ({ ...current, [name]: event.target.checked }))} /> <span>{rule.label || t('deciderFieldLabel')}{rule.required && <b> *</b>}</span></label>
+            </div>
+            return <label className="form-preview-field" key={rule.id}>
+              <span>{rule.label || t('deciderFieldLabel')}{rule.required && <b> *</b>}</span>
+              {rule.inputType === 'textarea'
+                ? <textarea className="form-control" rows="2" value={previewAnswers[name] || ''} placeholder={rule.placeholder || ''} onChange={(event) => setPreviewAnswers((current) => ({ ...current, [name]: event.target.value }))} />
+                : rule.inputType === 'select'
+                  ? <select className="form-control" value={previewAnswers[name] || ''} onChange={(event) => setPreviewAnswers((current) => ({ ...current, [name]: event.target.value }))}><option value="">{t('selectOption')}</option>{ruleOptions.map((option) => <option key={option} value={option}>{option}</option>)}</select>
+                  : <input className="form-control" type={rule.inputType || 'text'} value={previewAnswers[name] || ''} placeholder={rule.placeholder || ''} onChange={(event) => setPreviewAnswers((current) => ({ ...current, [name]: event.target.value }))} />}
+            </label>
+          }
+          if (rule.actionType === 'location') return <div className="form-preview-decider-block" key={rule.id}>
+            {rule.title && <strong>{rule.title}</strong>}{rule.text && <p>{rule.text}</p>}
+            {/^https?:\/\//i.test(rule.url || '') && <a href={rule.url} target="_blank" rel="noreferrer">{t('deciderUrl')}</a>}
+          </div>
+          if (rule.actionType === 'link') return /^https?:\/\//i.test(rule.url || '') ? <a className="btn btn-outline btn-sm" key={rule.id} href={rule.url} target="_blank" rel="noreferrer">{rule.buttonLabel || t('deciderLink')}</a> : null
+          if (rule.actionType === 'call') return String(rule.phone || '').replace(/[^\d+]/g, '') ? <a className="btn btn-outline btn-sm" key={rule.id} href={`tel:${String(rule.phone || '').replace(/[^\d+]/g, '')}`}>{rule.buttonLabel || t('deciderCall')}</a> : null
+          return null
+        })}
       </div>
     )
+  }
+
+  const renderPreviewDeciderAction = (rule) => {
+    if (rule.actionType === 'location') return <div className="form-preview-decider-block" key={rule.id}>
+      {rule.title && <strong>{rule.title}</strong>}{rule.text && <p>{rule.text}</p>}
+      {/^https?:\/\//i.test(rule.url || '') && <a href={rule.url} target="_blank" rel="noreferrer">{t('deciderUrl')}</a>}
+    </div>
+    if (rule.actionType === 'link') return /^https?:\/\//i.test(rule.url || '')
+      ? <a className="btn btn-outline btn-sm" key={rule.id} href={rule.url} target="_blank" rel="noreferrer">{rule.buttonLabel || t('deciderLink')}</a>
+      : null
+    if (rule.actionType === 'call') {
+      const phone = String(rule.phone || '').replace(/[^\d+]/g, '')
+      return phone ? <a className="btn btn-outline btn-sm" key={rule.id} href={`tel:${phone}`}>{rule.buttonLabel || t('deciderCall')}</a> : null
+    }
+    return null
   }
 
   if (loading) {
@@ -1278,18 +1471,38 @@ export default function ProjectFormBuilder() {
           <FontAwesomeIcon icon={faArrowLeft} /> {t('backToProjects')}
         </button>
       </div>
-      <button
-        type="button"
-        className="btn btn-primary btn-sm form-builder-preview-trigger"
-        onClick={() => setPreviewOpen(true)}
-      >
-        <FontAwesomeIcon icon={faEye} /> {t('previewForm')}
-      </button>
-
       {message && <div className={`form-builder-message ${messageType}`} role="status">{message}</div>}
       {previewOpen && <button type="button" className="form-preview-backdrop" aria-label={t('closeFormPreview')} onClick={() => setPreviewOpen(false)} />}
 
       <form className="form-builder-layout" onSubmit={saveForm}>
+        <div className="form-builder-floating-actions">
+          <button type="submit" className="btn btn-primary btn-sm" disabled={saving || loading}>
+            {saving ? t('saving') : t('saveForm')}
+          </button>
+          <button
+            type="button"
+            className="btn btn-outline btn-sm form-builder-preview-trigger"
+            onClick={() => setPreviewOpen(true)}
+          >
+            <FontAwesomeIcon icon={faEye} /> {t('previewForm')}
+          </button>
+          <details className="form-builder-language-menu" ref={languageMenuRef}>
+            <summary>{t('languages')}</summary>
+            <div className="form-builder-language-options">
+              {APPLICATION_LANGUAGES.map(([code, name, nativeName]) => (
+                <label key={code}>
+                  <input
+                    type="checkbox"
+                    checked={enabledLanguages.includes(code)}
+                    onChange={(event) => toggleEnabledLanguage(code, event.target.checked)}
+                  />
+                  <span>{name} <small>{nativeName}</small></span>
+                </label>
+              ))}
+            </div>
+          </details>
+        </div>
+
         <section className="form-builder-editor">
           <div className="form-builder-heading">
             <div>
@@ -1303,50 +1516,38 @@ export default function ProjectFormBuilder() {
               <button type="button" role="tab" aria-selected={editorTab === 'build'} className={editorTab === 'build' ? 'active' : ''} onClick={() => setEditorTab('build')}>{t('formBuilderTab')}</button>
               <button type="button" role="tab" aria-selected={editorTab === 'describe'} className={editorTab === 'describe' ? 'active' : ''} onClick={() => setEditorTab('describe')}>{t('describeFormTab')}</button>
             </div>
-            <details className="form-builder-language-menu">
-              <summary>{t('languages')}</summary>
-              <div className="form-builder-language-options">
-                {APPLICATION_LANGUAGES.map(([code, name, nativeName]) => (
-                  <label key={code}>
-                    <input
-                      type="checkbox"
-                      checked={enabledLanguages.includes(code)}
-                      onChange={(event) => toggleEnabledLanguage(code, event.target.checked)}
-                    />
-                    <span>{name} <small>{nativeName}</small></span>
-                  </label>
-                ))}
-              </div>
-            </details>
             <div className="form-builder-languages" role="group" aria-label="Edit form language">
               <button type="button" className={language === 'en' ? 'active' : ''} aria-pressed={language === 'en'} onClick={() => setLanguage('en')}>English</button>
               {APPLICATION_LANGUAGES.filter(([code]) => enabledLanguages.includes(code)).map(([code, name]) => (
                 <button key={code} type="button" className={language === code ? 'active' : ''} aria-pressed={language === code} onClick={() => setLanguage(code)}>{name}</button>
               ))}
             </div>
-            {language !== 'en' && (
-              <div className="form-builder-translation-status">
-                {translationIssues.length > 0 && <p role="status">{t('translationIncompleteCount', { count: translationIssues.length })}</p>}
-                <label className="form-builder-translation-review">
-                  <input
-                    type="checkbox"
-                    checked={copy.translationReviewed === true}
-                    disabled={translationIssues.length > 0}
-                    onChange={(event) => setContent((current) => ({
-                      ...current,
-                      [language]: { ...(current[language] || current.en), translationReviewed: event.target.checked },
-                    }))}
-                  />
-                  <span>{t('translationReview')}</span>
-                </label>
-              </div>
-            )}
           </div>
 
           {editorTab === 'build' ? (
+            <>
+            <nav className="form-builder-stepper" aria-label="Application form steps">
+              {sectionOrder.map((section, index) => (
+                <button
+                  type="button"
+                  key={section}
+                  className={builderStep === section ? 'active' : ''}
+                  aria-current={builderStep === section ? 'step' : undefined}
+                  onClick={() => setBuilderStep(section)}
+                  draggable="true"
+                  title={t('dragToReorder')}
+                  onDragStart={(event) => startOrderDrag(event, 'section', section)}
+                  onDragOver={(event) => event.preventDefault()}
+                  onDrop={(event) => handleBuilderSectionDrop(event, section)}
+                >
+                  <span>{index + 1}</span>
+                  <strong>{t(section)}</strong>
+                </button>
+              ))}
+            </nav>
             <div className="form-builder-build-content">
-          <details className="form-builder-section" open {...sectionProps('jobIntroduction')}>
-            <summary className="form-builder-accordion-summary"><h3>{t('jobIntroduction')}</h3>{sectionPosition('jobIntroduction')}</summary>
+          <details className="form-builder-section" open={builderStep === 'jobIntroduction'} hidden={builderStep !== 'jobIntroduction'} {...sectionProps('jobIntroduction')} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleBuilderSectionDrop(event, 'jobIntroduction', 'y')}>
+            <summary className="form-builder-accordion-summary" draggable="true" title={t('dragToReorder')} onDragStart={(event) => startOrderDrag(event, 'section', 'jobIntroduction')}><FontAwesomeIcon icon={faGripVertical} className="form-builder-order-grip" aria-hidden="true" /><h3>{t('jobIntroduction')}</h3></summary>
             <div className="form-builder-accordion-content">
             <label className="form-builder-control"><span>{t('brandLine')}</span><input className="form-control" value={copy.brandLine} onChange={(event) => updateContent('brandLine', event.target.value)} /></label>
             <label className="form-builder-control"><span>{t('projectName')}</span><input className="form-control" value={copy.projectName} onChange={(event) => updateContent('projectName', event.target.value)} /></label>
@@ -1357,8 +1558,8 @@ export default function ProjectFormBuilder() {
             </div>
           </details>
 
-          <details className="form-builder-section" open {...sectionProps('jobDetails')}>
-            <summary className="form-builder-accordion-summary"><h3>{t('jobDetails')}</h3>{sectionPosition('jobDetails')}</summary>
+          <details className="form-builder-section" open={builderStep === 'jobDetails'} hidden={builderStep !== 'jobDetails'} {...sectionProps('jobDetails')} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleBuilderSectionDrop(event, 'jobDetails', 'y')}>
+            <summary className="form-builder-accordion-summary" draggable="true" title={t('dragToReorder')} onDragStart={(event) => startOrderDrag(event, 'section', 'jobDetails')}><FontAwesomeIcon icon={faGripVertical} className="form-builder-order-grip" aria-hidden="true" /><h3>{t('jobDetails')}</h3></summary>
             <div className="form-builder-accordion-content">
             <div className="form-builder-section-heading">
               <button type="button" className="btn btn-outline btn-sm" onClick={() => addListItem('facts')}><FontAwesomeIcon icon={faPlus} /> {t('addDetail')}</button>
@@ -1403,8 +1604,8 @@ export default function ProjectFormBuilder() {
             </div>
           </details>
 
-          <details className="form-builder-section" open {...sectionProps('whoShouldApply')}>
-            <summary className="form-builder-accordion-summary"><h3>{t('whoShouldApply')}</h3>{sectionPosition('whoShouldApply')}</summary>
+          <details className="form-builder-section" open={builderStep === 'whoShouldApply'} hidden={builderStep !== 'whoShouldApply'} {...sectionProps('whoShouldApply')} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleBuilderSectionDrop(event, 'whoShouldApply', 'y')}>
+            <summary className="form-builder-accordion-summary" draggable="true" title={t('dragToReorder')} onDragStart={(event) => startOrderDrag(event, 'section', 'whoShouldApply')}><FontAwesomeIcon icon={faGripVertical} className="form-builder-order-grip" aria-hidden="true" /><h3>{t('whoShouldApply')}</h3></summary>
             <div className="form-builder-accordion-content">
             <div className="form-builder-section-heading">
               <button type="button" className="btn btn-outline btn-sm" onClick={() => addListItem('perks')}><FontAwesomeIcon icon={faPlus} /> {t('addPoint')}</button>
@@ -1423,8 +1624,8 @@ export default function ProjectFormBuilder() {
             </div>
           </details>
 
-          <details className="form-builder-section" open {...sectionProps('contactTeam')}>
-            <summary className="form-builder-accordion-summary"><h3>{t('contactTeam')}</h3>{sectionPosition('contactTeam')}</summary>
+          <details className="form-builder-section" open={builderStep === 'contactTeam'} hidden={builderStep !== 'contactTeam'} {...sectionProps('contactTeam')} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleBuilderSectionDrop(event, 'contactTeam', 'y')}>
+            <summary className="form-builder-accordion-summary" draggable="true" title={t('dragToReorder')} onDragStart={(event) => startOrderDrag(event, 'section', 'contactTeam')}><FontAwesomeIcon icon={faGripVertical} className="form-builder-order-grip" aria-hidden="true" /><h3>{t('contactTeam')}</h3></summary>
             <div className="form-builder-accordion-content">
             <div className="form-builder-section-heading">
               <button type="button" className="btn btn-outline btn-sm" onClick={() => addListItem('contacts')}><FontAwesomeIcon icon={faPlus} /> {t('addContact')}</button>
@@ -1444,8 +1645,8 @@ export default function ProjectFormBuilder() {
             </div>
           </details>
 
-          <details className="form-builder-section" open {...sectionProps('application')}>
-            <summary className="form-builder-accordion-summary"><h3>{t('applicationFormText')}</h3>{sectionPosition('application')}</summary>
+          <details className="form-builder-section" open={builderStep === 'application'} hidden={builderStep !== 'application'} {...sectionProps('application')} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleBuilderSectionDrop(event, 'application', 'y')}>
+            <summary className="form-builder-accordion-summary" draggable="true" title={t('dragToReorder')} onDragStart={(event) => startOrderDrag(event, 'section', 'application')}><FontAwesomeIcon icon={faGripVertical} className="form-builder-order-grip" aria-hidden="true" /><h3>{t('applicationFormText')}</h3></summary>
             <div className="form-builder-accordion-content">
             <label className="form-builder-control"><span>{t('formTitle')}</span><input className="form-control" value={copy.formTitle} onChange={(event) => updateContent('formTitle', event.target.value)} /></label>
             <label className="form-builder-control"><span>{t('formIntroduction')}</span><textarea className="form-control" rows="2" value={copy.formIntro} onChange={(event) => updateContent('formIntro', event.target.value)} /></label>
@@ -1464,8 +1665,18 @@ export default function ProjectFormBuilder() {
                 ? customSectionLabel(customSection)
                 : group === '' ? t('applicantDetails') : t(group === 'friend' ? 'friendDetails' : 'confirmations')
               return (
-                <section className="form-builder-field-group" key={group || 'applicant'}>
+                <section className="form-builder-field-group" key={group || 'applicant'} onDragOver={(event) => event.preventDefault()} onDrop={(event) => handleFieldGroupDrop(event, group)}>
                   <div className="form-builder-section-heading">
+                    <button
+                      type="button"
+                      className="form-builder-group-drag-handle"
+                      draggable="true"
+                      aria-label={`${t('dragToReorder')}: ${groupTitle}`}
+                      title={t('dragToReorder')}
+                      onDragStart={(event) => startOrderDrag(event, 'group', group)}
+                    >
+                      <FontAwesomeIcon icon={faGripVertical} />
+                    </button>
                     {customSection
                       ? <label className="form-builder-control">
                         <span>{t('sectionName')}</span>
@@ -1473,17 +1684,6 @@ export default function ProjectFormBuilder() {
                       </label>
                       : <h4>{groupTitle}</h4>}
                     <div className="form-builder-section-actions">
-                      <label className="form-builder-position-control">
-                        <span>{t('position')}</span>
-                        <select
-                          className="form-control"
-                          aria-label={`${t('position')}: ${groupTitle}`}
-                          value={fieldGroupPosition(group)}
-                          onChange={(event) => updateFieldGroupPosition(group, Number(event.target.value))}
-                        >
-                          {orderedFieldGroups.map((_, position) => <option key={position} value={position + 1}>{position + 1}</option>)}
-                        </select>
-                      </label>
                       {customSection && (
                         <button type="button" className="form-builder-remove" onClick={() => removeCustomFieldSection(customSection)} aria-label={`${t('removeSection')}: ${groupTitle}`}>
                           <FontAwesomeIcon icon={faTrash} /><span>{t('removeLabel')}</span>
@@ -1527,7 +1727,13 @@ export default function ProjectFormBuilder() {
             <label className="form-builder-control"><span>{t('footer')}</span><input className="form-control" value={copy.footer} onChange={(event) => updateContent('footer', event.target.value)} /></label>
             </div>
           </details>
+          <div className="form-builder-step-navigation">
+            <button type="button" className="btn btn-outline btn-sm" disabled={builderStepIndex === 0} onClick={() => setBuilderStep(sectionOrder[builderStepIndex - 1])}>Previous</button>
+            <span>Step {builderStepIndex + 1} of {sectionOrder.length}</span>
+            <button type="button" className="btn btn-primary btn-sm" disabled={builderStepIndex === sectionOrder.length - 1} onClick={() => setBuilderStep(sectionOrder[builderStepIndex + 1])}>Next</button>
+          </div>
             </div>
+            </>
           ) : (
             <section className="form-builder-describe-panel" role="tabpanel">
               <div>
@@ -1557,9 +1763,6 @@ export default function ProjectFormBuilder() {
 
           <div className="form-builder-footer">
             <span>{coreFields.length} {t('fixedDetails')} · {optionalFields.length} {t('additionalQuestionsCount')}</span>
-            <button type="submit" className="btn btn-primary" disabled={saving || loading}>
-              {saving ? t('saving') : t('saveForm')}
-            </button>
           </div>
         </section>
 
@@ -1592,23 +1795,31 @@ export default function ProjectFormBuilder() {
             {copy.contacts.map((contact, index) => <div className="page-preview-contact" key={`preview-contact-${index}`}><strong>{contact.name}</strong><span>{contact.phone}</span><span>{copy.call} · WhatsApp</span></div>)}
             <p className="page-preview-urgent">{copy.urgent}</p>
           </div>}
+          {previewDeciderActions.length > 0 && <div className="page-preview-section form-preview-decider-actions">
+            {previewDeciderActions.map(renderPreviewDeciderAction)}
+          </div>}
           <div className="form-preview-content">
             <h2>{copy.formTitle || t('applicationForm')}</h2>
             {copy.formIntro && <p>{copy.formIntro}</p>}
             {loading ? <div className="form-builder-preview-loading">{t('loadingSavedForm')}</div> : (
               <>
                 {previewFieldGroups.map(({ group, fields: sectionFields }) => {
+                  if (sectionFields.length === 0) return null
                   const customSection = customFieldSections.find((section) => section.id === group)
+                  if (customSection && !isApplicationSectionVisible(customSection, previewAnswers, fields)) return null
                   return (
                     <div className="form-preview-group" key={group || 'applicant'}>
                       {group === 'friend' && <div className="form-preview-friend-title">{t('friendPrompt')}</div>}
                       {group === 'confirmations' && <h3 className="form-preview-check-title">{copy.checkTitle}</h3>}
-                      {customSection && <h3 className="form-preview-check-title">{customSectionLabel(customSection)}</h3>}
+                      {customSection && <>
+                        <h3 className="form-preview-check-title">{customSectionLabel(customSection)}</h3>
+                        {getLocalized(customSection.description, language) && <p>{getLocalized(customSection.description, language)}</p>}
+                      </>}
                       {sectionFields.map((field) => renderPreviewField(field))}
                     </div>
                   )
                 })}
-                {willingToWorkFields.map((field) => renderPreviewField(field))}
+                {willingToWorkFields.filter((field) => isApplicationFieldVisible(field, previewAnswers, fields)).map((field) => renderPreviewField(field))}
               </>
             )}
             <button type="button" className="btn btn-primary form-preview-submit" disabled>{copy.submit}</button>

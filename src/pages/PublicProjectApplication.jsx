@@ -1,10 +1,11 @@
-import { useEffect, useState } from 'react'
+import { Fragment, useEffect, useState } from 'react'
 import { useParams } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCheck } from '@fortawesome/free-solid-svg-icons'
 import { normalizeProjectIdParam, recruiterAPI } from '../api/axios'
 import { getTrainingCountdownLabel } from '../utils/dateCountdown'
 import { ensureCoreApplicantFields } from '../utils/applicationFormFields'
+import { getApplicationFieldOptions, getMatchingDeciderRules, isApplicationFieldVisible, isApplicationSectionVisible } from '../utils/applicationFormConditions'
 import { formatProjectFacts } from '../utils/projectFormatting'
 import './PublicProjectApplication.css'
 
@@ -25,7 +26,7 @@ const PUBLIC_UI_TEXT = {
     genericIntro: 'Applications are open for {name}. Review the job details and submit your application below.',
     openings: '{count} openings available. Apply now.', formIntro: 'Complete the form below to apply.',
     formTitle: 'Apply for this project', share: 'Share with friends on WhatsApp', shareMessage: 'Apply for {name}: ', received: 'Your application has been received, {name}!', contactYou: 'Our team will contact you at {mobile}.',
-    footer: 'Recruitment partner for this project', translating: 'Loading reviewed translation…', translationFallback: 'Some text is not translated yet; English is shown for those parts.', networkError: 'We could not send your application. Please try again.', loadError: 'Could not load this application form. Please try again.',
+    footer: 'Recruitment partner for this project', translating: 'Loading reviewed translation…', translationFallback: 'Some text is not translated yet; English is shown for those parts.', networkError: 'We could not send your application. Please try again.', loadError: 'Could not load this application form. Please try again.', openMap: 'Open map', openLink: 'Open link',
   },
   hi: {
     chooseLanguage: 'भाषा चुनें', loading: 'आवेदन फ़ॉर्म लोड हो रहा है…', retry: 'फिर कोशिश करें', projectApplication: 'प्रोजेक्ट के लिए आवेदन',
@@ -203,6 +204,7 @@ export default function PublicProjectApplication() {
   const [error, setError] = useState('')
   const [success, setSuccess] = useState(null)
   const [translatedForm, setTranslatedForm] = useState(null)
+  const [fieldAnswers, setFieldAnswers] = useState({})
 
   const loadForm = async () => {
     setLoading(true)
@@ -212,6 +214,7 @@ export default function PublicProjectApplication() {
       const loadedForm = unwrapForm(response)
       if (!loadedForm || !Array.isArray(loadedForm.fields)) throw new Error('This application form is not available yet.')
       setForm(loadedForm)
+      setFieldAnswers({})
     } catch (loadError) {
       setForm(null)
       setError(loadError?.response?.data?.message || loadError.message || 'Could not load this application form.')
@@ -292,7 +295,58 @@ export default function PublicProjectApplication() {
   const trainingCountdown = getTrainingCountdownLabel(content.trainingDate, language, content)
   const fields = ensureCoreApplicantFields(localizedForm?.fields || form?.fields || [])
   const customFieldSections = Array.isArray(content.builderCustomSections) ? content.builderCustomSections : []
-  const sections = groupFields(fields, customFieldSections, content.builderFieldGroupOrder || [])
+  const visibleFields = fields.filter((field) => isApplicationFieldVisible(field, fieldAnswers, fields))
+  const sections = groupFields(visibleFields, customFieldSections, content.builderFieldGroupOrder || [])
+    .filter((section) => {
+      const customSection = customFieldSections.find((item) => item.id === section.group)
+      return !customSection || isApplicationSectionVisible(customSection, fieldAnswers, fields)
+    })
+  const activeDeciderRules = sections.flatMap((section) => section.fields.flatMap((field) => (
+    getMatchingDeciderRules(field, fieldAnswers).map((rule) => ({ field, rule }))
+  )))
+  const renderDeciderInput = ({ rule }) => {
+    if (rule.actionType !== 'input') return null
+    const name = `decider_${rule.id}`
+    const id = `application-decider-${rule.id}`
+    const options = getApplicationFieldOptions({ options: rule.options })
+    if (rule.inputType === 'checkbox') return <label className="public-app-checkbox" key={rule.id}>
+      <input id={id} name={name} type="checkbox" required={Boolean(rule.required)} checked={Boolean(fieldAnswers[name])} onChange={(event) => setFieldAnswers((current) => ({ ...current, [name]: event.target.checked }))} onInvalid={(event) => event.currentTarget.setCustomValidity(getPublicText(language, 'requiredField'))} onInput={(event) => event.currentTarget.setCustomValidity('')} />
+      <span>{rule.label || getPublicText(language, 'application')}{rule.required && <b> *</b>}</span>
+    </label>
+    return <label className="public-app-field" key={rule.id} htmlFor={id}>
+      <span>{rule.label || getPublicText(language, 'application')}{rule.required && <b> *</b>}</span>
+      {rule.inputType === 'textarea'
+        ? <textarea id={id} name={name} required={Boolean(rule.required)} value={fieldAnswers[name] || ''} placeholder={rule.placeholder || ''} onChange={(event) => setFieldAnswers((current) => ({ ...current, [name]: event.target.value }))} onInvalid={(event) => event.currentTarget.setCustomValidity(getPublicText(language, 'requiredField'))} onInput={(event) => event.currentTarget.setCustomValidity('')} />
+        : rule.inputType === 'select'
+          ? <select id={id} name={name} required={Boolean(rule.required)} value={fieldAnswers[name] || ''} onChange={(event) => setFieldAnswers((current) => ({ ...current, [name]: event.target.value }))} onInvalid={(event) => event.currentTarget.setCustomValidity(getPublicText(language, 'requiredField'))} onInput={(event) => event.currentTarget.setCustomValidity('')}><option value="">{getPublicText(language, 'selectOption')}</option>{options.map((option) => <option key={option} value={option}>{option}</option>)}</select>
+          : <input id={id} name={name} type={rule.inputType || 'text'} required={Boolean(rule.required)} value={fieldAnswers[name] || ''} placeholder={rule.placeholder || ''} onChange={(event) => setFieldAnswers((current) => ({ ...current, [name]: event.target.value }))} onInvalid={(event) => event.currentTarget.setCustomValidity(getPublicText(language, 'requiredField'))} onInput={(event) => event.currentTarget.setCustomValidity('')} />}
+    </label>
+  }
+  const renderDeciderInfoAction = ({ rule }) => {
+    if (rule.actionType === 'location') {
+      const url = /^https?:\/\//i.test(rule.url || '') ? rule.url : ''
+      return <section className="public-app-decider-location" key={rule.id}>
+        {rule.title && <h3>{rule.title}</h3>}
+        {rule.text && <p>{rule.text}</p>}
+        {url && <a className="public-app-button" href={url} target="_blank" rel="noreferrer">{getPublicText(language, 'openMap')}</a>}
+      </section>
+    }
+    if (rule.actionType === 'link') {
+      const url = /^https?:\/\//i.test(rule.url || '') ? rule.url : ''
+      return url ? <div className="public-app-contact public-app-decider-link" key={rule.id}>
+        <div><strong>{getPublicText(language, 'openLink')}</strong><span>{url}</span></div>
+        <div className="public-app-contact-actions"><a href={url} target="_blank" rel="noreferrer">{rule.buttonLabel || getPublicText(language, 'openLink')}</a></div>
+      </div> : null
+    }
+    if (rule.actionType === 'call') {
+      const phone = String(rule.phone || '').replace(/[^\d+]/g, '')
+      return phone ? <div className="public-app-contact" key={rule.id}>
+        <div><strong>{rule.buttonLabel || getPublicText(language, 'call')}</strong><span>{rule.phone}</span></div>
+        <div className="public-app-contact-actions"><a href={`tel:${phone}`}>{getPublicText(language, 'call')}</a></div>
+      </div> : null
+    }
+    return null
+  }
   const formTitle = content.formTitle || (language === 'en' ? form?.title : '') || getPublicText(language, 'application')
   const formIntro = content.formIntro || (language === 'en' ? form?.description : '') || ''
   const headline = useLocalizedValue('headline', projectName)
@@ -303,7 +357,7 @@ export default function PublicProjectApplication() {
     const formData = new FormData(formElement)
     const answers = {}
 
-    fields.forEach((field) => {
+    visibleFields.forEach((field) => {
       const control = formElement.elements.namedItem(field.name)
       if (field.type === 'checkbox') {
         answers[field.name] = Boolean(control?.checked)
@@ -312,8 +366,14 @@ export default function PublicProjectApplication() {
         answers[field.name] = field.type === 'tel' ? cleanMobile(value) : String(value).trim()
       }
     })
+    activeDeciderRules.filter(({ rule }) => rule.actionType === 'input').forEach(({ rule }) => {
+      const name = `decider_${rule.id}`
+      answers[name] = rule.inputType === 'checkbox'
+        ? Boolean(formElement.elements.namedItem(name)?.checked)
+        : String(formData.get(name) || '').trim()
+    })
 
-    const invalidMobile = fields.find((field) => (
+    const invalidMobile = visibleFields.find((field) => (
       field.type === 'tel' && answers[field.name] && !validMobile(answers[field.name])
     ))
     if (invalidMobile) {
@@ -327,11 +387,11 @@ export default function PublicProjectApplication() {
     setSubmitting(true)
     setError('')
     try {
-      const firstNameField = fields.find((field) => field.name === 'first_name')
-      const lastNameField = fields.find((field) => field.name === 'last_name')
-      const emailField = fields.find((field) => field.type === 'email' || field.name === 'email')
-      const mobileField = fields.find((field) => ['mobile', 'phone', 'phone_number'].includes(field.name))
-        || fields.find((field) => field.type === 'tel' && !field.name.includes('friend'))
+      const firstNameField = visibleFields.find((field) => field.name === 'first_name')
+      const lastNameField = visibleFields.find((field) => field.name === 'last_name')
+      const emailField = visibleFields.find((field) => field.type === 'email' || field.name === 'email')
+      const mobileField = visibleFields.find((field) => ['mobile', 'phone', 'phone_number'].includes(field.name))
+        || visibleFields.find((field) => field.type === 'tel' && !field.name.includes('friend'))
       const firstName = firstNameField ? answers[firstNameField.name] : ''
       const lastName = lastNameField ? answers[lastNameField.name] : ''
       const email = emailField ? answers[emailField.name] : ''
@@ -352,6 +412,7 @@ export default function PublicProjectApplication() {
         mobile,
       })
       formElement.reset()
+      setFieldAnswers({})
     } catch (submitError) {
       setError(language === 'en'
         ? submitError?.response?.data?.message || content.errNetwork || getPublicText(language, 'networkError')
@@ -441,6 +502,7 @@ export default function PublicProjectApplication() {
                   {content.urgent && <p className="public-app-urgent">{content.urgent}</p>}
                 </section>
               )}
+              {activeDeciderRules.filter(({ rule }) => rule.actionType !== 'input').map(renderDeciderInfoAction)}
               <footer className="public-app-footer">{content.footer}</footer>
             </div>
 
@@ -467,20 +529,24 @@ export default function PublicProjectApplication() {
                         const id = `application-${sectionIndex}-${index}`
                         const label = getFieldLabel(field, language)
                         if (field.type === 'checkbox') {
-                          return <label className="public-app-checkbox" key={field.id || field.name}><input id={id} name={field.name} type="checkbox" required={Boolean(field.required)} onInvalid={(event) => event.currentTarget.setCustomValidity(getPublicText(language, 'requiredField'))} onInput={(event) => event.currentTarget.setCustomValidity('')} /><span>{label}{field.required && <b> *</b>}</span></label>
+                          return <Fragment key={field.id || field.name}>
+                            <label className="public-app-checkbox"><input id={id} name={field.name} type="checkbox" required={Boolean(field.required)} checked={Boolean(fieldAnswers[field.name])} onChange={(event) => setFieldAnswers((current) => ({ ...current, [field.name]: event.target.checked }))} onInvalid={(event) => event.currentTarget.setCustomValidity(getPublicText(language, 'requiredField'))} onInput={(event) => event.currentTarget.setCustomValidity('')} /><span>{label}{field.required && <b> *</b>}</span></label>
+                          </Fragment>
                         }
                         return (
-                          <label className="public-app-field" key={field.id || field.name} htmlFor={id}>
-                            <span>{label}{field.required && <b> *</b>}</span>
-                            {field.type === 'textarea'
-                              ? <textarea id={id} name={field.name} required={Boolean(field.required)} placeholder={getFieldText(field, 'placeholder', language)} onInvalid={(event) => event.currentTarget.setCustomValidity(getPublicText(language, 'requiredField'))} onInput={(event) => event.currentTarget.setCustomValidity('')} />
-                              : field.type === 'select'
-                                ? <select id={id} name={field.name} required={Boolean(field.required)} defaultValue="" onInvalid={(event) => event.currentTarget.setCustomValidity(getPublicText(language, 'requiredField'))} onInput={(event) => event.currentTarget.setCustomValidity('')}><option value="">{getPublicText(language, 'selectOption')}</option>{(Array.isArray(field.options) ? field.options : String(field.options || '').split('\n').filter(Boolean)).map((option, optionIndex) => <option key={option} value={option}>{getFieldOption(field, optionIndex, language)}</option>)}</select>
-                                : field.type === 'tel'
-                                      ? <div className="public-app-phone"><span>+91</span><input id={id} name={field.name} type="tel" required={Boolean(field.required)} placeholder={getFieldText(field, 'placeholder', language) || '98765 43210'} pattern="[0-9 ()+-]{10,14}" inputMode="tel" onInvalid={(event) => event.currentTarget.setCustomValidity(event.currentTarget.validity.valueMissing ? getPublicText(language, 'requiredField') : getPublicText(language, 'invalidMobile'))} onInput={(event) => event.currentTarget.setCustomValidity('')} /></div>
-                                      : <input id={id} name={field.name} type={field.type || 'text'} required={Boolean(field.required)} placeholder={getFieldText(field, 'placeholder', language)} onInvalid={(event) => event.currentTarget.setCustomValidity(getPublicText(language, 'requiredField'))} onInput={(event) => event.currentTarget.setCustomValidity('')} />}
-                                    {getFieldText(field, 'hint', language) && <small>{getFieldText(field, 'hint', language)}</small>}
-                          </label>
+                          <Fragment key={field.id || field.name}>
+                            <label className="public-app-field" htmlFor={id}>
+                              <span>{label}{field.required && <b> *</b>}</span>
+                              {field.type === 'textarea'
+                                ? <textarea id={id} name={field.name} required={Boolean(field.required)} value={fieldAnswers[field.name] || ''} placeholder={getFieldText(field, 'placeholder', language)} onChange={(event) => setFieldAnswers((current) => ({ ...current, [field.name]: event.target.value }))} onInvalid={(event) => event.currentTarget.setCustomValidity(getPublicText(language, 'requiredField'))} onInput={(event) => event.currentTarget.setCustomValidity('')} />
+                                : field.type === 'select'
+                                  ? <select id={id} name={field.name} required={Boolean(field.required)} value={fieldAnswers[field.name] || ''} onChange={(event) => setFieldAnswers((current) => ({ ...current, [field.name]: event.target.value }))} onInvalid={(event) => event.currentTarget.setCustomValidity(getPublicText(language, 'requiredField'))} onInput={(event) => event.currentTarget.setCustomValidity('')}><option value="">{getPublicText(language, 'selectOption')}</option>{getApplicationFieldOptions(field).map((option, optionIndex) => <option key={option} value={option}>{getFieldOption(field, optionIndex, language)}</option>)}</select>
+                                  : field.type === 'tel'
+                                    ? <div className="public-app-phone"><span>+91</span><input id={id} name={field.name} type="tel" required={Boolean(field.required)} value={fieldAnswers[field.name] || ''} placeholder={getFieldText(field, 'placeholder', language) || '98765 43210'} pattern="[0-9 ()+-]{10,14}" inputMode="tel" onChange={(event) => setFieldAnswers((current) => ({ ...current, [field.name]: event.target.value }))} onInvalid={(event) => event.currentTarget.setCustomValidity(event.currentTarget.validity.valueMissing ? getPublicText(language, 'requiredField') : getPublicText(language, 'invalidMobile'))} onInput={(event) => event.currentTarget.setCustomValidity('')} /></div>
+                                    : <input id={id} name={field.name} type={field.type || 'text'} required={Boolean(field.required)} value={fieldAnswers[field.name] || ''} placeholder={getFieldText(field, 'placeholder', language)} onChange={(event) => setFieldAnswers((current) => ({ ...current, [field.name]: event.target.value }))} onInvalid={(event) => event.currentTarget.setCustomValidity(getPublicText(language, 'requiredField'))} onInput={(event) => event.currentTarget.setCustomValidity('')} />}
+                              {getFieldText(field, 'hint', language) && <small>{getFieldText(field, 'hint', language)}</small>}
+                            </label>
+                          </Fragment>
                         )
                       }
 
@@ -492,15 +558,21 @@ export default function PublicProjectApplication() {
                       }
                       const customSection = customFieldSections.find((item) => item.id === section.group)
                       if (customSection) {
+                        const sectionText = getLocaleText(customSection.description, language)
+                        const isMapUrl = /^https?:\/\//i.test(sectionText)
                         return (
                           <section className="public-app-custom-section" key={`group-${sectionIndex}`}>
                             <h3>{getLocaleText(customSection.title, language)}</h3>
+                            {sectionText && (isMapUrl
+                              ? <p><a href={sectionText} target="_blank" rel="noreferrer">{sectionText}</a></p>
+                              : <p>{sectionText}</p>)}
                             {sectionFields.map(renderField)}
                           </section>
                         )
                       }
                       return sectionFields.map(renderField)
                     })}
+                    {activeDeciderRules.filter(({ rule }) => rule.actionType === 'input').map(renderDeciderInput)}
                     <button className="public-app-button public-app-submit" type="submit" disabled={submitting}>{submitting ? getPublicText(language, 'sending') : content.submit || getPublicText(language, 'submit')}</button>
                   </form>
                 </>

@@ -16,7 +16,7 @@ const INDIAN_STATES = [
   'Bihar', 'Chandigarh', 'Chhattisgarh', 'Dadra and Nagar Haveli',
   'Daman and Diu', 'Delhi', 'Goa', 'Gujarat',
   'Haryana', 'Himachal Pradesh', 'Jharkhand', 'Karnataka',
-  'Kerala', 'Ladakh', 'Lakshadweep', 'Madhya Pradesh',
+  'Jammu and Kashmir', 'Kerala', 'Ladakh', 'Lakshadweep', 'Madhya Pradesh',
   'Maharashtra', 'Manipur', 'Meghalaya', 'Mizoram',
   'Nagaland', 'Odisha', 'Puducherry', 'Punjab',
   'Rajasthan', 'Sikkim', 'Tamil Nadu', 'Telangana',
