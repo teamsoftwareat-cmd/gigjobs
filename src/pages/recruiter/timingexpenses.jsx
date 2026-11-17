@@ -462,6 +462,7 @@ export default function TimingExpensesView({ onSwitchToGigjobs }) {
   const [projectSummaries, setProjectSummaries] = useState([])
   const [overviewLoading, setOverviewLoading] = useState(false)
   const [search, setSearch] = useState('')
+  const [expenseIdSearch, setExpenseIdSearch] = useState('')
   const [mobileSearch, setMobileSearch] = useState('')
   const [project, setProject] = useState('')
   const [vendor, setVendor] = useState('')
@@ -488,6 +489,7 @@ export default function TimingExpensesView({ onSwitchToGigjobs }) {
   const [paymentSaving, setPaymentSaving] = useState(false)
   const [attachment, setAttachment] = useState(null)
   const [selectedExpenses, setSelectedExpenses] = useState([])
+  const [showSelectedOnly, setShowSelectedOnly] = useState(false)
   const [downloadInProgress, setDownloadInProgress] = useState(false)
   const [exportModalOpen, setExportModalOpen] = useState(false)
   const [exportScope, setExportScope] = useState('selected')
@@ -879,6 +881,7 @@ export default function TimingExpensesView({ onSwitchToGigjobs }) {
         ...(activeStatus !== 'all' ? { status: activeStatus } : {}),
         user_id: userId,
         ...(search.trim() ? { search: search.trim() } : {}),
+        ...(expenseIdSearch.trim() ? { expense_id: expenseIdSearch.trim() } : {}),
         ...(mobileSearch.trim() ? { mobile_number: mobileSearch.trim() } : {}),
         ...(category ? { category } : {}),
         ...(project ? { project_id: project } : {}),
@@ -902,7 +905,7 @@ export default function TimingExpensesView({ onSwitchToGigjobs }) {
     } finally {
       setLoading(false)
     }
-  }, [activeStatus, alert, category, fromDate, limit, location, mobileSearch, project, search, toDate, userId, vendor])
+  }, [activeStatus, alert, category, expenseIdSearch, fromDate, limit, location, mobileSearch, project, search, toDate, userId, vendor])
 
   useEffect(() => {
     fetchTimingProjects()
@@ -1039,6 +1042,7 @@ export default function TimingExpensesView({ onSwitchToGigjobs }) {
     ...(activeStatus !== 'all' ? { status: activeStatus } : {}),
     user_id: userId,
     ...(search.trim() ? { search: search.trim() } : {}),
+    ...(expenseIdSearch.trim() ? { expense_id: expenseIdSearch.trim() } : {}),
     ...(mobileSearch.trim() ? { mobile_number: mobileSearch.trim() } : {}),
     ...(category ? { category } : {}),
     ...(project ? { project_id: project } : {}),
@@ -1397,18 +1401,19 @@ export default function TimingExpensesView({ onSwitchToGigjobs }) {
       : [...current, expense])
   }
 
+  const displayedExpenses = showSelectedOnly ? selectedExpenses : expenses
+
   const toggleCurrentPage = () => {
-    const currentIds = expenses.map(getExpenseId).filter(Boolean).map(String)
+    const currentIds = displayedExpenses.map(getExpenseId).filter(Boolean).map(String)
     const allSelected = currentIds.length > 0 && currentIds.every((id) => selectedExpenses.some((item) => String(getExpenseId(item)) === id))
     setSelectedExpenses((current) => allSelected
       ? current.filter((item) => !currentIds.includes(String(getExpenseId(item))))
-      : [...current.filter((item) => !currentIds.includes(String(getExpenseId(item)))), ...expenses.filter((item) => currentIds.includes(String(getExpenseId(item))))])
+      : [...current.filter((item) => !currentIds.includes(String(getExpenseId(item)))), ...displayedExpenses.filter((item) => currentIds.includes(String(getExpenseId(item))))])
   }
 
   const handleFilterChange = (setter, value) => {
     setter(value)
     setPage(1)
-    setSelectedExpenses([])
   }
 
   const runExportAction = async (action, filename) => {
@@ -1579,6 +1584,7 @@ export default function TimingExpensesView({ onSwitchToGigjobs }) {
         </select>
         <input className="form-control" type="date" value={fromDate} aria-label="From date" onChange={(event) => handleFilterChange(setFromDate, event.target.value)} />
         <input className="form-control" type="date" value={toDate} aria-label="To date" onChange={(event) => handleFilterChange(setToDate, event.target.value)} />
+        <input className="form-control" value={expenseIdSearch} inputMode="numeric" placeholder="Search expense ID" aria-label="Search expense ID" onChange={(event) => handleFilterChange(setExpenseIdSearch, event.target.value)} onKeyDown={(event) => event.key === 'Enter' && fetchTimingExpenses(1)} />
         <input className="form-control" value={search} placeholder="Search candidate or expense" onChange={(event) => handleFilterChange(setSearch, event.target.value)} onKeyDown={(event) => event.key === 'Enter' && fetchTimingExpenses(1)} />
         <input className="form-control" value={mobileSearch} inputMode="numeric" placeholder="Search mobile number" aria-label="Search mobile number" onChange={(event) => handleFilterChange(setMobileSearch, event.target.value)} onKeyDown={(event) => event.key === 'Enter' && fetchTimingExpenses(1)} />
         <button className="btn btn-primary btn-sm" onClick={() => fetchTimingExpenses(1)} disabled={loading}>{loading ? 'Loading...' : 'Search'}</button>
@@ -1587,29 +1593,43 @@ export default function TimingExpensesView({ onSwitchToGigjobs }) {
       <div className="expenses-content" style={{ background: 'white' }}>
         <div className="timing-expense-toolbar">
           <span>{selectedExpenses.length ? `${selectedExpenses.length} selected` : 'View and export expenses'}</span>
-          <button
-            className="btn btn-primary btn-sm"
-            type="button"
-            disabled={downloadInProgress || loading}
-            onClick={() => {
-              setExportScope(selectedExpenses.length ? 'selected' : 'all')
-              setExportProgress({ active: false, percent: 0, status: '' })
-              setPaymentSheetOmissions(null)
-              setPaymentSheetReview(null)
-              setPaymentSheetReviewed(false)
-              setExportModalOpen(true)
-            }}
-          >
-            <FontAwesomeIcon icon={faDownload} /> Export / Download
-          </button>
+          <div style={{ display: 'flex', flexWrap: 'wrap', justifyContent: 'flex-end', gap: '8px' }}>
+            {(selectedExpenses.length > 0 || showSelectedOnly) && <button
+              className={`btn ${showSelectedOnly ? 'btn-primary' : 'btn-outline'} btn-sm`}
+              type="button"
+              aria-pressed={showSelectedOnly}
+              disabled={!showSelectedOnly && selectedExpenses.length === 0}
+              onClick={() => setShowSelectedOnly((current) => !current)}
+            >{showSelectedOnly ? 'Show search results' : `Show selected (${selectedExpenses.length})`}</button>}
+            {selectedExpenses.length > 0 && <button
+              className="btn btn-outline btn-sm"
+              type="button"
+              onClick={() => setSelectedExpenses([])}
+            >Clear selection</button>}
+            <button
+              className="btn btn-primary btn-sm"
+              type="button"
+              disabled={downloadInProgress || loading}
+              onClick={() => {
+                setExportScope(selectedExpenses.length ? 'selected' : 'all')
+                setExportProgress({ active: false, percent: 0, status: '' })
+                setPaymentSheetOmissions(null)
+                setPaymentSheetReview(null)
+                setPaymentSheetReviewed(false)
+                setExportModalOpen(true)
+              }}
+            >
+              <FontAwesomeIcon icon={faDownload} /> Export / Download
+            </button>
+          </div>
         </div>
-        {loading ? <Card className="loading-state">Loading timing expenses...</Card> : expenses.length === 0 ? <Card className="empty-state">No timing expenses found</Card> : (
+        {loading && !showSelectedOnly ? <Card className="loading-state">Loading timing expenses...</Card> : displayedExpenses.length === 0 ? <Card className="empty-state">{showSelectedOnly ? 'No expenses selected' : 'No timing expenses found'}</Card> : (
           <div className="expenses-list"><table className="expenses-table timing-expenses-table">
             <thead><tr>
-              <th><input type="checkbox" checked={expenses.length > 0 && expenses.every((expense) => selectedExpenses.some((item) => String(getExpenseId(item)) === String(getExpenseId(expense))))} onChange={toggleCurrentPage} aria-label="Select all expenses on this page" /></th>
-              <th>Expense</th><th>Candidate</th><th>Mobile</th><th>Category</th><th>Project</th><th>Location</th><th>Date</th><th>{activeStatus === 'approved' ? 'Approved Amount' : 'Amount'}</th><th>Status</th><th>Details</th>
+              <th><input type="checkbox" checked={displayedExpenses.length > 0 && displayedExpenses.every((expense) => selectedExpenses.some((item) => String(getExpenseId(item)) === String(getExpenseId(expense))))} onChange={toggleCurrentPage} aria-label="Select all expenses on this page" /></th>
+              <th>Expense</th><th>Candidate</th><th>Mobile</th><th>Category</th><th>Project</th><th>Location</th><th>Date</th><th>{activeStatus === 'paid' ? 'Paid Amount' : activeStatus === 'approved' ? 'Approved Amount' : 'Amount'}</th><th>Status</th><th>Details</th>
             </tr></thead>
-            <tbody>{expenses.map((expense) => <Fragment key={getExpenseId(expense)}>
+            <tbody>{displayedExpenses.map((expense) => <Fragment key={getExpenseId(expense)}>
               <tr className={isPaymentSheetGenerated(expense) ? 'is-payment-sheet-generated' : ''}>
                 <td><input type="checkbox" checked={selectedExpenses.some((item) => String(getExpenseId(item)) === String(getExpenseId(expense)))} onChange={() => toggleExpense(expense)} aria-label={`Select ${expense.title || 'expense'}`} /></td>
                 <td>{expense.title || expense.description || '—'}</td>
@@ -1619,7 +1639,7 @@ export default function TimingExpensesView({ onSwitchToGigjobs }) {
                 <td>{expense.project_name || expense.project || expense.project_id || '—'}</td>
                 <td>{expense.location_name || expense.location || '—'}</td>
                 <td>{expense.date || expense.expense_date || '—'}</td>
-                <td>₹ {Number(activeStatus === 'approved'
+                <td>₹ {Number(['approved', 'paid'].includes(activeStatus)
                   ? expense.approved_amount ?? expense.amount ?? 0
                   : expense.amount || 0).toLocaleString('en-IN')}</td>
                 <td>
@@ -1683,7 +1703,7 @@ export default function TimingExpensesView({ onSwitchToGigjobs }) {
             </Fragment>)}</tbody>
           </table></div>
         )}
-        <div className="pagination-footer timing-pagination" style={{ marginTop: 0 }}>
+        {!showSelectedOnly && <div className="pagination-footer timing-pagination" style={{ marginTop: 0 }}>
           <label className="timing-pagination-size">
             Show
             <select
@@ -1704,7 +1724,7 @@ export default function TimingExpensesView({ onSwitchToGigjobs }) {
             {Array.from({ length: Math.min(5, totalPages) }, (_, index) => { const pageNumber = Math.max(1, Math.min(totalPages - 4, page - 2)) + index; return <button key={pageNumber} className={`btn ${page === pageNumber ? 'btn-primary' : 'btn-outline'} btn-sm timing-pagination-number`} onClick={() => fetchTimingExpenses(pageNumber)}>{pageNumber}</button> })}
             <button className="btn btn-outline btn-sm timing-pagination-wide" disabled={page >= totalPages || loading} onClick={() => fetchTimingExpenses(page + 1)}>Next</button>
           </div>
-        </div>
+        </div>}
       </div>
 
       <style>{`

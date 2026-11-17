@@ -126,7 +126,7 @@ const getDataPreviewFromProjectData = (projectData) => {
   return null
 }
 
-export default function CreateProjectModal({ isOpen, onClose, project = null }) {
+export default function CreateProjectModal({ isOpen, onClose, onCreated, project = null }) {
   const { user } = useAuth()
   const [projectType, setProjectType] = useState('regular')
   const [projectKind, setProjectKind] = useState('PET')
@@ -824,16 +824,18 @@ export default function CreateProjectModal({ isOpen, onClose, project = null }) 
     }
 
     try {
+      let createdResponse = null
       if (isEditing) {
         await recruiterAPI.updateProject(project.id || project.projectId, requestData)
       } else {
         if (projectType === 'regular') {
-          await recruiterAPI.createRegularProject(requestData)
+          createdResponse = await recruiterAPI.createRegularProject(requestData)
         } else if (projectType === 'writtenExam') {
-          await recruiterAPI.createWrittenExamProject(requestData)
+          createdResponse = await recruiterAPI.createWrittenExamProject(requestData)
         }
       }
       handleClose() // Global toast handled the message, close the modal immediately
+      if (!isEditing) onCreated?.(createdResponse, payload)
     } catch (error) {
       // Errors are handled by the global toast interceptor in axios.js
     } finally {

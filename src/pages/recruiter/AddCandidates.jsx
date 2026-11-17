@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCalendarAlt, faCheckCircle, faExclamationTriangle, faFileExcel, faIdCard, faMobileAlt, faSearch, faTimesCircle, faUpload, faUser, faUserPlus } from '@fortawesome/free-solid-svg-icons'
+import { faCalendarAlt, faCheckCircle, faExclamationTriangle, faFileExcel, faIdCard, faMobileAlt, faPen, faSearch, faTimesCircle, faUpload, faUser, faUserPlus } from '@fortawesome/free-solid-svg-icons'
 import * as XLSX from 'xlsx'
 import { Card, Modal, PageHeader } from '../../components/ui'
 import { ImageModal } from '../../components/ui/ImageModal'
@@ -13,6 +13,18 @@ import QuickAttendanceModal from './QuickAttendanceModal'
 import './AddCandidates.css'
 
 const BLOOD_GROUPS = ['A+', 'A-', 'B+', 'B-', 'AB+', 'AB-', 'O+', 'O-']
+const PAYMENT_DEFAULT_FIELDS = [
+  { key: 'base_salary', label: 'Base salary per day', aliases: ['base_salary', 'baseSalary', 'base_rate', 'daily_salary'] },
+  { key: 'travel_day_meal_allowance', label: 'Travel day meal allowance', aliases: ['travel_day_meal_allowance', 'travelDayMealAllowance', 'travel_meal_allowance'] },
+  { key: 'food_allowance', label: 'Food allowance per day', aliases: ['food_allowance', 'foodAllowance', 'food_pay'] },
+  { key: 'ground_visit_allowance', label: 'Ground visit per day', aliases: ['ground_visit_allowance', 'groundVisitAllowance', 'ground_visit'] },
+  { key: 'training_allowance', label: 'Training per day', aliases: ['training_allowance', 'trainingAllowance'] },
+  { key: 'laundry_allowance', label: 'Laundry per day', aliases: ['laundry_allowance', 'laundryAllowance', 'laundry'] },
+  { key: 'other_allowance', label: 'Other allowance per day', aliases: ['other_allowance', 'otherAllowance'] },
+  { key: 'overtime_hourly_rate', label: 'Overtime rate per hour', aliases: ['overtime_hourly_rate', 'overtimeHourlyRate', 'overtime_rate_per_hour', 'overtime_rate'] },
+]
+
+const emptyPaymentDefaults = () => Object.fromEntries(PAYMENT_DEFAULT_FIELDS.map(({ key }) => [key, '']))
 
 const normalizeBulkHeader = (value) => String(value ?? '')
   .trim()
@@ -52,6 +64,10 @@ const mapBulkCandidateRow = (sourceRow, rowNumber) => {
   const panNumber = String(getBulkValue(row, ['pan_number', 'pan number', 'pan']) || '').trim().toUpperCase()
   const dateOfJoining = normalizeBulkDate(getBulkValue(row, ['date_of_joining', 'date of joining', 'joining_date', 'joining date']))
   const emergencyContactNumber = String(getBulkValue(row, ['emergency_contact_number', 'emergency contact number', 'emergency_contact', 'emergency phone']) || '').trim()
+  const paymentDefaults = Object.fromEntries(PAYMENT_DEFAULT_FIELDS.map(({ key, aliases }) => {
+    const value = getBulkValue(row, aliases)
+    return [key, value === '' ? '' : String(value).trim()]
+  }))
   return {
     rowNumber,
     payload: {
@@ -62,6 +78,7 @@ const mapBulkCandidateRow = (sourceRow, rowNumber) => {
       pan_number: panNumber,
       date_of_joining: dateOfJoining,
       emergency_contact_number: emergencyContactNumber,
+      ...Object.fromEntries(Object.entries(paymentDefaults).filter(([, value]) => value !== '').map(([key, value]) => [key, Number(value)])),
     },
     missingFields: [
       !mobile && 'Mobile Number',
@@ -130,6 +147,8 @@ export default function AddCandidates() {
   const [error, setError] = useState('')
   const [message, setMessage] = useState('')
   const [emergencyContact, setEmergencyContact] = useState('')
+  const [paymentDefaults, setPaymentDefaults] = useState(emptyPaymentDefaults)
+  const [editingSavedCandidateId, setEditingSavedCandidateId] = useState(null)
   const [savedCandidates, setSavedCandidates] = useState([])
   const [savedTotal, setSavedTotal] = useState(0)
   const [savedLoading, setSavedLoading] = useState(false)
@@ -224,6 +243,10 @@ export default function AddCandidates() {
         setMotherName(getValue(candidateDetails, ['mother_name', 'motherName', 'mothers_name', 'mothersName']))
         setPanNumber(getValue(candidateDetails, ['pan_number', 'panNumber', 'pan', 'PAN']))
         setEmergencyContact(getValue(candidateDetails, ['emergency_contact_number', 'emergencyContactNumber', 'emergency_contact', 'emergencyContact']))
+        setPaymentDefaults(Object.fromEntries(PAYMENT_DEFAULT_FIELDS.map(({ key, aliases }) => [
+          key,
+          String(getValue(candidateDetails, aliases, '')),
+        ])))
     } catch (err) {
       console.error('Failed to search candidate:', err)
       setCandidate(null)
@@ -355,6 +378,14 @@ export default function AddCandidates() {
         pan_number: 'ABCDE1234F',
         date_of_joining: '2026-10-01',
         emergency_contact_number: '9123456780',
+        base_salary: 800,
+        travel_day_meal_allowance: 250,
+        food_allowance: 150,
+        ground_visit_allowance: 100,
+        training_allowance: 0,
+        laundry_allowance: 50,
+        other_allowance: 0,
+        overtime_hourly_rate: 100,
       },
       {
         mobile: '8765432109',
@@ -364,6 +395,14 @@ export default function AddCandidates() {
         pan_number: 'BCDEF2345G',
         date_of_joining: '2026-10-15',
         emergency_contact_number: '9012345678',
+        base_salary: 850,
+        travel_day_meal_allowance: 250,
+        food_allowance: 150,
+        ground_visit_allowance: 100,
+        training_allowance: 0,
+        laundry_allowance: 50,
+        other_allowance: 0,
+        overtime_hourly_rate: 100,
       },
       {
         mobile: '7654321098',
@@ -373,6 +412,14 @@ export default function AddCandidates() {
         pan_number: 'CDEFG3456H',
         date_of_joining: '2026-11-01',
         emergency_contact_number: '8899776655',
+        base_salary: 900,
+        travel_day_meal_allowance: 250,
+        food_allowance: 150,
+        ground_visit_allowance: 100,
+        training_allowance: 0,
+        laundry_allowance: 50,
+        other_allowance: 0,
+        overtime_hourly_rate: 100,
       },
     ]
     const workbook = XLSX.utils.book_new()
@@ -494,6 +541,54 @@ export default function AddCandidates() {
     setImagePreview({ isOpen: false, src: '', title: '', alt: '' })
   }
 
+  const handleEditSavedCandidate = async (savedCandidate) => {
+    let candidateDetails = savedCandidate
+    const savedCandidateId = String(getValue(savedCandidate, ['candidate_id', 'candidateId', 'id', '_id'], ''))
+    const savedMobile = String(getValue(savedCandidate, ['mobile', 'candidate_mobile', 'mobile_number', 'phone'], '')).replace(/\D/g, '')
+    const candidateName = String(getValue(savedCandidate, ['name', 'candidate_name', 'candidateName', 'full_name', 'fullName'], '')).trim()
+
+    try {
+      const response = await recruiterAPI.getCandidateJoiningDetails({ offset: 0, limit: 10, name: candidateName || undefined })
+      const payload = response?.data?.data ?? response?.data ?? response
+      const rows = Array.isArray(payload)
+        ? payload
+        : [payload?.items, payload?.records, payload?.data, payload?.results].find(Array.isArray) || []
+      const matchingDetails = rows.find((record) => {
+        const recordId = String(getValue(record, ['candidate_id', 'candidateId', 'id', '_id'], ''))
+        const recordMobile = String(getValue(record, ['mobile', 'candidate_mobile', 'mobile_number', 'phone'], '')).replace(/\D/g, '')
+        return (savedCandidateId && recordId === savedCandidateId) || (savedMobile && recordMobile === savedMobile)
+      })
+      if (matchingDetails) candidateDetails = { ...savedCandidate, ...matchingDetails }
+    } catch (detailsError) {
+      console.warn('Unable to reload candidate joining details for editing:', detailsError)
+    }
+
+    const candidateId = getValue(candidateDetails, ['candidate_id', 'candidateId', 'id', '_id'])
+    setCandidate({ ...candidateDetails, candidate_id: candidateId })
+    setEditingSavedCandidateId(candidateId ? String(candidateId) : null)
+    setMobile(String(getValue(candidateDetails, ['mobile', 'candidate_mobile', 'mobile_number', 'phone'], '')))
+    setAadhaar(String(getValue(candidateDetails, ['aadhaar', 'aadhaar_number', 'aadhar_number'], '')))
+    setBloodGroup(getValue(candidateDetails, ['blood_group', 'bloodGroup']))
+    setMotherName(getValue(candidateDetails, ['mother_name', 'motherName', 'mothers_name', 'mothersName']))
+    setPanNumber(getValue(candidateDetails, ['pan_number', 'panNumber', 'pan', 'PAN']))
+    setDateOfJoining(String(getValue(candidateDetails, ['date_of_joining', 'dateOfJoining', 'joining_date'], '')).slice(0, 10))
+    setEmergencyContact(getValue(candidateDetails, ['emergency_contact_number', 'emergencyContactNumber', 'emergency_contact', 'emergencyContact']))
+    setPaymentDefaults(Object.fromEntries(PAYMENT_DEFAULT_FIELDS.map(({ key, aliases }) => [
+      key,
+      String(getValue(candidateDetails, aliases, '')),
+    ])))
+    setError('')
+    setMessage('')
+    window.scrollTo({ top: 0, behavior: 'smooth' })
+  }
+
+  const cancelEditingCandidate = () => {
+    setEditingSavedCandidateId(null)
+    setCandidate(null)
+    setError('')
+    setMessage('')
+  }
+
   const handleSave = async (event) => {
     event.preventDefault()
       if (!candidate || !bloodGroup || !motherName || !dateOfJoining || !emergencyContact) {
@@ -514,11 +609,13 @@ export default function AddCandidates() {
         pan_number: panNumber,
         date_of_joining: dateOfJoining,
         emergency_contact_number: emergencyContact,
+        ...Object.fromEntries(Object.entries(paymentDefaults).map(([key, value]) => [key, value === '' ? '' : Number(value)])),
       }
       await recruiterAPI.saveCandidateJoiningDetails(payload)
-      setPage(1)
       if (page === 1) await fetchSavedCandidates()
-      setMessage('Candidate joining details saved successfully.')
+      else setPage(1)
+      setMessage(editingSavedCandidateId ? 'Candidate details updated successfully.' : 'Candidate joining details saved successfully.')
+      setEditingSavedCandidateId(null)
     } catch (err) {
       console.error('Failed to save joining details:', err)
       setError('Unable to save candidate details. Please try again.')
@@ -658,13 +755,32 @@ export default function AddCandidates() {
                 <div><div className="filter-label">Email</div><strong>{getValue(candidate, ['email', 'email_id'], '—')}</strong></div>
                 <div><div className="filter-label">Location</div><strong>{getValue(candidate, ['location', 'city', 'area'], '—')}</strong></div>
               </div>
-              <form onSubmit={handleSave} style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', alignItems: 'end' }}>
+              <form id="candidate-joining-form" onSubmit={handleSave} style={{ display: 'grid', gap: 12, gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', alignItems: 'end' }}>
                 <label><span className="filter-label">Blood Group</span><select className="form-control" value={bloodGroup} onChange={(event) => setBloodGroup(event.target.value)} required><option value="">Select blood group</option>{BLOOD_GROUPS.map((group) => <option key={group} value={group}>{group}</option>)}</select></label>
                 <label><span className="filter-label">Mother's Name</span><input className="form-control" type="text" value={motherName} onChange={(event) => setMotherName(event.target.value)} placeholder="Enter mother's name" required /></label>
                 <label><span className="filter-label">PAN Number</span><input className="form-control" type="text" value={panNumber} onChange={(event) => setPanNumber(event.target.value.toUpperCase().replace(/[^A-Z0-9]/g, '').slice(0, 10))} placeholder="Enter PAN number (optional)" /></label>
                 <label><span className="filter-label">Date of Joining</span><input className="form-control" type="date" value={dateOfJoining} onChange={(event) => setDateOfJoining(event.target.value)} required /></label>
                 <label><span className="filter-label">Emergency Contact Number</span><input className="form-control" type="tel" inputMode="numeric" value={emergencyContact} onChange={(event) => setEmergencyContact(event.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="Enter emergency contact" required /></label>
-                <button className="btn btn-primary" type="submit" disabled={saving}><FontAwesomeIcon icon={faUserPlus} /> {saving ? 'Saving...' : 'Save Details'}</button>
+                <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border-light)', paddingTop: 12 }}>
+                  <h3 style={{ margin: 0, fontSize: 15 }}>Default payment amounts</h3>
+                  <p style={{ margin: '4px 0 0', color: 'var(--text3)', fontSize: 12 }}>Optional rates prefill this candidate's earnings setup and can be changed there.</p>
+                </div>
+                {PAYMENT_DEFAULT_FIELDS.map(({ key, label }) => (
+                  <label key={key}>
+                    <span className="filter-label">{label}</span>
+                    <input
+                      className="form-control"
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={paymentDefaults[key]}
+                      onChange={(event) => setPaymentDefaults((current) => ({ ...current, [key]: event.target.value }))}
+                      placeholder="Optional"
+                    />
+                  </label>
+                ))}
+                <button className="btn btn-primary" type="submit" disabled={saving}><FontAwesomeIcon icon={faUserPlus} /> {saving ? 'Saving...' : editingSavedCandidateId ? 'Update Details' : 'Save Details'}</button>
+                {editingSavedCandidateId && <button className="btn btn-outline" type="button" onClick={cancelEditingCandidate} disabled={saving}>Cancel edit</button>}
               </form>
             </div>
           </div>
@@ -718,19 +834,19 @@ export default function AddCandidates() {
 
         <div className="add-candidates-table-wrap">
           <table className="add-candidates-table">
-            <colgroup>{Array.from({ length: 15 }, (_, index) => <col key={index} />)}</colgroup>
+            <colgroup>{Array.from({ length: 16 }, (_, index) => <col key={index} />)}</colgroup>
             <thead>
               <tr>
-                {['#', 'Profile & Face Images', 'Name', 'Mobile', 'Email', 'Location', "Mother's Name", 'PAN Number', 'Blood Group', 'Date of Joining', 'Emergency Contact', 'Face Verified', 'Face Enroll', 'Request Link', 'Travel Tickets'].map((heading) => (
+                {['#', 'Profile & Face Images', 'Name', 'Mobile', 'Email', 'Location', "Mother's Name", 'PAN Number', 'Blood Group', 'Date of Joining', 'Emergency Contact', 'Face Verified', 'Face Enroll', 'Request Link', 'Travel Tickets', 'Edit'].map((heading) => (
                   <th key={heading}>{heading}</th>
                 ))}
               </tr>
             </thead>
             <tbody>
               {savedLoading ? (
-                <tr><td colSpan={15} style={{ padding: 24, textAlign: 'center', color: 'var(--text3)' }}>Loading added candidates...</td></tr>
+                <tr><td colSpan={16} style={{ padding: 24, textAlign: 'center', color: 'var(--text3)' }}>Loading added candidates...</td></tr>
               ) : visibleSavedCandidates.length === 0 ? (
-                <tr><td colSpan={15} style={{ padding: 24, textAlign: 'center', color: 'var(--text3)' }}>No candidates added yet.</td></tr>
+                <tr><td colSpan={16} style={{ padding: 24, textAlign: 'center', color: 'var(--text3)' }}>No candidates added yet.</td></tr>
               ) : visibleSavedCandidates.map((savedCandidate, index) => {
                 const savedPhoto = getPhoto(savedCandidate)
                 const faceImages = ['front', 'left', 'right'].map((side) => getFaceImage(savedCandidate, side))
@@ -827,6 +943,18 @@ export default function AddCandidates() {
                         style={{ minWidth: 108, justifyContent: 'center' }}
                       >
                         View tickets
+                      </button>
+                    </td>
+                    <td style={{ padding: '10px 8px' }}>
+                      <button
+                        type="button"
+                        className="btn btn-outline btn-sm"
+                        onClick={() => handleEditSavedCandidate(savedCandidate)}
+                        title="Edit joining details and default payment amounts"
+                        aria-label={`Edit details for ${getValue(savedCandidate, ['name', 'candidate_name', 'candidateName', 'full_name', 'fullName'], 'candidate')}`}
+                        style={{ minWidth: 90, justifyContent: 'center' }}
+                      >
+                        <FontAwesomeIcon icon={faPen} /> Edit
                       </button>
                     </td>
                   </tr>

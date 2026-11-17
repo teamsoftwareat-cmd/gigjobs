@@ -6,6 +6,12 @@ const MultiSelectDropdown = ({
   selectedValues,
   onChange,
   placeholder = 'Select options',
+  menuMaxHeight = 250,
+  onSearch,
+  allowCustomValues = true,
+  noOptionsMessage = 'No options available',
+  searchResetKey,
+  scrollSelectedValues = false,
 }) => {
   const [isOpen, setIsOpen] = useState(false)
   const [inputValue, setInputValue] = useState('')
@@ -14,6 +20,10 @@ const MultiSelectDropdown = ({
   const inputRef = useRef(null)
 
   useEffect(() => {
+    if (onSearch) {
+      setFilteredOptions(options)
+      return
+    }
     if (inputValue.trim()) {
       const filtered = options.filter((opt) =>
         opt.label.toLowerCase().includes(inputValue.toLowerCase())
@@ -22,13 +32,22 @@ const MultiSelectDropdown = ({
     } else {
       setFilteredOptions(options)
     }
-  }, [inputValue, options])
+  }, [inputValue, options, onSearch])
+
+  useEffect(() => {
+    setInputValue('')
+  }, [searchResetKey])
+
+  const updateSearch = (value) => {
+    setInputValue(value)
+    onSearch?.(value)
+  }
 
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
         setIsOpen(false)
-        setInputValue('')
+        updateSearch('')
       }
     }
     document.addEventListener('mousedown', handleClickOutside)
@@ -36,18 +55,19 @@ const MultiSelectDropdown = ({
   }, [])
 
   const handleAddValue = (value) => {
+    if (!allowCustomValues) return
     if (!value || !value.trim()) return
 
     const newValue = value.trim()
     if (!selectedValues.includes(newValue)) {
       onChange([...selectedValues, newValue])
     }
-    setInputValue('')
+    updateSearch('')
     setFilteredOptions(options)
   }
 
   const handleKeyDown = (e) => {
-    if (e.key === 'Enter' && inputValue.trim()) {
+    if (allowCustomValues && e.key === 'Enter' && inputValue.trim()) {
       e.preventDefault()
       handleAddValue(inputValue)
     } else if (e.key === 'Backspace' && !inputValue && selectedValues.length > 0) {
@@ -56,15 +76,16 @@ const MultiSelectDropdown = ({
       onChange(newSelected)
     } else if (e.key === 'Escape') {
       setIsOpen(false)
-      setInputValue('')
+      updateSearch('')
     }
   }
 
   const handleSelectOption = (option) => {
-    if (!selectedValues.includes(option.value)) {
-      onChange([...selectedValues, option.value])
-    }
-    setInputValue('')
+    const nextValues = selectedValues.includes(option.value)
+      ? selectedValues.filter((value) => value !== option.value)
+      : [...selectedValues, option.value]
+    onChange(nextValues)
+    updateSearch('')
     setIsOpen(false)
     inputRef.current?.focus()
   }
@@ -74,25 +95,26 @@ const MultiSelectDropdown = ({
   }
 
   const getSelectedLabels = () => {
-    return selectedValues.map((val) => {
-      const option = options.find((opt) => opt.value === val)
-      return option ? option.label : val
+    return selectedValues.map((value) => {
+      const option = options.find((opt) => opt.value === value)
+      return { value, label: option ? option.label : value }
     })
   }
 
+  const selectedValuesScrollable = scrollSelectedValues && selectedValues.length > 4
+
   return (
-    <div className="multi-select-dropdown" ref={dropdownRef}>
+    <div className={`multi-select-dropdown${selectedValuesScrollable ? ' has-scroll-selected' : ''}`} ref={dropdownRef}>
       <div className="dropdown-header" onClick={() => setIsOpen(true)}>
         <div className="selected-items">
-          {getSelectedLabels().map((label) => (
-            <span key={label} className="selected-tag">
+          {getSelectedLabels().map(({ value, label }) => (
+            <span key={value} className="selected-tag">
               {label}
               <button
                 type="button"
                 className="remove-tag"
                 onClick={(e) => {
                   e.stopPropagation()
-                  const value = options.find((opt) => opt.label === label)?.value || label
                   removeSelected(value)
                 }}
               >
@@ -106,7 +128,7 @@ const MultiSelectDropdown = ({
             className="dropdown-input"
             placeholder={selectedValues.length === 0 ? placeholder : ''}
             value={inputValue}
-            onChange={(e) => setInputValue(e.target.value)}
+            onChange={(e) => updateSearch(e.target.value)}
             onFocus={() => setIsOpen(true)}
             onKeyDown={handleKeyDown}
             onClick={(e) => {
@@ -119,8 +141,8 @@ const MultiSelectDropdown = ({
       </div>
 
       {isOpen && (
-        <div className="dropdown-menu">
-          <div className="options-list">
+        <div className="dropdown-menu" style={{ maxHeight: menuMaxHeight }}>
+          <div className="options-list" style={{ maxHeight: menuMaxHeight }}>
             {filteredOptions.length > 0 ? (
               filteredOptions.map((option) => (
                 <div
@@ -134,12 +156,12 @@ const MultiSelectDropdown = ({
               ))
             ) : (
               <div className="no-options">
-                {inputValue ? (
+                {inputValue && allowCustomValues ? (
                   <div className="add-new-option">
                     <span>Press Enter to add "{inputValue}"</span>
                   </div>
                 ) : (
-                  'No options available'
+                  noOptionsMessage
                 )}
               </div>
             )}

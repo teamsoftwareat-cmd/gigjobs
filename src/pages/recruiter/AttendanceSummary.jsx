@@ -12,6 +12,7 @@ import { useAlert } from '../../context/AlertContext'
 import { PageHeader, Card, DataTable, StatCard, Modal, Tag, Tabs } from '../../components/ui'
 import { MapModal } from '../../components/ui/MapModal'
 import { ImageModal } from '../../components/ui/ImageModal'
+import CoreTeamSavedAttendanceSheet from './CoreTeamSavedAttendanceSheet'
 import './AttendanceData.css'
 import './AttendanceSummaryModal.css'
 import './AttendanceSummary.css'
@@ -84,6 +85,7 @@ export default function RecruiterAttendanceSummary() {
   const [isMapOpen, setIsMapOpen] = useState(false)
   const [mapMarkers, setMapMarkers] = useState([])
   const [mapTitle, setMapTitle] = useState('')
+  const [savedSheetProject, setSavedSheetProject] = useState(null)
   const navigate = useNavigate()
 
   const deriveActiveStatus = (value) => {
@@ -1226,6 +1228,16 @@ export default function RecruiterAttendanceSummary() {
     setAssignmentMessage('')
   }
 
+  const openCoreTeamAttendanceSheet = (group) => {
+    const id = group.projectId || group.id || group.project_id || group.project || ''
+    if (!id) return
+    setSavedSheetProject({
+      id: String(id),
+      name: group.project || group.projectName || group.name || String(id),
+      projectType: activeTab === 'written' ? 'written_exam' : 'regular',
+    })
+  }
+
   const handleCloseOutsideModal = () => {
     setIsOutsideModalOpen(false)
   }
@@ -1589,6 +1601,9 @@ export default function RecruiterAttendanceSummary() {
     group.resources?.size || group.resources || 0,
     Math.round(group.mandaysWorked),
     <div key={`action-${group.id ?? index}`} style={{ display: 'flex', flexWrap: 'wrap', gap: '8px' }}>
+      <button className="btn btn-outline btn-sm" type="button" onClick={() => openCoreTeamAttendanceSheet(group)}>
+        View core team attendance sheet
+      </button>
       <button
         className="btn btn-outline btn-sm"
         type="button"
@@ -1846,6 +1861,7 @@ export default function RecruiterAttendanceSummary() {
                       <div><span>Mandays</span><strong>{Math.round(group.mandaysWorked)}</strong></div>
                     </div>
                     <div className="attendance-summary-mobile-actions">
+                      <button className="btn btn-outline btn-sm" type="button" onClick={() => openCoreTeamAttendanceSheet(group)}>View core team attendance sheet</button>
                       <button className="btn btn-outline btn-sm" type="button" onClick={navigateToDetails}>View details</button>
                       <button className="btn btn-outline btn-sm" type="button" onClick={() => navigate(`/app/recruiter/project-stats?projectId=${encodeURIComponent(projectKey)}&projectType=${projectTypeParam}`)}>Stats</button>
                       <button
@@ -2282,6 +2298,11 @@ export default function RecruiterAttendanceSummary() {
         </div>
 
       </Modal>
+      <CoreTeamSavedAttendanceSheet
+        isOpen={Boolean(savedSheetProject)}
+        project={savedSheetProject || undefined}
+        onClose={() => setSavedSheetProject(null)}
+      />
     </div>
   )
 }

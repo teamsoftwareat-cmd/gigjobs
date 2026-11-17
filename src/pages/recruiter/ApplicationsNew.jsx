@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faChartLine, faChevronDown, faFloppyDisk, faPhone } from '@fortawesome/free-solid-svg-icons'
+import { faChartLine, faChevronDown, faDownload, faFloppyDisk, faPhone } from '@fortawesome/free-solid-svg-icons'
+import * as XLSX from 'xlsx'
 import { recruiterAPI } from '../../api/axios'
 import { Card, Modal, PageHeader } from '../../components/ui'
 import SearchableProjectSelect from '../../components/ui/SearchableProjectSelect'
@@ -14,6 +15,7 @@ const COLUMNS = [
   'Project',
   'Name',
   'Number',
+  'Work Location',
   'Status',
   'Reason',
   'Email',
@@ -90,6 +92,24 @@ const normalizeProjects = (payload) => getProjectList(payload).flatMap((project)
   return [{ id, name: label, projectName: name }]
 })
 
+const normalizeFormBuilders = (response) => {
+  const payload = response?.data?.data ?? response?.data ?? response
+  const items = Array.isArray(payload)
+    ? payload
+    : payload?.items ?? payload?.form_builders ?? payload?.forms ?? payload?.results ?? []
+  if (!Array.isArray(items)) return []
+
+  return items.flatMap((form) => {
+    if (!form || typeof form !== 'object') return []
+    const id = String(form.formBuilderId ?? form.form_builder_id ?? form.id ?? form._id ?? '').trim()
+    if (!id) return []
+    const name = String(form.name ?? form.form_name ?? form.title ?? 'Untitled form').trim()
+    const projectId = String(form.project_id ?? form.projectId ?? form.project?.id ?? '').trim()
+    const projectName = String(form.project_name ?? form.projectName ?? form.project?.name ?? '').trim()
+    return [{ id, name, projectId, label: projectName ? `${name} (${projectName})` : name }]
+  })
+}
+
 const getCellValue = (value) => {
   if (value === undefined || value === null || value === '') return '—'
   return String(value)
@@ -132,16 +152,19 @@ const unwrapRecords = (payload) => {
 
 export default function ApplicationsNew() {
   const { user } = useAuth()
-  const [filters, setFilters] = useState({ job_id: '', name: '', number: '', area: '', status: '' })
+  const [filters, setFilters] = useState({ job_id: '', form_id: '', name: '', number: '', area: '', status: '' })
   const [appliedFilters, setAppliedFilters] = useState({})
   const [projects, setProjects] = useState([])
   const [projectsLoading, setProjectsLoading] = useState(true)
   const [projectError, setProjectError] = useState('')
+  const [formBuilders, setFormBuilders] = useState([])
+  const [formBuildersLoading, setFormBuildersLoading] = useState(true)
   const [candidates, setCandidates] = useState([])
   const [total, setTotal] = useState(0)
   const [page, setPage] = useState(1)
   const [limit, setLimit] = useState(PAGE_SIZE_OPTIONS[0])
   const [loading, setLoading] = useState(true)
+  const [exporting, setExporting] = useState(false)
   const [loadError, setLoadError] = useState('')
   const [updatingId, setUpdatingId] = useState(null)
   const [statusReasons, setStatusReasons] = useState({})
@@ -165,6 +188,25 @@ export default function ApplicationsNew() {
 
     desktopViewport.addEventListener('change', syncFiltersVisibility)
     return () => desktopViewport.removeEventListener('change', syncFiltersVisibility)
+  }, [])
+
+  useEffect(() => {
+    let current = true
+    recruiterAPI.getFormBuilders({ offset: 0, limit: 1000 })
+      .then((response) => {
+        if (current) setFormBuilders(normalizeFormBuilders(response))
+      })
+      .catch((error) => {
+        console.error('Failed to load form builders for applications:', error)
+        if (current) setFormBuilders([])
+      })
+      .finally(() => {
+        if (current) setFormBuildersLoading(false)
+      })
+
+    return () => {
+      current = false
+    }
   }, [])
 
   useEffect(() => {
@@ -233,13 +275,19 @@ export default function ApplicationsNew() {
   const handleSearch = (event) => {
     event.preventDefault()
     setPage(1)
-    setAppliedFilters(Object.fromEntries(
+    const submittedFilters = Object.fromEntries(
       Object.entries(filters).filter(([, value]) => value.trim() !== ''),
-    ))
+    )
+    const selectedFormId = submittedFilters.form_id
+    if (selectedFormId) {
+      const selectedForm = formBuilders.find((form) => form.id === selectedFormId)
+      if (selectedForm?.projectId) submittedFilters.job_id = normalizeProjectId(selectedForm.projectId)
+    }
+    setAppliedFilters(submittedFilters)
   }
 
   const handleReset = () => {
-    const emptyFilters = { job_id: '', name: '', number: '', area: '', status: '' }
+    const emptyFilters = { job_id: '', form_id: '', name: '', number: '', area: '', status: '' }
     setFilters(emptyFilters)
     setPage(1)
     setAppliedFilters({})
@@ -256,14 +304,88 @@ export default function ApplicationsNew() {
   const allPageCandidatesSelected = pageCandidateKeys.length > 0 && pageCandidateKeys.every((key) => selectedCandidates[key])
   const projectNameById = Object.fromEntries(projects.map((project) => [normalizeProjectId(project.id), project.projectName || project.name]))
 
+  const exportCandidatesCsv = (candidateRows, suffix) => {
+    const rows = candidateRows.map((candidate) => ({
+      ID: candidate.id ?? '',
+      Project: projectNameById[normalizeProjectId(candidate.job_id)] || candidate.job_id || '',
+      Name: candidate.name ?? '',
+      Number: candidate.number ?? '',
+      'Work Location': candidate.work_location ?? '',
+      Status: STATUS_LABELS[getStatus(candidate)],
+      Reason: candidate.reason ?? '',
+      Email: candidate.email_id ?? '',
+      Aadhaar: candidate.aadhar ?? '',
+      Area: candidate.area ?? '',
+      'Friend Name': candidate.friend_name ?? '',
+      'Friend Number': candidate.friend_number ?? '',
+      'Created At': candidate.created_at ?? '',
+      'Updated At': candidate.updated_at ?? '',
+      'Travel To': candidate.travel_to ?? '',
+      'Away Duration': candidate.away_duration ?? '',
+      Education: candidate.education ?? '',
+      Language: candidate.language ?? '',
+      'Joining Date': candidate.joining_date ?? '',
+      'Device Available': candidate.device_available ?? '',
+    }))
+    const csv = XLSX.utils.sheet_to_csv(XLSX.utils.json_to_sheet(rows))
+    const blob = new Blob(['\uFEFF', csv], { type: 'text/csv;charset=utf-8' })
+    const link = document.createElement('a')
+    const url = URL.createObjectURL(blob)
+    link.href = url
+    link.download = `applicants_${suffix}_${new Date().toISOString().slice(0, 10)}.csv`
+    document.body.appendChild(link)
+    link.click()
+    link.remove()
+    window.setTimeout(() => URL.revokeObjectURL(url), 0)
+  }
+
+  const downloadAllCandidatesCsv = async () => {
+    setExporting(true)
+    try {
+      const batchLimit = 100
+      const firstResponse = await recruiterAPI.getShortTermHiringCandidates({
+        ...appliedFilters,
+        offset: 0,
+        limit: batchLimit,
+      })
+      const firstBatch = unwrapRecords(firstResponse.data)
+      const allCandidates = [...firstBatch.rows]
+      let offset = allCandidates.length
+      let targetTotal = Math.max(firstBatch.total, total)
+
+      while (offset < targetTotal) {
+        const response = await recruiterAPI.getShortTermHiringCandidates({
+          ...appliedFilters,
+          offset,
+          limit: batchLimit,
+        })
+        const batch = unwrapRecords(response.data)
+        if (!batch.rows.length) break
+        allCandidates.push(...batch.rows)
+        offset += batch.rows.length
+        targetTotal = Math.max(targetTotal, batch.total)
+      }
+
+      exportCandidatesCsv(allCandidates, 'all')
+    } catch (error) {
+      console.error('Failed to export all applicants:', error)
+      setNotice({ error: true, message: error.message || 'Applicants could not be exported.' })
+    } finally {
+      setExporting(false)
+    }
+  }
+
+  const downloadSelectedCandidatesCsv = () => {
+    if (selectedCandidateRows.length) exportCandidatesCsv(selectedCandidateRows, 'selected')
+  }
+
   const toggleCandidateSelection = (candidate) => {
     const key = getCandidateKey(candidate)
     setSelectedCandidates((current) => {
       const next = { ...current }
       if (next[key]) delete next[key]
       else next[key] = {
-        id: candidate.id,
-        job_id: candidate.job_id,
+        ...candidate,
         project_id: candidate.job_id ?? candidate.project_id ?? candidate.projectId,
       }
       return next
@@ -276,8 +398,7 @@ export default function ApplicationsNew() {
       if (allPageCandidatesSelected) pageCandidateKeys.forEach((key) => delete next[key])
       else candidates.forEach((candidate) => {
         next[getCandidateKey(candidate)] = {
-          id: candidate.id,
-          job_id: candidate.job_id,
+          ...candidate,
           project_id: candidate.job_id ?? candidate.project_id ?? candidate.projectId,
         }
       })
@@ -478,6 +599,7 @@ export default function ApplicationsNew() {
             </a>
           )}
         </td>
+        <td>{getCellValue(candidate.work_location)}</td>
         <td>
           <div className="applications-new-status-controls">
             <select
@@ -616,6 +738,7 @@ export default function ApplicationsNew() {
             <div><span>Created at</span><strong>{getCellValue(candidate.created_at)}</strong></div>
             <div><span>Updated at</span><strong>{getCellValue(candidate.updated_at)}</strong></div>
             <div><span>Remarks</span><strong>{getCellValue(candidate.reason)}</strong></div>
+            <div><span>Work location</span><strong>{getCellValue(candidate.work_location)}</strong></div>
             <div><span>Travel to</span><strong>{getCellValue(candidate.travel_to)}</strong></div>
             <div><span>Away duration</span><strong>{getCellValue(candidate.away_duration)}</strong></div>
             <div><span>Education</span><strong>{getCellValue(candidate.education)}</strong></div>
@@ -662,10 +785,23 @@ export default function ApplicationsNew() {
                   <SearchableProjectSelect
                     options={projects}
                     value={filters.job_id}
-                    onChange={(jobId) => setFilters((current) => ({ ...current, job_id: jobId }))}
+                    onChange={(jobId) => setFilters((current) => ({ ...current, job_id: jobId, form_id: '' }))}
                     placeholder={projectsLoading ? 'Loading projects…' : 'All Projects'}
                     disabled={projectsLoading || Boolean(projectError)}
                   />
+                </label>
+                <label className="applications-new-filter">
+                  <span>Form Builder</span>
+                  <select
+                    className="form-control"
+                    name="form_id"
+                    value={filters.form_id}
+                    onChange={handleFilterChange}
+                    disabled={formBuildersLoading}
+                  >
+                    <option value="">All Forms</option>
+                    {formBuilders.map((form) => <option key={form.id} value={form.id}>{form.label}</option>)}
+                  </select>
                 </label>
                 <label className="applications-new-filter">
                   <span>Name</span>
@@ -707,6 +843,14 @@ export default function ApplicationsNew() {
         <div className="applications-new-table-header">
           <h2>Candidates</h2>
           <div className="applications-new-table-header-actions">
+            <button type="button" className="btn btn-outline btn-sm" onClick={downloadAllCandidatesCsv} disabled={loading || exporting || total === 0}>
+              <FontAwesomeIcon icon={faDownload} aria-hidden="true" />
+              <span>{exporting ? 'Downloading…' : 'Download all CSV'}</span>
+            </button>
+            <button type="button" className="btn btn-outline btn-sm" onClick={downloadSelectedCandidatesCsv} disabled={exporting || selectedCandidateRows.length === 0}>
+              <FontAwesomeIcon icon={faDownload} aria-hidden="true" />
+              <span>Download selected ({selectedCandidateRows.length})</span>
+            </button>
             {selectedCandidateRows.length > 0 && (
               <button type="button" className="btn btn-primary btn-sm" onClick={openShareModal}>
                 Share with calling team members ({selectedCandidateRows.length})

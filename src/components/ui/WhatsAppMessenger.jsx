@@ -3,19 +3,8 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCommentDots, faTimes, faSearch, faChevronDown, faChevronUp } from '@fortawesome/free-solid-svg-icons'
 import { useAlert } from '../../context/AlertContext'
 import { recruiterAPI } from '../../api/axios'
+import { decryptRegistrationId } from '../../utils/faceEnrollLinkCrypto'
 import './MessageComposer.css'
-
-const STATIC_VARIABLE_OPTIONS = [
-  { value: 'candidate_name', label: 'Candidate Name' },
-  { value: 'position_name', label: 'Position Name' },
-  { value: 'jd', label: 'Job Description' },
-  { value: 'salary', label: 'Salary' },
-  { value: 'location', label: 'Location' },
-  { value: 'work_experience', label: 'Work Experience' },
-  { value: 'recruiter_name', label: 'Recruiter Name' },
-  { value: 'recruiter_emailid', label: 'Recruiter Email ID' },
-  { value: 'recruiter_number', label: 'Recruiter Number' },
-]
 
 const extractVariables = (text = '') => {
   const vars = new Set()
@@ -27,11 +16,57 @@ const extractVariables = (text = '') => {
   return [...vars]
 }
 
+const getUrlTemplateVariables = (text = '') => {
+  const variables = []
+  const regex = /{{\s*([^{}\s]+)\s*}}/g
+  let match
+  while ((match = regex.exec(String(text || '')))) {
+    variables.push(match[1])
+  }
+  return variables
+}
+
 const interpolateTemplate = (text, values) => {
   return String(text || '').replace(/{{\s*([^{}\s]+)\s*}}/g, (_, key) => {
     const replacement = values[key]
     return replacement != null && replacement !== '' ? replacement : `{{${key}}}`
   })
+}
+
+const OTHER_PROJECT_VALUE = 'others'
+export const TAGGED_FIELD_OPTIONS = [
+  'registration',
+  'attendance',
+  'hiring',
+  'kyc',
+  'offer letter',
+  'agreement letter',
+  'certificate letters',
+]
+
+const normalizeProjects = (response) => {
+  const payload = response?.data?.data ?? response?.data ?? response
+  const items = Array.isArray(payload)
+    ? payload
+    : Array.isArray(payload?.projects)
+      ? payload.projects
+      : Array.isArray(payload?.items)
+        ? payload.items
+      : Array.isArray(payload?.results)
+        ? payload.results
+        : []
+
+  return items.map((item) => {
+    if (typeof item === 'string' || typeof item === 'number') {
+      const name = String(item).trim()
+      return name ? { id: name, name } : null
+    }
+
+    if (!item || typeof item !== 'object') return null
+    const id = String(item.id ?? item.project_id ?? item.projectId ?? item.value ?? item.key ?? item._id ?? item.project ?? '').trim()
+    const name = String(item.name ?? item.project_name ?? item.projectName ?? item.title ?? item.label ?? item.project ?? '').trim()
+    return id || name ? { id: id || name, name: name || id } : null
+  }).filter(Boolean)
 }
 
 export function WhatsAppMessenger({
@@ -48,12 +83,41 @@ export function WhatsAppMessenger({
   const [fetchedTemplates, setFetchedTemplates] = useState([])
   const [selectedTemplateId, setSelectedTemplateId] = useState('')
   const [templateContent, setTemplateContent] = useState(null)
+  const [templateDetailsLoading, setTemplateDetailsLoading] = useState(false)
+  const [templateDetailsError, setTemplateDetailsError] = useState('')
+  const [templateDetails, setTemplateDetails] = useState(null)
+  const [templateImageUrl, setTemplateImageUrl] = useState('')
+  const [templateType, setTemplateType] = useState(null)
   const [variables, setVariables] = useState({})
+  const [buttonVariableValues, setButtonVariableValues] = useState({})
+  const [candidateNamePlaceholder, setCandidateNamePlaceholder] = useState('')
+  const [imageFile, setImageFile] = useState(null)
+  const [imageFileError, setImageFileError] = useState('')
   const [sending, setSending] = useState(false)
   const [templateSearch, setTemplateSearch] = useState('')
   const [isDropdownOpen, setIsDropdownOpen] = useState(false)
-  const [loadingContent, setLoadingContent] = useState(false)
+  const [templateLoadError, setTemplateLoadError] = useState('')
+  const [projectOptions, setProjectOptions] = useState([])
+  const [projectLoading, setProjectLoading] = useState(false)
+  const [projectLoadError, setProjectLoadError] = useState('')
+  const [selectedProjectId, setSelectedProjectId] = useState('')
+  const [taggedField, setTaggedField] = useState('')
   const dropdownRef = useRef(null)
+  const imageInputRef = useRef(null)
+  const [localImagePreview, setLocalImagePreview] = useState('')
+
+  useEffect(() => {
+    if (!imageFile) {
+      setLocalImagePreview('')
+      return
+    }
+
+    const previewUrl = URL.createObjectURL(imageFile)
+    setLocalImagePreview(previewUrl)
+    return () => {
+      URL.revokeObjectURL(previewUrl)
+    }
+  }, [imageFile])
 
   // Handle click outside to close dropdown
   useEffect(() => {
@@ -76,61 +140,198 @@ export function WhatsAppMessenger({
 
   useEffect(() => {
     if (isOpen) {
+      let active = true
+      setTemplateLoadError('')
       recruiterAPI.getWhatsAppTemplates()
         .then(res => {
-          const list = res.data?.templates || []
-          setFetchedTemplates(list)
+          const list = Array.isArray(res.data?.templates)
+            ? res.data.templates
+            : Array.isArray(res.data)
+              ? res.data
+              : null
+          if (!list) {
+            throw new Error('WhatsApp templates response must contain a templates array.')
+          }
+          if (active) setFetchedTemplates(list)
         })
-        .catch(err => console.error('Failed to fetch WhatsApp templates', err))
+        .catch(err => {
+          if (!active) return
+          console.error('Failed to fetch WhatsApp templates', err)
+          setTemplateLoadError('Could not load WhatsApp templates. Please try again.')
+        })
+      return () => {
+        active = false
+      }
     }
   }, [isOpen])
 
-  // Fetch template content when ID changes
   useEffect(() => {
-    if (selectedTemplateId) {
-      setLoadingContent(true)
-      recruiterAPI.getWhatsAppTemplateDetails(selectedTemplateId)
-        .then(res => {
-          setTemplateContent(res.data?.content || '')
-        })
-        .catch(err => console.error('Failed to fetch template content', err))
-        .finally(() => setLoadingContent(false))
-    } else {
+    if (!isOpen) return undefined
+
+    let active = true
+    setProjectLoading(true)
+    setProjectLoadError('')
+    recruiterAPI.getProjectSuggestions('', 1000)
+      .then((response) => {
+        const options = normalizeProjects(response)
+        if (active) setProjectOptions(options)
+      })
+      .catch((error) => {
+        if (!active) return
+        console.error('Failed to fetch WhatsApp project options', error)
+        setProjectLoadError('Could not load projects. You can still select Other.')
+      })
+      .finally(() => {
+        if (active) setProjectLoading(false)
+      })
+
+    return () => { active = false }
+  }, [isOpen])
+
+  const selectedTemplate = useMemo(() => {
+    const list = fetchedTemplates.length > 0 ? fetchedTemplates : templates
+    return list.find((template) => String(template.id ?? template.template_id ?? template.templateId ?? template.name) === String(selectedTemplateId)) || null
+  }, [fetchedTemplates, templates, selectedTemplateId])
+
+  useEffect(() => {
+    if (!selectedTemplateId) {
       setTemplateContent(null)
+      setTemplateDetailsLoading(false)
+      setTemplateDetailsError('')
+      setTemplateDetails(null)
+      setButtonVariableValues({})
+      setTemplateImageUrl('')
+      setTemplateType(null)
+      setImageFile(null)
+      setImageFileError('')
+      return undefined
     }
-  }, [selectedTemplateId])
+
+    let active = true
+    const fallbackContent = selectedTemplate?.content ?? selectedTemplate?.body ?? ''
+    const imageUrl = selectedTemplate?.image_url || selectedTemplate?.imageUrl || ''
+
+    setTemplateContent(typeof fallbackContent === 'string' && fallbackContent.trim() ? fallbackContent : null)
+    setTemplateDetailsLoading(true)
+    setTemplateDetailsError('')
+    setTemplateDetails(null)
+    setButtonVariableValues({})
+    setTemplateType(null)
+    setTemplateImageUrl(imageUrl)
+    setImageFile(null)
+    setImageFileError('')
+
+    recruiterAPI.getWhatsAppTemplateDetails(selectedTemplateId)
+      .then((response) => {
+        const payload = response?.data?.data ?? response?.data ?? response
+        if (payload?.success === false || typeof payload?.content !== 'string') {
+          throw new Error('Template body content was not returned.')
+        }
+        if (active) {
+          const header = payload.header && typeof payload.header === 'object' ? payload.header : {}
+          const mediaType = header.type ?? payload.type
+          setTemplateDetails(payload)
+          setTemplateContent(payload.content.trim() ? payload.content : null)
+          setTemplateType(mediaType == null ? null : String(mediaType).toLowerCase())
+          setTemplateImageUrl(header.media_url || header.mediaUrl || payload.image_url || payload.imageUrl || imageUrl)
+        }
+      })
+      .catch((error) => {
+        if (!active) return
+        console.error('Failed to fetch WhatsApp template details', error)
+        setTemplateDetailsError('Could not load template body content.')
+      })
+      .finally(() => {
+        if (active) setTemplateDetailsLoading(false)
+      })
+
+    return () => { active = false }
+  }, [selectedTemplateId, selectedTemplate])
 
   const selectedTemplateName = useMemo(() => {
-    const list = fetchedTemplates.length > 0 ? fetchedTemplates : templates
-    const t = list.find(t => t.id === selectedTemplateId)
-    return t ? t.name : ''
-  }, [fetchedTemplates, templates, selectedTemplateId])
+    return selectedTemplate?.name || ''
+  }, [selectedTemplate])
 
   const templateVariables = useMemo(() => {
     return extractVariables(templateContent || '')
   }, [templateContent])
+  const urlTemplateButtons = useMemo(() => {
+    const buttons = Array.isArray(templateDetails?.buttons) ? templateDetails.buttons : []
+    return buttons
+      .map((button, index) => ({ ...button, index }))
+      .filter((button) => String(button.type || '').toUpperCase() === 'URL' && button.url)
+  }, [templateDetails])
+  const applyButton = useMemo(
+    () => urlTemplateButtons.find((button) => String(button.url || '').includes('/apply/')) || null,
+    [urlTemplateButtons],
+  )
+  const buttonVariables = useMemo(
+    () => urlTemplateButtons.map((button) => ({ ...button, variables: getUrlTemplateVariables(button.url) })),
+    [urlTemplateButtons],
+  )
+  const defaultCandidateNamePlaceholder = useMemo(() => {
+    const normalize = (value) => String(value).toLowerCase().replace(/[^a-z0-9]/g, '')
+    return templateVariables.find((key) => ['candidatename', 'recipientname'].includes(normalize(key)))
+      || templateVariables.find((key) => /^\d+$/.test(key))
+      || ''
+  }, [templateVariables])
 
   useEffect(() => {
     if (!templateContent) {
       setVariables({})
+      setCandidateNamePlaceholder('')
       return
     }
 
+    setCandidateNamePlaceholder(defaultCandidateNamePlaceholder)
     const defaults = templateVariables.reduce((acc, key) => {
-      acc[key] = ''
+      acc[key] = key === defaultCandidateNamePlaceholder ? 'candidate_name' : ''
       return acc
     }, {})
 
     setVariables(defaults)
-  }, [templateContent, templateVariables])
+  }, [templateContent, templateVariables, defaultCandidateNamePlaceholder])
 
   const previewText = useMemo(
     () => interpolateTemplate(templateContent || '', variables),
     [templateContent, variables]
   )
+  const getPreviewButtonUrl = (button) => {
+    const values = Object.fromEntries(getUrlTemplateVariables(button.url).map((key) => [
+      key,
+      buttonVariableValues[`${button.index}:${key}`] || `{{${key}}}`,
+    ]))
+    return interpolateTemplate(button.url, values)
+  }
 
   const handleVariableChange = (key, value) => {
     setVariables((prev) => ({ ...prev, [key]: value }))
+  }
+
+  const handleCandidateNamePlaceholderChange = (event) => {
+    const nextPlaceholder = event.target.value
+    setCandidateNamePlaceholder(nextPlaceholder)
+    setVariables((previous) => {
+      const next = { ...previous }
+      if (candidateNamePlaceholder && next[candidateNamePlaceholder] === 'candidate_name') {
+        next[candidateNamePlaceholder] = ''
+      }
+      if (nextPlaceholder) next[nextPlaceholder] = 'candidate_name'
+      return next
+    })
+  }
+
+  const handleImageChange = (event) => {
+    const file = event.target.files?.[0]
+    if (!file) return
+    if (!file.type.startsWith('image/')) {
+      setImageFile(null)
+      setImageFileError('Choose an image file.')
+      event.target.value = ''
+      return
+    }
+    setImageFile(file)
+    setImageFileError('')
   }
 
   const { alert } = useAlert()
@@ -142,12 +343,52 @@ export function WhatsAppMessenger({
     if (recipients.length === 0) {
       return alert('Please select at least one recipient.')
     }
+    if (selectedProjectId && !taggedField) {
+      return alert('Select a tagged field for the project.')
+    }
+    if (templateType === 'image' && !imageFile && !templateImageUrl) {
+      return alert('Please upload an image for this image template.')
+    }
     if (typeof onSend === 'function') {
       setSending(true)
       try {
+        const buttonValues = {}
+        buttonVariables.forEach((button) => {
+          if (!button.variables.length) return
+          const values = button.variables.map((key) => (
+            String(button.url || '').includes('/apply/') && key === button.variables[0]
+              ? String(buttonVariableValues[`${button.index}:${key}`] || '').trim()
+              : String(buttonVariableValues[`${button.index}:${key}`] || '').trim()
+          ))
+          if (values.some(Boolean)) buttonValues[String(button.index + 1)] = values
+        })
+        if (applyButton && !buttonValues[String(applyButton.index + 1)]?.[0]) {
+          await alert('Enter a value for the apply button in Button URL Mapping.')
+          return
+        }
+        let formId
+        if (applyButton) {
+          const applyButtonValue = String(buttonValues[String(applyButton.index + 1)]?.[0] || '')
+          const token = applyButtonValue.match(/\/apply\/([^/?#]+)/i)?.[1] || applyButtonValue
+          try {
+            formId = await decryptRegistrationId(decodeURIComponent(token))
+          } catch {
+            if (/^(\d+|[0-9a-f]{8}-[0-9a-f-]{27})$/i.test(token)) formId = token
+          }
+        }
+        const projectName = selectedProjectId === OTHER_PROJECT_VALUE
+          ? ''
+          : projectOptions.find((project) => project.id === selectedProjectId)?.name || ''
         await onSend({
           templateId: selectedTemplateId,
+          template_name: selectedTemplateName,
+          ...(selectedProjectId ? { project_id: selectedProjectId } : {}),
+          ...(projectName ? { project_name: projectName } : {}),
+          ...(selectedProjectId && taggedField ? { tagged_field: taggedField } : {}),
           variables,
+          imageFile,
+          ...(formId ? { form_id: formId } : {}),
+          ...(Object.keys(buttonValues).length ? { buttonValues } : {}),
         })
       } catch (error) {
         console.error(error)
@@ -197,6 +438,44 @@ export function WhatsAppMessenger({
               </div>
             </div>
           )}
+
+          {/* Project Selection */}
+          <div className="email-field">
+            <label htmlFor="whatsapp-project">Project</label>
+            <select
+              id="whatsapp-project"
+              className="email-select"
+              value={selectedProjectId}
+              onChange={(event) => {
+                setSelectedProjectId(event.target.value)
+                setTaggedField('')
+              }}
+              disabled={projectLoading}
+            >
+              <option value="">{projectLoading ? 'Loading projects...' : 'Select a project (optional)'}</option>
+              {projectOptions.map((project) => (
+                <option key={project.id} value={project.id}>{project.name}</option>
+              ))}
+              <option value={OTHER_PROJECT_VALUE}>Other</option>
+            </select>
+            {projectLoadError && <small className="field-error" role="alert">{projectLoadError}</small>}
+            {selectedProjectId && (
+              <div className="email-field">
+                <label htmlFor="whatsapp-tagged-field">Tagged field</label>
+                <select
+                  id="whatsapp-tagged-field"
+                  className="email-select"
+                  value={taggedField}
+                  onChange={(event) => setTaggedField(event.target.value)}
+                >
+                  <option value="">Select a tagged field</option>
+                  {TAGGED_FIELD_OPTIONS.map((field) => (
+                    <option key={field} value={field}>{field}</option>
+                  ))}
+                </select>
+              </div>
+            )}
+          </div>
 
           {/* Template Selection */}
           <div className="email-field">
@@ -249,27 +528,29 @@ export function WhatsAppMessenger({
                   </div>
                   <div style={{ maxHeight: '240px', overflowY: 'auto' }}>
                     {allTemplates.length > 0 ? (
-                      allTemplates.map((template) => (
+                      allTemplates.map((template) => {
+                        const templateId = String(template.id ?? template.template_id ?? template.templateId ?? template.name ?? '')
+                        return (
                         <div 
-                          key={template.id} 
+                          key={templateId}
                           style={{ 
                             padding: '10px 12px', 
                             cursor: 'pointer',
                             fontSize: '14px',
-                            backgroundColor: selectedTemplateId === template.id ? '#eff6ff' : 'transparent',
+                            backgroundColor: selectedTemplateId === templateId ? '#eff6ff' : 'transparent',
                             transition: 'background 0.2s'
                           }}
                           onClick={() => {
-                            setSelectedTemplateId(template.id)
+                            setSelectedTemplateId(templateId)
                             setIsDropdownOpen(false)
                             setTemplateSearch('')
                           }}
-                          onMouseEnter={(e) => e.target.style.backgroundColor = selectedTemplateId === template.id ? '#eff6ff' : '#f9fafb'}
-                          onMouseLeave={(e) => e.target.style.backgroundColor = selectedTemplateId === template.id ? '#eff6ff' : 'transparent'}
+                          onMouseEnter={(e) => e.target.style.backgroundColor = selectedTemplateId === templateId ? '#eff6ff' : '#f9fafb'}
+                          onMouseLeave={(e) => e.target.style.backgroundColor = selectedTemplateId === templateId ? '#eff6ff' : 'transparent'}
                         >
-                          {template.name}
+                          {template.name || template.title || templateId}
                         </div>
-                      ))
+                      )})
                     ) : (
                       <div style={{ padding: '12px', color: '#475569', fontSize: '14px', textAlign: 'center' }}>No templates found</div>
                     )}
@@ -279,51 +560,149 @@ export function WhatsAppMessenger({
             </div>
           </div>
 
-          
+          {templateType === 'image' && (
+            <div className="email-field whatsapp-image-upload">
+              <label htmlFor="whatsapp-template-image">Upload image</label>
+              <input
+                ref={imageInputRef}
+                id="whatsapp-template-image"
+                className="email-input"
+                type="file"
+                accept="image/*"
+                onChange={handleImageChange}
+              />
+              {imageFile && (
+                <button
+                  type="button"
+                  className="btn btn-outline"
+                  onClick={() => {
+                    setImageFile(null)
+                    setImageFileError('')
+                    if (imageInputRef.current) imageInputRef.current.value = ''
+                  }}
+                >
+                  Remove uploaded image
+                </button>
+              )}
+              {imageFileError && <small className="field-error" role="alert">{imageFileError}</small>}
+            </div>
+          )}
+
           {/* Template Preview */}
           <div className="template-preview-section">
             <div className="preview-label">Template Preview</div>
             <div className="template-preview whatsapp-preview" style={{justifyContent: "flex-start"}}>
-              {loadingContent ? (
-                <div className="preview-message">Loading template body...</div>
+              {templateLoadError && fetchedTemplates.length === 0 && templates.length === 0 ? (
+                <div className="preview-message" role="alert">{templateLoadError}</div>
+              ) : templateDetailsLoading ? (
+                <div className="preview-message" role="status">Loading template content...</div>
+              ) : templateDetailsError && !templateContent ? (
+                <div className="preview-message" role="alert">{templateDetailsError}</div>
               ) : templateContent ? (
-                <div className="preview-message">
+                <div className="preview-message whatsapp-preview-message">
+                  {templateType === 'image' && (localImagePreview || templateImageUrl) && (
+                    <img
+                      className="whatsapp-template-image"
+                      src={localImagePreview || templateImageUrl}
+                      alt={`${selectedTemplateName} preview`}
+                    />
+                  )}
                   <div className="preview-bubble">
                     {previewText}
                   </div>
+                  {urlTemplateButtons.length > 0 && (
+                    <div className="whatsapp-template-buttons">
+                      {urlTemplateButtons.map((button) => (
+                        <div className="whatsapp-template-button" key={button.index}>
+                          <span>{button.text || 'Open link'}</span>
+                          {getUrlTemplateVariables(button.url).length > 0 && (
+                            <small>{getPreviewButtonUrl(button)}</small>
+                          )}
+                        </div>
+                      ))}
+                    </div>
+                  )}
                 </div>
               ) : (
-                'Select a template to see preview'
+                selectedTemplateId
+                  ? 'Template content is missing. Include content in the WhatsApp templates GET response.'
+                  : 'Select a template to see preview'
               )}
             </div>
           </div>
 
           {/* Variable Mapping */}
-          {templateVariables.length > 0 && (
+          {(templateVariables.length > 0 || buttonVariables.some((button) => button.variables.length > 0)) && (
             <div className="variables-section">
               <div className="variables-heading">
-                <span>Variable Mapping</span>
-                <small>Assign values to template variables</small>
+                <span>Message Content Variables</span>
+                <small>Map message text and Apply button placeholders here.</small>
               </div>
-              <div className="variable-mappings">
-                {templateVariables.map((key) => (
-                  <div key={key} className="email-field" style={{flexDirection: "row", alignItems: "center"}}>
-                    <label>{key}</label>
-                    <select 
-                      className="email-select variable-select"
-                      value={variables[key] || ''}
-                      onChange={(e) => handleVariableChange(key, e.target.value)}
+              {templateVariables.length > 0 && (
+                <>
+                  <div className="email-field">
+                    <label htmlFor="whatsapp-candidate-name-placeholder">Candidate name placeholder</label>
+                    <select
+                      id="whatsapp-candidate-name-placeholder"
+                      className="email-select"
+                      value={candidateNamePlaceholder}
+                      onChange={handleCandidateNamePlaceholderChange}
                     >
-                      <option value="">Select {key}...</option>
-                      {STATIC_VARIABLE_OPTIONS.map(opt => (
-                        <option key={opt.value} value={opt.value}>
-                          {opt.label}
-                        </option>
-                      ))}
+                      <option value="">Do not map candidate name</option>
+                      {templateVariables.map((key) => <option key={key} value={key}>{`{{${key}}}`}</option>)}
                     </select>
                   </div>
-                ))}
-              </div>
+                  <div className="variable-mappings">
+                    {templateVariables.map((key) => (
+                      <div key={key} className="email-field" style={{ flexDirection: 'row', alignItems: 'center' }}>
+                        <label htmlFor={`whatsapp-variable-${key}`}>{`{{${key}}}`}</label>
+                        {key === candidateNamePlaceholder ? (
+                          <input
+                            id={`whatsapp-variable-${key}`}
+                            className="email-input variable-select"
+                            value="Candidate name (automatic)"
+                            readOnly
+                          />
+                        ) : (
+                          <input
+                            id={`whatsapp-variable-${key}`}
+                            type="text"
+                            className="email-input variable-select"
+                            value={variables[key] || ''}
+                            onChange={(event) => handleVariableChange(key, event.target.value)}
+                            placeholder={`Enter ${key}`}
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              )}
+              {buttonVariables.some((button) => button.variables.length > 0) && (
+                <div className="variable-mappings">
+                {buttonVariables.flatMap((button) => button.variables.map((key, variableIndex) => {
+                  const isApplyUrl = String(button.url || '').includes('/apply/')
+                  const valueKey = `${button.index}:${key}`
+                  const inputValue = buttonVariableValues[valueKey] || ''
+
+                  return (
+                    <div key={`${button.index}:${variableIndex}`} className="email-field">
+                      <label htmlFor={`whatsapp-button-variable-${button.index}-${variableIndex}`}>
+                        {button.text || `Button ${button.index + 1}`} — {`{{${key}}}`}
+                      </label>
+                      <input
+                        id={`whatsapp-button-variable-${button.index}-${variableIndex}`}
+                        type="text"
+                        className="email-input variable-select"
+                        value={inputValue}
+                        onChange={(event) => setButtonVariableValues((current) => ({ ...current, [valueKey]: event.target.value }))}
+                        placeholder={isApplyUrl && variableIndex === 0 ? 'Enter apply button value' : `Enter ${key}`}
+                      />
+                    </div>
+                  )
+                }))}
+                </div>
+              )}
             </div>
           )}
         </div>
