@@ -1,6 +1,9 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faRotate } from '@fortawesome/free-solid-svg-icons'
+import { faCircleExclamation, faRotate } from '@fortawesome/free-solid-svg-icons'
+import { DayPicker } from 'react-day-picker'
+import 'react-day-picker/dist/style.css'
 import { coreRecruiterAPI, recruiterAPI } from '../../api/axios'
 import { Modal } from '../../components/ui'
 import { useAuth } from '../../context/AuthContext'
@@ -35,6 +38,17 @@ const getGeneratedRows = (response) => {
   return payload?.payment_sheet || payload?.paymentSheet || payload?.rows || []
 }
 
+const getGeneratedCandidateBreakdown = (response) => {
+  const body = response?.data && typeof response.data === 'object' && !Array.isArray(response.data)
+    ? response.data
+    : response
+  const payload = body?.data && typeof body.data === 'object' && !Array.isArray(body.data)
+    ? body.data
+    : body
+  const candidates = body?.candidates ?? payload?.candidates
+  return Array.isArray(candidates) ? candidates : []
+}
+
 const getCandidateDetails = (record) => {
   const nested = [
     record?.candidate,
@@ -51,6 +65,51 @@ const getCandidateDetails = (record) => {
 const candidateIdentity = (record) => String(getValue(getCandidateDetails(record), [
   'candidate_id', 'candidateId', 'registration_id', 'registrationId', 'user_id', 'userId', 'id', 'mobile', 'phone', 'candidate_name', 'name',
 ]))
+
+const normalizeCandidateDeductionDetails = (record) => {
+  const entries = getValue(record, ['deductions', 'outstanding_deductions', 'outstandingDeductions', 'deduction_entries', 'deductionEntries'], [])
+  const outstandingEntries = Array.isArray(entries) ? entries.flatMap((entry, index) => {
+    const status = String(getValue(entry, ['status', 'state'], 'outstanding')).trim().toLowerCase()
+    if (['proposed', 'recovered', 'paid', 'cancelled'].includes(status)) return []
+    const amount = Number(getValue(entry, ['amount', 'outstanding_amount', 'deduction_amount'], 0))
+    if (!Number.isFinite(amount) || amount <= 0) return []
+    return [{
+      id: String(getValue(entry, ['id', 'deduction_id', 'deductionId'], `deduction-${index}`)),
+      amount,
+      note: String(getValue(entry, ['note', 'description', 'reason'], '')),
+    }]
+  }) : []
+  const parsedTotal = Number(getValue(record, ['overall_outstanding_deduction', 'overallOutstandingDeduction'], Number.NaN))
+  const amount = Number.isFinite(parsedTotal)
+    ? Math.max(0, parsedTotal)
+    : outstandingEntries.reduce((total, entry) => total + entry.amount, 0)
+  return { amount, entries: outstandingEntries }
+}
+
+async function fetchCandidateDeductionDetails(candidates) {
+  const joiningDetails = []
+  let offset = 0
+  while (true) {
+    const response = await recruiterAPI.getCandidateJoiningDetails({ offset, limit: 500 })
+    const payload = response?.data ?? response
+    const rows = getList(payload)
+    joiningDetails.push(...rows)
+    const total = Number(payload?.data?.total ?? payload?.total ?? payload?.count ?? payload?.totalCount ?? payload?.total_count)
+    offset += rows.length
+    if (!rows.length || rows.length < 500 || (Number.isFinite(total) && offset >= total)) break
+  }
+
+  return new Map(candidates.map((candidate) => {
+    const candidateId = String(getValue(candidate, ['candidate_id', 'candidateId', 'registration_id', 'registrationId', 'user_id', 'userId', 'id'], '')).trim()
+    const mobile = String(getValue(candidate, ['mobile', 'candidate_mobile', 'mobile_number', 'phone'], '')).replace(/\D/g, '')
+    const details = joiningDetails.find((record) => {
+      const recordId = String(getValue(record, ['candidate_id', 'candidateId', 'registration_id', 'registrationId', 'user_id', 'userId', 'id'], '')).trim()
+      const recordMobile = String(getValue(record, ['mobile', 'candidate_mobile', 'mobile_number', 'phone'], '')).replace(/\D/g, '')
+      return (candidateId && recordId === candidateId) || (mobile && recordMobile === mobile)
+    })
+    return [candidateIdentity(candidate), normalizeCandidateDeductionDetails(details || {})]
+  }))
+}
 
 const normalizeSavedCandidateRecords = (payload, project) => {
   const candidates = new Map()
@@ -109,6 +168,25 @@ const normalizeSavedCandidateRecords = (payload, project) => {
         project_name: getValue(record, ['project_name', 'projectName'], project.name),
         location_id: getValue(record, ['location_id', 'locationId']),
         location_name: getValue(record, ['location_name', 'locationName', 'location']),
+    const attendanceDate = getValue(record, ['attendance_date', 'date'])
+    const locationId = getValue(record, ['location_id', 'locationId'])
+    const locationName = getValue(record, ['location_name', 'locationName', 'location'])
+    const recordProjectId = getValue(record, ['project_id', 'projectId'], project.id)
+    let attendance = candidate.attendance.find((item) => (
+      String(item.attendance_id) === attendanceId
+      && normalizeDate(item.attendance_date || item.date) === normalizeDate(attendanceDate)
+      && String(item.location_id || item.locationId || '') === String(locationId || '')
+      && String(item.location_name || item.locationName || item.location || '') === String(locationName || '')
+      && String(item.project_id || item.projectId || '') === String(recordProjectId || '')
+    ))
+    if (!attendance) {
+      attendance = {
+        attendance_id: attendanceId,
+        attendance_date: attendanceDate,
+        project_id: recordProjectId,
+        project_name: getValue(record, ['project_name', 'projectName'], project.name),
+        location_id: locationId,
+        location_name: locationName,
         payments: [],
       }
       candidate.attendance.push(attendance)
@@ -165,6 +243,14 @@ const flattenCandidateRecords = (candidateRecords) => candidateRecords.flatMap((
 })
 
 const filterCandidateRecords = (candidateRecords, paymentTypes, includeDeductions, candidateIds, selectedDates) => candidateRecords
+const getCandidateEarnings = (candidate) => (
+  (candidate.attendance || []).reduce((total, attendance) => (
+    total + (attendance.payments || []).reduce((paymentTotal, payment) => paymentTotal + (Number(payment.amount) || 0), 0)
+  ), 0)
+  + (candidate.overtime || []).reduce((total, item) => total + (Number(item.amount) || 0), 0)
+)
+
+const filterCandidateRecords = (candidateRecords, paymentTypes, candidateIds, selectedDates) => candidateRecords
   .filter((candidate) => candidateIds === null || candidateIds.has(candidateIdentity(candidate)))
   .map((candidate) => ({
     ...candidate,
@@ -184,6 +270,51 @@ const filterCandidateRecords = (candidateRecords, paymentTypes, includeDeduction
     deductions: includeDeductions ? candidate.deductions || [] : [],
   }))
   .filter((candidate) => candidate.attendance.length || candidate.overtime.length || candidate.deductions.length)
+    deductions: [],
+  }))
+  .filter((candidate) => candidate.attendance.length || candidate.overtime.length)
+
+const buildAttendancePaymentSheetPayload = (candidateRecords, project) => ({
+  type: 'attendance',
+  attendance: candidateRecords.map((candidate) => {
+    const attendance = Array.isArray(candidate.attendance) ? candidate.attendance : []
+    const locations = Array.isArray(candidate.locations) ? [...candidate.locations] : []
+    attendance.forEach((item) => {
+      const locationId = getValue(item, ['location_id', 'locationId', 'district_id', 'districtId'])
+      const locationName = getValue(item, ['location_name', 'locationName', 'location', 'district_name', 'districtName'])
+      if (!locationId && !locationName) return
+      const alreadyIncluded = locations.some((location) => (
+        String(getValue(location, ['location_id', 'locationId', 'district_id', 'districtId', 'id'])) === String(locationId)
+        && String(getValue(location, ['location_name', 'locationName', 'location', 'district_name', 'districtName', 'name'])) === String(locationName)
+      ))
+      if (!alreadyIncluded) locations.push({ location_id: locationId, location_name: locationName })
+    })
+
+    const deductionAmount = Math.max(0, Number(candidate.overall_outstanding_deduction) || 0)
+    return {
+      ...candidate,
+      candidate_id: getValue(candidate, ['candidate_id', 'candidateId', 'registration_id', 'registrationId', 'user_id', 'userId', 'id'], candidateIdentity(candidate)),
+      candidate_name: getValue(candidate, ['candidate_name', 'candidateName', 'name', 'full_name', 'fullName'], 'Unknown'),
+      project_id: getValue(candidate, ['project_id', 'projectId'], project.id),
+      project_name: getValue(candidate, ['project_name', 'projectName'], project.name),
+      locations,
+      attendance,
+      overtime: Array.isArray(candidate.overtime) ? candidate.overtime : [],
+      overall_outstanding_deduction: deductionAmount,
+      deductions: deductionAmount > 0 ? [{ amount: deductionAmount, note: 'Outstanding deduction' }] : [],
+    }
+  }),
+})
+
+const getFilterSignature = (filters) => JSON.stringify({
+  candidateIds: filters.candidateIds == null ? null : [...filters.candidateIds].map(String).sort(),
+  deductionCandidateIds: [...(filters.deductionCandidateIds || [])].map(String).sort(),
+  paymentTypes: [...(filters.paymentTypes || [])].map(String).sort(),
+  dateScope: filters.dateScope || 'all',
+  rangeFromDate: filters.rangeFromDate || '',
+  rangeToDate: filters.rangeToDate || '',
+  dates: [...(filters.dates || [])].map(String).sort(),
+})
 
 const getAttendanceIds = (candidateRecords) => [...new Set(candidateRecords.flatMap((candidate) => (
   (candidate.attendance || []).map((attendance) => attendance.attendance_id)
@@ -207,6 +338,13 @@ const normalizeDate = (value) => {
   const date = new Date(text)
   return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10)
 }
+
+const parseLocalDate = (value) => {
+  const [year, month, day] = normalizeDate(value).split('-').map(Number)
+  return year && month && day ? new Date(year, month - 1, day) : undefined
+}
+
+const formatLocalDate = (date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 
 const getDateRange = (from, to) => {
   if (!from || !to || from > to) return []
@@ -268,12 +406,19 @@ export default function CoreTeamSavedAttendanceSheet({
 }) {
   const { user } = useAuth()
   const requestId = useRef(0)
+  const lastAutoFilterSignature = useRef('')
   const directGenerationStarted = useRef(false)
   const projectId = project?.projectId || project?.id || ''
   const projectName = project?.projectName || project?.name || project?.title || String(projectId)
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [candidateRecords, setCandidateRecords] = useState([])
+  const [filteredCandidateRecords, setFilteredCandidateRecords] = useState([])
+  const [candidateDeductionDetails, setCandidateDeductionDetails] = useState(new Map())
+  const [selectedDeductionCandidateIds, setSelectedDeductionCandidateIds] = useState(new Set())
+  const [deductionCandidateKey, setDeductionCandidateKey] = useState('')
+  const [deductionDetailsLoading, setDeductionDetailsLoading] = useState(false)
+  const [deductionDetailsError, setDeductionDetailsError] = useState('')
   const [attendanceCandidates, setAttendanceCandidates] = useState([])
   const [attendanceDates, setAttendanceDates] = useState([])
   const [attendanceDateRange, setAttendanceDateRange] = useState({ from: '', to: '' })
@@ -283,6 +428,11 @@ export default function CoreTeamSavedAttendanceSheet({
   const [error, setError] = useState('')
   const [selectedTypes, setSelectedTypes] = useState([])
   const [includeDeductions, setIncludeDeductions] = useState(false)
+  const [hasLoadedRecords, setHasLoadedRecords] = useState(false)
+  const [autoFilterFailed, setAutoFilterFailed] = useState(false)
+  const [step, setStep] = useState(1)
+  const [error, setError] = useState('')
+  const [selectedTypes, setSelectedTypes] = useState([])
   const [selectedCandidateIds, setSelectedCandidateIds] = useState(null)
   const [candidateSearch, setCandidateSearch] = useState('')
   const [dateScope, setDateScope] = useState('all')
@@ -290,6 +440,7 @@ export default function CoreTeamSavedAttendanceSheet({
   const [rangeToDate, setRangeToDate] = useState('')
   const [specificDates, setSpecificDates] = useState(new Set())
   const [generatedSheet, setGeneratedSheet] = useState(null)
+  const [generatedSheetView, setGeneratedSheetView] = useState('sheet')
   const [sheetName, setSheetName] = useState('')
   const [reviewed, setReviewed] = useState(false)
   const [savingStatus, setSavingStatus] = useState('')
@@ -302,6 +453,11 @@ export default function CoreTeamSavedAttendanceSheet({
   const includeBasePay = paymentTypes.some(isBasePayType)
   const allowanceTypes = useMemo(() => paymentTypes.filter((type) => !isBasePayType(type)), [paymentTypes])
   const earningsByCandidate = useMemo(() => new Map(candidateRecords.map((candidate) => [candidateIdentity(candidate), candidate])), [candidateRecords])
+  const includeBasePay = selectedTypes.some(isBasePayType)
+  const allowanceTypes = useMemo(() => paymentTypes.filter((type) => (
+    selectedTypes.includes(type) && !isBasePayType(type)
+  )), [paymentTypes, selectedTypes])
+  const earningsByCandidate = useMemo(() => new Map(filteredCandidateRecords.map((candidate) => [candidateIdentity(candidate), candidate])), [filteredCandidateRecords])
   const savedEarningsByCandidateAndDate = useMemo(() => {
     const grouped = new Map()
     savedRows.forEach((row) => {
@@ -317,6 +473,21 @@ export default function CoreTeamSavedAttendanceSheet({
     let gross = 0
     let deduction = 0
     const deductionNotes = new Set()
+  const selectedDates = useMemo(() => {
+    if (dateScope === 'range') return attendanceDates.filter((date) => date >= rangeFromDate && date <= rangeToDate)
+    if (dateScope === 'specific') return attendanceDates.filter((date) => specificDates.has(date))
+    return attendanceDates
+  }, [attendanceDates, dateScope, rangeFromDate, rangeToDate, specificDates])
+  const matrixRows = useMemo(() => attendanceCandidates.map((candidate) => {
+    const savedCandidate = earningsByCandidate.get(candidateIdentity(candidate))
+    const candidateKey = candidateIdentity(candidate)
+    const deductionDetails = candidateDeductionDetails.get(candidateKey) || { amount: 0, entries: [] }
+    const deduction = selectedDeductionCandidateIds.has(candidateKey)
+      ? Math.min(deductionDetails.amount, Math.max(0, getCandidateEarnings(savedCandidate || {})))
+      : 0
+    const typeTotals = {}
+    let gross = 0
+    const deductionNotes = new Set(deduction > 0 ? deductionDetails.entries.map((entry) => entry.note).filter(Boolean) : [])
     ;(savedCandidate?.attendance || []).forEach((attendance) => {
       ;(attendance.payments || []).forEach((payment) => {
         const amount = Number(payment.amount) || 0
@@ -336,6 +507,8 @@ export default function CoreTeamSavedAttendanceSheet({
     })
     let workedDays = 0
     attendanceDates.forEach((date) => {
+    let workedDays = 0
+    selectedDates.forEach((date) => {
       const entry = candidate.attendance[date]
       if (entry?.kind === 'project' && entry.status !== 'absent') workedDays += entry.status === 'half' ? 0.5 : 1
     })
@@ -355,6 +528,7 @@ export default function CoreTeamSavedAttendanceSheet({
       net: gross - deduction,
     }
   }), [allowanceTypes, attendanceCandidates, attendanceDates, earningsByCandidate])
+  }), [allowanceTypes, attendanceCandidates, candidateDeductionDetails, earningsByCandidate, selectedDates, selectedDeductionCandidateIds])
   const matrixTotals = useMemo(() => matrixRows.reduce((totals, row) => {
     totals.workedDays += row.workedDays
     totals.baseAmount += row.baseAmount
@@ -390,6 +564,53 @@ export default function CoreTeamSavedAttendanceSheet({
   const selectedRows = useMemo(() => flattenCandidateRecords(selectedRecords), [selectedRecords])
   const generatedRows = generatedSheet?.rows || EMPTY_ROWS
   const previewColumns = useMemo(() => getPreviewColumns(generatedRows), [generatedRows])
+  const deductionCandidateRow = matrixRows.find((row) => candidateIdentity(row.candidate) === deductionCandidateKey)
+  const deductionCandidate = deductionCandidateRow?.candidate
+  const activeDeductionDetails = deductionCandidateKey
+    ? candidateDeductionDetails.get(deductionCandidateKey) || { amount: 0, entries: [] }
+    : { amount: 0, entries: [] }
+  const activeDeductionAppliedAmount = Math.min(activeDeductionDetails.amount, Math.max(0, deductionCandidateRow?.gross || 0))
+  const activeDeductionSelected = selectedDeductionCandidateIds.has(deductionCandidateKey)
+  const selectedDateSet = useMemo(() => new Set(selectedDates), [selectedDates])
+  const candidateIds = useMemo(() => candidateRecords.map(candidateIdentity), [candidateRecords])
+  const automaticFilters = useMemo(() => ({
+    candidateIds: selectedCandidateIds === null ? undefined : [...selectedCandidateIds],
+    deductionCandidateIds: [...selectedDeductionCandidateIds],
+    paymentTypes: selectedTypes,
+    dateScope,
+    rangeFromDate,
+    rangeToDate,
+    dates: dateScope === 'specific' ? [...specificDates] : [],
+  }), [dateScope, rangeFromDate, rangeToDate, selectedCandidateIds, selectedDeductionCandidateIds, selectedTypes, specificDates])
+  const automaticFilterSignature = useMemo(() => getFilterSignature(automaticFilters), [automaticFilters])
+  const selectedCandidateCount = selectedCandidateIds === null ? candidateRecords.length : selectedCandidateIds.size
+  const dateSelectionValid = dateScope !== 'range' || Boolean(rangeFromDate && rangeToDate && rangeFromDate <= rangeToDate)
+  const filterRequestPending = automaticFilterSignature !== lastAutoFilterSignature.current
+  const selectedRecords = useMemo(() => filterCandidateRecords(
+    filteredCandidateRecords,
+    selectedTypes,
+    selectedCandidateIds,
+    selectedDateSet,
+  ).map((candidate) => {
+    const candidateKey = candidateIdentity(candidate)
+    const details = candidateDeductionDetails.get(candidateKey) || { amount: 0, entries: [] }
+    const applyDeduction = selectedDeductionCandidateIds.has(candidateKey)
+    const deductionAmount = applyDeduction
+      ? Math.min(details.amount, Math.max(0, getCandidateEarnings(candidate)))
+      : 0
+    return {
+      ...candidate,
+      deductions: applyDeduction ? details.entries : [],
+      overall_outstanding_deduction: deductionAmount,
+    }
+  }), [candidateDeductionDetails, filteredCandidateRecords, selectedCandidateIds, selectedDateSet, selectedDeductionCandidateIds, selectedTypes])
+  const selectedRows = useMemo(() => flattenCandidateRecords(selectedRecords), [selectedRecords])
+  const generatedRows = generatedSheet?.rows || EMPTY_ROWS
+  const previewColumns = useMemo(() => getPreviewColumns(generatedRows), [generatedRows])
+  const generatedCandidateBreakdown = useMemo(
+    () => getGeneratedCandidateBreakdown(generatedSheet?.response),
+    [generatedSheet?.response],
+  )
 
   const loadSavedRecords = useCallback(async (from = '', to = '', filters = {}) => {
     if (directMode) {
@@ -402,6 +623,22 @@ export default function CoreTeamSavedAttendanceSheet({
       const records = Array.isArray(initialRecords) ? initialRecords : []
       setCandidateRecords(records)
       setAttendanceCandidates([])
+      setDeductionDetailsLoading(true)
+      setDeductionDetailsError('')
+      try {
+        setCandidateDeductionDetails(await fetchCandidateDeductionDetails(records))
+      } catch (deductionError) {
+        console.error('Failed to load candidate outstanding deductions:', deductionError)
+        setCandidateDeductionDetails(new Map())
+        setDeductionDetailsError('Candidate outstanding deductions could not be loaded.')
+      } finally {
+        setDeductionDetailsLoading(false)
+      }
+      setSelectedDeductionCandidateIds(new Set())
+      setCandidateRecords(records)
+      setFilteredCandidateRecords(records)
+      setAttendanceCandidates([])
+      setHasLoadedRecords(true)
       const bounds = getSavedDateBounds(records)
       const rangeFrom = from || bounds.first
       const rangeTo = to || bounds.last
@@ -425,6 +662,7 @@ export default function CoreTeamSavedAttendanceSheet({
     if (!projectId) return
     const currentRequestId = ++requestId.current
     setLoading(true)
+    if (filters.preserveOptions) setAutoFilterFailed(false)
     setStep(1)
     setError('')
     setGeneratedSheet(null)
@@ -434,6 +672,7 @@ export default function CoreTeamSavedAttendanceSheet({
         ...(filters.paymentTypes || []),
         ...(filters.includeDeductions ? ['Deduction'] : []),
       ]
+      const requestedPaymentTypes = filters.paymentTypes || []
       const response = await coreRecruiterAPI.getSavedAttendanceSheet({
         project_id: projectId,
         ...(from ? { from } : {}),
@@ -445,6 +684,20 @@ export default function CoreTeamSavedAttendanceSheet({
       const records = normalizeSavedCandidateRecords(response?.data ?? response, { id: projectId, name: projectName })
       if (currentRequestId !== requestId.current) return
       setCandidateRecords(records)
+      if (!filters.preserveOptions) {
+        setDeductionDetailsLoading(true)
+        setDeductionDetailsError('')
+        try {
+          setCandidateDeductionDetails(await fetchCandidateDeductionDetails(records))
+          setSelectedDeductionCandidateIds(new Set())
+        } catch (deductionError) {
+          console.error('Failed to load candidate outstanding deductions:', deductionError)
+          setCandidateDeductionDetails(new Map())
+          setDeductionDetailsError('Candidate outstanding deductions could not be loaded.')
+        } finally {
+          setDeductionDetailsLoading(false)
+        }
+      }
       const bounds = getSavedDateBounds(records)
       const rangeFrom = from || bounds.first
       const rangeTo = to || bounds.last
@@ -468,6 +721,60 @@ export default function CoreTeamSavedAttendanceSheet({
       console.error('Failed to load saved core team attendance sheet:', loadError)
       setCandidateRecords([])
       setSelectedTypes([])
+      const types = [...new Set(flattenCandidateRecords(records)
+        .filter((row) => row.payment_type !== 'Deduction')
+        .map((row) => String(row.payment_type)))].sort((a, b) => a.localeCompare(b))
+      const resolvedFilters = filters.preserveOptions ? filters : {
+        candidateIds: undefined,
+        paymentTypes: types,
+        dateScope: 'all',
+        rangeFromDate: rangeFrom,
+        rangeToDate: rangeTo,
+        dates: [],
+      }
+      const datesForMatrix = resolvedFilters.dateScope === 'specific'
+        ? resolvedFilters.dates || []
+        : resolvedFilters.dateScope === 'range'
+          ? getDateRange(resolvedFilters.rangeFromDate, resolvedFilters.rangeToDate)
+          : dates
+      const matrixRecords = filters.preserveOptions
+        ? filterCandidateRecords(
+          records,
+          resolvedFilters.paymentTypes || [],
+          resolvedFilters.candidateIds == null ? null : new Set(resolvedFilters.candidateIds),
+          new Set(datesForMatrix),
+        )
+        : records
+      if (!filters.preserveOptions) {
+        setCandidateRecords(records)
+        setAttendanceDates(dates)
+      }
+      setFilteredCandidateRecords(matrixRecords)
+      setHasLoadedRecords(true)
+      setAutoFilterFailed(false)
+      setAttendanceDateRange({ from: rangeFrom, to: rangeTo })
+      setAttendanceWarning('')
+      setAttendanceCandidates(loadAttendanceMatrixFromPayments(matrixRecords))
+      if (!filters.preserveOptions) {
+        setSelectedCandidateIds(resolvedFilters.candidateIds ? new Set(resolvedFilters.candidateIds) : null)
+        setDateScope(resolvedFilters.dateScope)
+        setRangeFromDate(resolvedFilters.rangeFromDate)
+        setRangeToDate(resolvedFilters.rangeToDate)
+        setSpecificDates(new Set(resolvedFilters.dates))
+        setSelectedTypes(resolvedFilters.paymentTypes)
+      }
+      lastAutoFilterSignature.current = getFilterSignature(resolvedFilters)
+    } catch (loadError) {
+      if (currentRequestId !== requestId.current) return
+      console.error('Failed to load saved core team attendance sheet:', loadError)
+      if (!filters.preserveOptions) {
+        setCandidateRecords([])
+        setFilteredCandidateRecords([])
+        setSelectedTypes([])
+      } else {
+        setAutoFilterFailed(true)
+      }
+      setHasLoadedRecords(true)
       setError('Saved attendance earnings could not be loaded.')
     } finally {
       if (currentRequestId === requestId.current) setLoading(false)
@@ -495,6 +802,40 @@ export default function CoreTeamSavedAttendanceSheet({
   const generatePaymentSheet = useCallback(async () => {
     if (!selectedTypes.length && !includeDeductions) {
       setError('Select at least one payment type or include deductions.')
+    setFilteredCandidateRecords([])
+    setCandidateDeductionDetails(new Map())
+    setSelectedDeductionCandidateIds(new Set())
+    setDeductionDetailsError('')
+    setAttendanceDateRange({ from: '', to: '' })
+    setHasLoadedRecords(false)
+    setGeneratedSheet(null)
+    setSheetName('')
+    setReviewed(false)
+    loadSavedRecords(initialFromDate, initialToDate)
+  }, [isOpen, initialFromDate, initialToDate, loadSavedRecords, projectId])
+
+  useEffect(() => {
+    if (!isOpen || directMode || loading || !candidateRecords.length) return undefined
+    if (!dateSelectionValid) return undefined
+    if (automaticFilterSignature === lastAutoFilterSignature.current) return undefined
+
+    const timer = setTimeout(() => {
+      lastAutoFilterSignature.current = automaticFilterSignature
+      setGeneratedSheet(null)
+      setSavedMessage('')
+      loadSavedRecords(
+        dateScope === 'range' ? rangeFromDate : fromDate,
+        dateScope === 'range' ? rangeToDate : toDate,
+        { ...automaticFilters, preserveOptions: true },
+      )
+    }, 350)
+
+    return () => clearTimeout(timer)
+  }, [automaticFilterSignature, automaticFilters, candidateRecords.length, dateScope, dateSelectionValid, directMode, fromDate, isOpen, loadSavedRecords, loading, rangeFromDate, rangeToDate, selectedDeductionCandidateIds, specificDates.size, toDate])
+
+  const generatePaymentSheet = useCallback(async () => {
+    if (!selectedTypes.length && !selectedDeductionCandidateIds.size) {
+      setError('Select at least one payment type or choose a candidate deduction.')
       return
     }
     if (!selectedRecords.length) {
@@ -515,6 +856,16 @@ export default function CoreTeamSavedAttendanceSheet({
       const rows = getGeneratedRows(body)
       if (!Array.isArray(rows) || !rows.length) throw new Error('Payment sheet service returned no rows.')
       setGeneratedSheet({ rows, response: body, savedStatus: '' })
+      const payload = buildAttendancePaymentSheetPayload(selectedRecords, { id: projectId, name: projectName })
+      const response = await coreRecruiterAPI.generateAttendancePaymentSheet(payload)
+      const body = response?.data ?? response
+      const rows = getGeneratedRows(body)
+      if (!Array.isArray(rows) || !rows.length) throw new Error('Payment sheet service returned no rows.')
+      if (payload.attendance.some((candidate) => candidate.deductions.length > 0)) {
+        await coreRecruiterAPI.saveAttendancePaymentSheet(payload.attendance)
+      }
+      setGeneratedSheet({ rows, response: body, savedStatus: '' })
+      setGeneratedSheetView('sheet')
       setSheetName(`${projectName} payments${fromDate || toDate ? ` ${fromDate || 'start'} to ${toDate || 'end'}` : ''}`)
       setStep(2)
     } catch (generationError) {
@@ -543,12 +894,19 @@ export default function CoreTeamSavedAttendanceSheet({
     setSavedMessage('')
     try {
       await recruiterAPI.confirmTimingExpensePaymentSheet({
+      await coreRecruiterAPI.confirmAttendancePaymentSheet({
         type: 'attendance',
         user_id: user?.userId || 1,
         status,
         sheet_name: sheetName.trim(),
         payment_sheet: generatedRows,
         attendance_ids: getAttendanceIds(selectedRecords),
+        deduction_allocations: status === 'ready_for_payment'
+          ? selectedRecords.filter((candidate) => Number(candidate.overall_outstanding_deduction) > 0).map((candidate) => ({
+            candidate_id: candidate.candidate_id,
+            amount: Number(candidate.overall_outstanding_deduction),
+          }))
+          : [],
       })
       setGeneratedSheet((current) => ({ ...current, savedStatus: status }))
       setSavedMessage(status === 'draft' ? 'Payment sheet saved as draft.' : 'Payment sheet confirmed and ready for payment.')
@@ -586,6 +944,21 @@ export default function CoreTeamSavedAttendanceSheet({
         <FontAwesomeIcon icon={faRotate} /> {loading ? 'Loading...' : 'Apply server filters'}
       </button>}
       {step === 1 && <button type="button" className="btn btn-primary" onClick={generatePaymentSheet} disabled={loading || generating || !dateSelectionValid || selectedRecords.length === 0}>
+  const resetFilters = useCallback(() => {
+    setCandidateSearch('')
+    setGeneratedSheet(null)
+    setSavedMessage('')
+    loadSavedRecords(fromDate, toDate)
+  }, [fromDate, loadSavedRecords, toDate])
+
+  const footer = useMemo(() => (
+    <div className="core-saved-sheet-footer">
+      {step === 1 && !directMode && <button type="button" className="btn btn-outline core-saved-sheet-reset" onClick={resetFilters} disabled={loading}>
+        <FontAwesomeIcon icon={faRotate} /> Reset filters
+      </button>}
+      {step === 2 && <button type="button" className="btn btn-outline" onClick={() => { setStep(1); setError('') }} disabled={Boolean(savingStatus)}>Back</button>}
+      {!embedded && <button type="button" className="btn btn-outline" onClick={onClose}>Close</button>}
+      {step === 1 && <button type="button" className="btn btn-primary" onClick={generatePaymentSheet} disabled={loading || generating || filterRequestPending || autoFilterFailed || !dateSelectionValid || selectedRecords.length === 0}>
         {generating ? 'Generating...' : 'Generate payment sheet'}
       </button>}
       {step === 2 && generatedSheet?.savedStatus !== 'ready_for_payment' && <>
@@ -598,6 +971,7 @@ export default function CoreTeamSavedAttendanceSheet({
       </>}
     </div>
   ), [dateScope, dateSelectionValid, embedded, fromDate, generatedSheet, generatePaymentSheet, generating, includeDeductions, loadSavedRecords, loading, onClose, rangeFromDate, rangeToDate, reviewed, savePaymentSheet, savingStatus, selectedCandidateIds, selectedDates, selectedRecords.length, selectedTypes, specificDates, step, toDate])
+  ), [directMode, embedded, fromDate, generatedSheet, generatePaymentSheet, generating, loadSavedRecords, loading, onClose, resetFilters, reviewed, savePaymentSheet, savingStatus, selectedRecords.length, step, toDate])
 
   useEffect(() => {
     if (!embedded || !onFooterChange) return undefined
@@ -613,6 +987,10 @@ export default function CoreTeamSavedAttendanceSheet({
         </header>
         {error && <div className="attendance-message error" role="alert">{error}</div>}
         {loading ? <div className="core-saved-sheet-empty" role="status">{directMode ? 'Preparing payment sheet...' : 'Loading saved attendance earnings...'}</div> : <>
+        {deductionDetailsLoading && <div className="core-saved-sheet-empty" role="status">Loading candidate outstanding deductions...</div>}
+        {deductionDetailsError && <div className="attendance-message error" role="status">{deductionDetailsError} Deduction application is unavailable until balances load.</div>}
+        {loading && !hasLoadedRecords ? <div className="core-saved-sheet-empty" role="status">{directMode ? 'Preparing payment sheet...' : 'Loading saved attendance earnings...'}</div> : <>
+          {loading && <div className="core-saved-sheet-empty" role="status">Updating attendance filters...</div>}
           {attendanceWarning && <div className="attendance-message" role="status">{attendanceWarning}</div>}
           {directMode && generating && <div className="core-saved-sheet-empty" role="status">Preparing payment sheet from the attendance and earnings you just created...</div>}
           {!directMode && step === 1 && <>
@@ -620,6 +998,7 @@ export default function CoreTeamSavedAttendanceSheet({
             <header><h3>Saved attendance earnings</h3><span>{savedRows.length} entries · {matrixRows.length} team members</span></header>
             <div className="core-saved-sheet-matrix-title">{projectName} Core Team Attendance and Payment Sheet</div>
             <div className="core-saved-sheet-matrix-range">Date range: {attendanceDateRange.from || '—'} to {attendanceDateRange.to || '—'}</div>
+            <div className="core-saved-sheet-matrix-range">Showing {selectedDates.length} of {attendanceDates.length} dates</div>
             {matrixRows.length ? <div className="core-saved-sheet-table-wrap core-saved-sheet-matrix-wrap">
               <table className="core-saved-sheet-table core-saved-sheet-matrix">
                 <thead><tr>
@@ -628,6 +1007,10 @@ export default function CoreTeamSavedAttendanceSheet({
                   <th>Worked Days</th>{includeBasePay && <><th>Average Base Rate / Day</th><th>Base Amount</th></>}
                   {allowanceTypes.map((type) => <th key={type}>{type}</th>)}
                   <th>Gross Amount</th><th>Deduction</th><th>Deduction Note</th><th>Net Amount</th>
+                  {selectedDates.map((date) => <th className="attendance-date" key={date}>{date}</th>)}
+                  <th>Worked Days</th>{includeBasePay && <><th>Average Base Rate / Day</th><th>Base Amount</th></>}
+                  {allowanceTypes.map((type) => <th key={type}>{type}</th>)}
+                  <th>Gross Amount</th>{selectedDeductionCandidateIds.size > 0 && <><th>Deduction</th><th>Deduction Note</th></>}<th>Net Amount</th>
                 </tr></thead>
                 <tbody>
                   {matrixRows.map((row, index) => {
@@ -638,6 +1021,19 @@ export default function CoreTeamSavedAttendanceSheet({
                       <td>{row.candidate.mobile || '—'}</td>
                       <td>{row.candidate.aadhaar || '—'}</td>
                       {attendanceDates.map((date) => {
+                    const deductionDetails = candidateDeductionDetails.get(candidateKey) || { amount: 0, entries: [] }
+                    return <tr key={candidateKey}>
+                      <td>{index + 1}</td>
+                      <td><span className="core-saved-sheet-candidate-name">{row.candidate.candidate_name || 'Unknown'}{deductionDetails.amount > 0 && <button
+                        type="button"
+                        className={`core-saved-sheet-deduction-indicator${selectedDeductionCandidateIds.has(candidateKey) ? ' is-selected' : ''}`}
+                        onClick={() => setDeductionCandidateKey(candidateKey)}
+                        aria-label={`Review outstanding deduction of ${formatMoney(deductionDetails.amount)} for ${row.candidate.candidate_name || 'candidate'}`}
+                        title={`Outstanding deduction: ${formatMoney(deductionDetails.amount)}`}
+                      ><FontAwesomeIcon icon={faCircleExclamation} /></button>}</span></td>
+                      <td>{row.candidate.mobile || '—'}</td>
+                      <td>{row.candidate.aadhaar || '—'}</td>
+                      {selectedDates.map((date) => {
                         const hasSavedEarning = savedEarningsByCandidateAndDate.has(`${candidateKey}|${date}`)
                         const status = getMatrixStatus(row.candidate.attendance[date], hasSavedEarning)
                         return <td className="attendance-date" key={date} title={hasSavedEarning ? 'Saved earnings on this date' : undefined} aria-label={`${status}${hasSavedEarning ? ', saved earnings' : ''}`}>
@@ -647,6 +1043,7 @@ export default function CoreTeamSavedAttendanceSheet({
                       <td>{row.workedDays}</td>{includeBasePay && <><td>{formatMoney(row.baseRate)}</td><td>{formatMoney(row.baseAmount)}</td></>}
                       {allowanceTypes.map((type) => <td key={type}>{formatMoney(row.allowanceTotals[type])}</td>)}
                       <td>{formatMoney(row.gross)}</td><td>{formatMoney(row.deduction)}</td><td>{row.deductionNote || ''}</td><td><strong>{formatMoney(row.net)}</strong></td>
+                      <td>{formatMoney(row.gross)}</td>{selectedDeductionCandidateIds.size > 0 && <><td>{formatMoney(row.deduction)}</td><td>{row.deductionNote || ''}</td></>}<td><strong>{formatMoney(row.net)}</strong></td>
                     </tr>
                   })}
                   <tr className="core-saved-sheet-total-row">
@@ -655,6 +1052,10 @@ export default function CoreTeamSavedAttendanceSheet({
                     <td>{matrixTotals.workedDays}</td>{includeBasePay && <><td></td><td>{formatMoney(matrixTotals.baseAmount)}</td></>}
                     {allowanceTypes.map((type) => <td key={type}>{formatMoney(matrixTotals.allowanceTotals[type])}</td>)}
                     <td>{formatMoney(matrixTotals.gross)}</td><td>{formatMoney(matrixTotals.deduction)}</td><td></td><td>{formatMoney(matrixTotals.net)}</td>
+                    {selectedDates.map((date) => <td key={date}></td>)}
+                    <td>{matrixTotals.workedDays}</td>{includeBasePay && <><td></td><td>{formatMoney(matrixTotals.baseAmount)}</td></>}
+                    {allowanceTypes.map((type) => <td key={type}>{formatMoney(matrixTotals.allowanceTotals[type])}</td>)}
+                    <td>{formatMoney(matrixTotals.gross)}</td>{selectedDeductionCandidateIds.size > 0 && <><td>{formatMoney(matrixTotals.deduction)}</td><td></td></>}<td>{formatMoney(matrixTotals.net)}</td>
                   </tr>
                 </tbody>
               </table>
@@ -715,6 +1116,25 @@ export default function CoreTeamSavedAttendanceSheet({
                       })} />
                       <span>{date}</span>
                     </label>)}
+                  <div className="core-saved-sheet-calendar-actions">
+                    <span>{specificDates.size} dates selected</span>
+                    <button type="button" onClick={() => setSpecificDates(new Set(attendanceDates))}>Select all</button>
+                    <button type="button" onClick={() => setSpecificDates(new Set())}>Clear dates</button>
+                  </div>
+                  <div className="core-saved-sheet-calendar-wrap">
+                    {attendanceDates.length ? <DayPicker
+                      mode="multiple"
+                      className="core-saved-sheet-calendar"
+                      defaultMonth={parseLocalDate(attendanceDates[0])}
+                      selected={selectedDates.map(parseLocalDate)}
+                      onSelect={(dates) => setSpecificDates(new Set((dates || []).map(formatLocalDate)))}
+                      startMonth={parseLocalDate(attendanceDates[0])}
+                      endMonth={parseLocalDate(attendanceDates[attendanceDates.length - 1])}
+                      disabled={{
+                        before: parseLocalDate(attendanceDates[0]),
+                        after: parseLocalDate(attendanceDates[attendanceDates.length - 1]),
+                      }}
+                    /> : <div className="core-saved-sheet-empty">No dates available to select.</div>}
                   </div>
                 </>}
               </fieldset>
@@ -743,6 +1163,8 @@ export default function CoreTeamSavedAttendanceSheet({
               </label>}
             </div>
             {includeDeductions && <p className="core-saved-sheet-note">Deductions apply to this generated sheet as a whole, not to an individual earning type.</p>}
+            </div>
+            {selectedDeductionCandidateIds.size > 0 && <p className="core-saved-sheet-note">Selected candidate deductions will be included and subtracted from their individual net amounts.</p>}
           </section>
           </>}
 
@@ -750,6 +1172,11 @@ export default function CoreTeamSavedAttendanceSheet({
             <header><h3>Generated payment sheet</h3><span>{generatedRows.length} rows</span></header>
             <label className="core-saved-sheet-name"><span>Sheet name</span><input className="form-control" value={sheetName} maxLength={100} onChange={(event) => setSheetName(event.target.value)} /></label>
             <div className="core-saved-sheet-table-wrap">
+            <div className="core-saved-sheet-generated-tabs" role="tablist" aria-label="Generated payment sheet views">
+              <button type="button" role="tab" aria-selected={generatedSheetView === 'sheet'} onClick={() => setGeneratedSheetView('sheet')}>Payout rows</button>
+              <button type="button" role="tab" aria-selected={generatedSheetView === 'calculation'} disabled={!generatedCandidateBreakdown.length} onClick={() => setGeneratedSheetView('calculation')}>Calculation breakdown</button>
+            </div>
+            {generatedSheetView === 'sheet' && <div className="core-saved-sheet-table-wrap">
               <table className="core-saved-sheet-table core-saved-sheet-preview-table">
                 <thead><tr><th>#</th>{previewColumns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
                 <tbody>{generatedRows.map((row, rowIndex) => <tr key={rowIndex}>
@@ -761,6 +1188,36 @@ export default function CoreTeamSavedAttendanceSheet({
                 </tr>)}</tbody>
               </table>
             </div>
+            </div>}
+            {generatedSheetView === 'calculation' && (generatedCandidateBreakdown.length ? <>
+              <p className="core-saved-sheet-calculation-note">Balance = total amount + OT amount − deduction amount. Component amounts are returned by the payment generator.</p>
+              <div className="core-saved-sheet-table-wrap">
+                <table className="core-saved-sheet-table core-saved-sheet-calculation-table">
+                  <thead><tr><th>Candidate</th><th>Candidate ID</th><th>Earnings breakdown</th><th>Total amount</th></tr></thead>
+                  <tbody>{generatedCandidateBreakdown.map((candidate, index) => <tr key={`${candidate.candidate_id || candidate.registration_id || candidate.candidate_name || 'candidate'}-${index}`}>
+                    <td>{candidate.candidate_name || candidate.name || 'Unknown'}</td>
+                    <td>{candidate.candidate_id ?? candidate.registration_id ?? '—'}</td>
+                    <td>{Array.isArray(candidate.earnings_breakdown) && candidate.earnings_breakdown.length ? <ul className="core-saved-sheet-earnings-breakdown">
+                      {candidate.earnings_breakdown.map((component, componentIndex) => {
+                        const componentName = component.component_name || component.payment_type || component.name || component.component_code || `Component ${componentIndex + 1}`
+                        const componentAmount = component.amount ?? component.total_amt ?? component.total_amount
+                        const unit = component.hours != null ? 'hour' : component.days != null ? 'day' : ''
+                        const quantity = component.hours ?? component.days
+                        const unitDetails = [
+                          quantity != null && `${quantity} ${unit}${Number(quantity) === 1 ? '' : 's'}`,
+                          component.rate != null && `${formatMoney(component.rate)}/${unit || 'unit'}`,
+                        ].filter(Boolean).join(' · ')
+                        return <li key={`${component.component_code || componentName}-${componentIndex}`}>
+                          <span>{componentName}{unitDetails && <small>{unitDetails}</small>}</span>
+                          <strong>{componentAmount == null ? '—' : formatMoney(componentAmount)}</strong>
+                        </li>
+                      })}
+                    </ul> : <span className="core-saved-sheet-empty-label">No component breakdown returned</span>}</td>
+                    <td>{candidate.total_amt == null ? '—' : formatMoney(candidate.total_amt)}</td>
+                  </tr>)}</tbody>
+                </table>
+              </div>
+            </> : <div className="core-saved-sheet-empty">The payment generator did not return candidate calculation details.</div>)}
             {generatedSheet.savedStatus !== 'ready_for_payment' && <label className="core-saved-sheet-ack">
               <input type="checkbox" checked={reviewed} disabled={Boolean(savingStatus)} onChange={(event) => setReviewed(event.target.checked)} />
               <span>I reviewed this payment sheet and confirm it is ready to be paid.</span>
@@ -776,5 +1233,54 @@ export default function CoreTeamSavedAttendanceSheet({
     <Modal isOpen={isOpen} onClose={onClose} title={`Core team attendance sheet · ${projectName}`} maxWidth="1180px" footer={footer}>
       {content}
     </Modal>
+  )
+  const deductionReviewModal = (
+    <Modal
+      isOpen={Boolean(deductionCandidate)}
+      onClose={() => setDeductionCandidateKey('')}
+      title={`Outstanding deduction · ${deductionCandidate?.candidate_name || ''}`}
+      maxWidth="440px"
+      zIndex={12000}
+      footer={<button type="button" className="btn btn-outline" onClick={() => setDeductionCandidateKey('')}>Close</button>}
+    >
+      {deductionCandidate && <section className="core-saved-sheet-deduction-review">
+        <div><span>Overall outstanding</span><strong>{formatMoney(activeDeductionDetails.amount)}</strong></div>
+        {activeDeductionDetails.entries.length > 0 && <ul>
+          {activeDeductionDetails.entries.map((entry) => <li key={entry.id}>
+            <span>{entry.note || 'Deduction'}</span><strong>{formatMoney(entry.amount)}</strong>
+          </li>)}
+        </ul>}
+        <label className="core-saved-sheet-deduction-apply">
+          <input
+            type="checkbox"
+            checked={activeDeductionSelected}
+            disabled={deductionDetailsLoading || Boolean(deductionDetailsError)}
+            onChange={(event) => setSelectedDeductionCandidateIds((current) => {
+              const next = new Set(current)
+              if (event.target.checked) next.add(deductionCandidateKey)
+              else next.delete(deductionCandidateKey)
+              setGeneratedSheet(null)
+              setSavedMessage('')
+              return next
+            })}
+          />
+          <span>{activeDeductionSelected ? 'Deduction will be included in this sheet' : `Deduct up to ${formatMoney(activeDeductionAppliedAmount)} in this sheet`}</span>
+        </label>
+        {deductionDetailsError && <p className="core-saved-sheet-note">{deductionDetailsError}</p>}
+      </section>}
+    </Modal>
+  )
+
+  if (embedded) return <>
+    <div className="core-saved-sheet-embedded">{content}</div>
+    {deductionReviewModal}
+  </>
+  return (
+    <>
+      <Modal isOpen={isOpen} onClose={onClose} title={`Core team attendance sheet · ${projectName}`} maxWidth="1180px" footer={footer}>
+        {content}
+      </Modal>
+      {deductionReviewModal}
+    </>
   )
 }

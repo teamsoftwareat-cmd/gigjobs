@@ -21,6 +21,7 @@ const COLUMNS = [
   'Email',
   'Aadhaar',
   'Area',
+  'Work Location',
   'Friend Name',
   'Friend Number',
   'Created At',
@@ -641,6 +642,7 @@ export default function ApplicationsNew() {
         <td>{getCellValue(candidate.email_id)}</td>
         <td>{getCellValue(candidate.aadhar)}</td>
         <td>{getCellValue(candidate.area)}</td>
+        <td>{getCellValue(candidate.work_location)}</td>
         <td>{getCellValue(candidate.friend_name)}</td>
         <td>{getCellValue(candidate.friend_number)}</td>
         <td>{getCellValue(candidate.created_at)}</td>

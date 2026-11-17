@@ -85,6 +85,9 @@ const MultiSelectDropdown = ({
       ? selectedValues.filter((value) => value !== option.value)
       : [...selectedValues, option.value]
     onChange(nextValues)
+    if (!selectedValues.includes(option.value)) {
+      onChange([...selectedValues, option.value])
+    }
     updateSearch('')
     setIsOpen(false)
     inputRef.current?.focus()

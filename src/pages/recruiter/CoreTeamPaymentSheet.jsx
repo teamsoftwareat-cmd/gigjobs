@@ -44,6 +44,35 @@ const getList = (payload) => {
 }
 
 const normalizeSavedAttendancePayments = (payload) => {
+const flattenAttendancePaymentRows = (records) => records.flatMap((record) => {
+  const nestedCandidate = [record.candidate, record.candidate_details, record.candidateDetails, record.user, record.worker_details, record.workerDetails, record.profile]
+    .find((value) => value && typeof value === 'object' && !Array.isArray(value))
+  const candidateDetails = nestedCandidate ? { ...nestedCandidate, ...record } : record
+  const candidate = {
+    candidate_id: getRecordValue(candidateDetails, ['candidate_id', 'candidateId', 'registration_id', 'registrationId', 'user_id', 'userId', 'id']),
+    candidate_name: getRecordValue(candidateDetails, ['candidate_name', 'candidateName', 'name', 'worker_name', 'full_name', 'fullName']),
+    mobile: getRecordValue(candidateDetails, ['mobile', 'mobile_number', 'candidate_mobile', 'phone', 'phone_number']),
+  }
+  const attendanceRows = (record.attendance || []).flatMap((attendance) => (
+    (attendance.payments || []).map((payment) => ({
+      ...record,
+      ...attendance,
+      ...payment,
+      ...candidate,
+      attendance_date: getRecordValue(attendance, ['attendance_date', 'date']),
+    }))
+  ))
+  const overtimeRows = (record.overtime || []).map((overtime) => ({
+    ...record,
+    ...overtime,
+    ...candidate,
+    payment_type: 'Overtime',
+  }))
+  return [...attendanceRows, ...overtimeRows]
+})
+
+const normalizeSavedAttendancePayments = (payload) => {
+  if (Array.isArray(payload) && payload.length === 0) return []
   const rows = getList(payload)
   if (rows.length) {
     return rows.flatMap((record) => (
@@ -55,6 +84,94 @@ const normalizeSavedAttendancePayments = (payload) => {
   const record = payload?.data ?? payload
   if (!record || typeof record !== 'object') return []
   return Array.isArray(record.attendance) ? flattenAttendancePaymentRows([record]) : [record]
+}
+
+function restoreSavedPaymentConfiguration(rows, candidates) {
+  const candidateByIdentity = new Map()
+  candidates.forEach((candidate) => {
+    getCandidateIdentityKeys(candidate).forEach((identity) => candidateByIdentity.set(identity, candidate))
+    candidateByIdentity.set(`candidate:${candidate.key.trim().toLowerCase()}`, candidate)
+  })
+  const findCandidate = (record) => getCandidateIdentityKeys(record)
+    .map((identity) => candidateByIdentity.get(identity))
+    .find(Boolean)
+
+  const datedAmounts = new Map()
+  const overtimeByCandidate = new Map()
+  rows.forEach((record, index) => {
+    const candidate = findCandidate(record)
+    if (!candidate) return
+    const paymentType = String(getRecordValue(record, ['payment_type', 'paymentType', 'type'])).trim()
+    const normalizedType = paymentType.toLowerCase()
+    const amount = money(getRecordValue(record, ['amount', 'payment_amount']))
+    if (normalizedType === 'deduction' || amount < 0) return
+    if (normalizedType === 'overtime') {
+      const hours = Math.max(0, money(getRecordValue(record, ['overtime_hours', 'overtimeHours'])))
+      if (!hours) return
+      const current = overtimeByCandidate.get(candidate.key) || { hours: 0, amount: 0 }
+      current.hours += hours
+      current.amount += amount
+      overtimeByCandidate.set(candidate.key, current)
+      return
+    }
+
+    const date = normalizeDate(getRecordValue(record, ['attendance_date', 'date']))
+    if (!date) return
+    const attendance = candidate.attendance[date]
+    const weight = normalizedType === 'salary' || normalizedType === 'base salary' || normalizedType === 'base pay'
+      ? projectWorkedWeight(candidate, date)
+      : normalizedType === 'travel day meal allowance'
+        ? (attendance?.kind === 'travel' ? attendanceWeight(candidate, date) : 0)
+        : projectWorkedWeight(candidate, date)
+    if (weight <= 0) return
+    const key = `${candidate.key}|${date}|${normalizedType}`
+    const current = datedAmounts.get(key) || { candidate, date, paymentType, amount: 0, weight }
+    current.amount += amount
+    datedAmounts.set(key, current)
+  })
+
+  const baseRateRules = []
+  const allowances = []
+  datedAmounts.forEach(({ candidate, date, paymentType, amount, weight }) => {
+    const normalizedType = paymentType.toLowerCase()
+    const rule = {
+      id: `saved-${candidate.key}-${date}-${normalizedType}`,
+      amount: Number((amount / weight).toFixed(2)),
+      scope: 'selected',
+      candidateKeys: [candidate.key],
+      dateScope: 'specific',
+      fromDate: '',
+      toDate: '',
+      specificDates: [date],
+    }
+    if (['salary', 'base salary', 'base pay'].includes(normalizedType)) {
+      baseRateRules.push(rule)
+      return
+    }
+    const allowanceType = ALLOWANCE_TYPES.find((type) => type.toLowerCase() === normalizedType)
+    if (allowanceType) allowances.push({ ...rule, type: allowanceType })
+  })
+
+  const overtimeRateRules = []
+  const manualOvertimeHours = {}
+  overtimeByCandidate.forEach(({ hours, amount }, candidateKey) => {
+    manualOvertimeHours[candidateKey] = String(hours)
+    const rate = amount / hours
+    if (Number.isFinite(rate) && rate >= 0) {
+      overtimeRateRules.push({
+        id: `saved-overtime-${candidateKey}`,
+        amount: Number(rate.toFixed(2)),
+        scope: 'selected',
+        candidateKeys: [candidateKey],
+        dateScope: 'all',
+        fromDate: '',
+        toDate: '',
+        specificDates: [],
+      })
+    }
+  })
+
+  return { baseRateRules, allowances, overtimeRateRules, manualOvertimeHours, hasSavedConfiguration: datedAmounts.size > 0 || overtimeByCandidate.size > 0 }
 }
 
 const getRecordValue = (record, keys, fallback = '') => {
@@ -329,6 +446,10 @@ function buildExportSheetData(candidates, dates, config) {
     'S.No', 'Candidate Name', 'Mobile', 'Aadhaar',
     ...dates, 'Total OT Hours', ...(includeOvertimeRate ? ['OT Rate / Hour'] : []), 'Worked Days', ...(includeBasePay ? ['Average Base Rate / Day', 'Base Amount'] : []), ...allowanceTypes,
     'Gross Amount', ...(includeDeductions ? ['Deduction', 'Deduction Note'] : []), 'Net Amount',
+  const headers = [
+    'S.No', 'Candidate Name', 'Mobile', 'Aadhaar',
+    ...dates, 'Total OT Hours', ...(includeOvertimeRate ? ['OT Rate / Hour'] : []), 'Worked Days', ...(includeBasePay ? ['Average Base Rate / Day', 'Base Amount'] : []), ...allowanceTypes,
+    'Gross Amount', 'Net Amount',
   ]
   const amountsByCandidate = candidates.map((candidate) => calculateCandidate(candidate, dates, config))
   const rows = candidates.map((candidate, index) => {
@@ -381,6 +502,10 @@ function buildExportSheetData(candidates, dates, config) {
   if (includeOvertimeRate) currencyColumns.push(overtimeRateColumn)
   for (let column = allowanceStartColumn; column <= grossColumn; column += 1) currencyColumns.push(column)
   if (includeDeductions) currencyColumns.push(deductionColumn)
+  const netColumn = grossColumn + 1
+  const currencyColumns = includeBasePay ? [baseRateColumn, baseAmountColumn] : []
+  if (includeOvertimeRate) currencyColumns.push(overtimeRateColumn)
+  for (let column = allowanceStartColumn; column <= grossColumn; column += 1) currencyColumns.push(column)
   currencyColumns.push(netColumn)
 
   return {
@@ -400,6 +525,7 @@ function buildExportSheetData(candidates, dates, config) {
 function buildAttendancePaymentRecords(attendanceRecords, candidates, dates, config, projectId, projectTitle) {
   const recordsByCandidate = new Map()
   const missingAttendanceIds = new Set()
+  const processedCandidateDates = new Set()
   const candidateByKey = new Map(candidates.map((candidate) => [candidate.key, candidate]))
   const overtimeByCandidate = new Map()
   const addOvertime = (candidate, hours, rate) => {
@@ -471,6 +597,17 @@ function buildAttendancePaymentRecords(attendanceRecords, candidates, dates, con
     const attendanceWeightForRecord = kind !== 'home' ? (status === 'half' ? 0.5 : 1) : 0
     const attendanceId = getRecordValue(attendance, ['attendance_id', 'attendanceId', 'id'])
 
+    const selectedAttendance = candidate.attendance[date]
+    const attendanceId = String(getRecordValue(attendance, ['attendance_id', 'attendanceId', 'id']))
+    const status = normalizeAttendanceStatus(attendance)
+    const kind = getAttendanceKind(attendance, attendance._coreSheetSourceProjectId, projectTitle)
+    if (!selectedAttendance || selectedAttendance.attendanceId !== attendanceId || selectedAttendance.status !== status || selectedAttendance.kind !== kind) return
+    const candidateDateKey = `${candidate.key}|${date}`
+    if (processedCandidateDates.has(candidateDateKey)) return
+    processedCandidateDates.add(candidateDateKey)
+    if (status === 'absent') return
+    const workedWeight = kind === 'project' ? (status === 'half' ? 0.5 : 1) : 0
+    const attendanceWeightForRecord = kind !== 'home' ? (status === 'half' ? 0.5 : 1) : 0
     if (workedWeight > 0) {
       const baseRate = getEffectiveBaseRate(config.baseRateRules || [], candidate.key, date, money(config.salaryByCandidate[candidate.key]))
       addRecord(candidate, date, attendanceId, attendance, 'salary', baseRate * workedWeight, index)
@@ -552,6 +689,12 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
   const [dates, setDates] = useState([])
   const [candidates, setCandidates] = useState([])
   const [attendanceRecords, setAttendanceRecords] = useState([])
+  const [periodCandidates, setPeriodCandidates] = useState([])
+  const [attendanceRecords, setAttendanceRecords] = useState([])
+  const [selectedCandidateKeys, setSelectedCandidateKeys] = useState(new Set())
+  const [periodCandidateSearch, setPeriodCandidateSearch] = useState('')
+  const [defaultRatesLoaded, setDefaultRatesLoaded] = useState(false)
+  const [defaultRateSnapshot, setDefaultRateSnapshot] = useState(null)
   const [existingAttendancePayments, setExistingAttendancePayments] = useState([])
   const [existingPaymentsLoading, setExistingPaymentsLoading] = useState(false)
   const [existingPaymentsError, setExistingPaymentsError] = useState('')
@@ -563,6 +706,7 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
   const [postingAttendanceSheet, setPostingAttendanceSheet] = useState(false)
   const [attendancePostResult, setAttendancePostResult] = useState(null)
   const [error, setError] = useState('')
+  const [overwriteConfirmation, setOverwriteConfirmation] = useState(null)
   const [salaryByCandidate, setSalaryByCandidate] = useState({})
   const [defaultBaseRate, setDefaultBaseRate] = useState('')
   const [groupBaseRate, setGroupBaseRate] = useState('')
@@ -574,10 +718,6 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
   const [baseRateFromDate, setBaseRateFromDate] = useState('')
   const [baseRateToDate, setBaseRateToDate] = useState('')
   const [baseRateSpecificDates, setBaseRateSpecificDates] = useState(new Set())
-  const [deductions, setDeductions] = useState([])
-  const [deductionAmount, setDeductionAmount] = useState('')
-  const [deductionNote, setDeductionNote] = useState('')
-  const [deductionCandidateKeys, setDeductionCandidateKeys] = useState(new Set())
   const [allowances, setAllowances] = useState([])
   const [allowanceType, setAllowanceType] = useState(ALLOWANCE_TYPES[0])
   const [allowanceAmount, setAllowanceAmount] = useState('')
@@ -622,6 +762,13 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
     }
     return availableProjects
   }, [availableProjects, selectedProjectId, selectedProjectTitle])
+  const requestOverwriteConfirmation = (label, count, apply) => {
+    if (!count) {
+      apply()
+      return
+    }
+    setOverwriteConfirmation({ label, count, apply })
+  }
 
   useEffect(() => {
     if (!isOpen) return undefined
@@ -655,7 +802,6 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
     const amount = calculateCandidate(candidate, dates, {
       salaryByCandidate,
       baseRateRules,
-      deductions,
       allowances,
       overtimeRateRules,
       overtimeHourlyRate,
@@ -670,10 +816,10 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
     result.overtimeAmount += amount.overtimeAmount
     return result
   }, { gross: 0, net: 0, overtimeHours: 0, overtimeAmount: 0 }), [allowances, baseRateRules, candidates, dates, deductions, manualOvertimeHours, overtimeHourlyRate, overtimeMode, overtimeRateRules, salaryByCandidate, standardEndTime, standardStartTime])
+  }, { gross: 0, net: 0, overtimeHours: 0, overtimeAmount: 0 }), [allowances, baseRateRules, candidates, dates, manualOvertimeHours, overtimeHourlyRate, overtimeMode, overtimeRateRules, salaryByCandidate, standardEndTime, standardStartTime])
   const exportSheetData = useMemo(() => buildExportSheetData(candidates, dates, {
     salaryByCandidate,
     baseRateRules,
-    deductions,
     allowances,
     overtimeRateRules,
     overtimeHourlyRate,
@@ -725,11 +871,11 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
   useEffect(() => () => {
     if (previewFlashTimer.current) window.clearTimeout(previewFlashTimer.current)
   }, [])
+  }), [allowances, baseRateRules, candidates, dates, manualOvertimeHours, overtimeHourlyRate, overtimeMode, overtimeRateRules, salaryByCandidate, standardEndTime, standardStartTime])
 
   const calculateCurrentCandidate = (candidate) => calculateCandidate(candidate, dates, {
     salaryByCandidate,
     baseRateRules,
-    deductions,
     allowances,
     overtimeRateRules,
     overtimeHourlyRate,
@@ -808,6 +954,13 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
       })
       setDates(dateRange)
       setCandidates(candidatesWithDefaults)
+      setDates(dateRange)
+      setCandidates(candidatesWithDefaults)
+      setPeriodCandidates(candidatesWithDefaults)
+      setSelectedCandidateKeys(new Set(candidatesWithDefaults.map((candidate) => candidate.key)))
+      setPeriodCandidateSearch('')
+      setDefaultRatesLoaded(false)
+      setDefaultRateSnapshot(null)
       setAttendanceRecords(nextAttendanceRecords)
       setExistingAttendancePayments([])
       setExistingPaymentsError('')
@@ -845,6 +998,44 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
         setExistingAttendancePayments(savedPayments)
       } catch (paymentsError) {
         console.error('Failed to load saved attendance payments:', paymentsError)
+        '',
+      ])))
+      setDefaultBaseRate('')
+      setAllowanceAmount('')
+      setAllowances([])
+      setOvertimeHourlyRate('')
+      setOvertimeRateRules([])
+      setBaseRateRules([])
+      setManualOvertimeHours({})
+      setOvertimeMode('automatic')
+      setActiveConfigSection('base')
+      setAttendancePostResult(null)
+      setReady(true)
+      setExistingPaymentsLoading(true)
+      try {
+        const response = await coreRecruiterAPI.getSavedAttendanceSheet({
+          project_id: selectedProjectId,
+          from: fromDate,
+          to: toDate,
+        })
+        const savedPayments = normalizeSavedAttendancePayments(response?.data ?? response)
+        setExistingAttendancePayments(savedPayments)
+        setExistingPaymentsError('')
+        const restored = restoreSavedPaymentConfiguration(savedPayments, candidatesWithDefaults)
+        if (restored.hasSavedConfiguration) {
+          setSalaryByCandidate(Object.fromEntries(candidatesWithDefaults.map((candidate) => [candidate.key, ''])))
+          setDefaultBaseRate('')
+          setBaseRateRules(restored.baseRateRules)
+          setAllowances(restored.allowances)
+          setAllowanceAmount('')
+          setOvertimeRateRules(restored.overtimeRateRules)
+          setManualOvertimeHours(restored.manualOvertimeHours)
+          setOvertimeHourlyRate('')
+          if (Object.keys(restored.manualOvertimeHours).length) setOvertimeMode('manual')
+        }
+      } catch (paymentsError) {
+        console.error('Failed to load saved attendance sheet:', paymentsError)
+        setExistingAttendancePayments([])
         setExistingPaymentsError('Previously saved payments could not be loaded.')
       } finally {
         setExistingPaymentsLoading(false)
@@ -855,6 +1046,92 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
     } finally {
       setLoading(false)
     }
+  }
+
+  const removeLoadedDefaultRates = () => {
+    if (defaultRateSnapshot) {
+      setSalaryByCandidate((current) => {
+        const next = { ...current }
+        Object.entries(defaultRateSnapshot.salaryApplied).forEach(([candidateKey, appliedValue]) => {
+          if (next[candidateKey] !== appliedValue) return
+          const previousValue = defaultRateSnapshot.salaryBefore[candidateKey]
+          if (previousValue === undefined) delete next[candidateKey]
+          else next[candidateKey] = previousValue
+        })
+        return next
+      })
+      if (defaultRateSnapshot.defaultBaseRateApplied !== null && defaultBaseRate === defaultRateSnapshot.defaultBaseRateApplied) {
+        setDefaultBaseRate(defaultRateSnapshot.defaultBaseRateBefore)
+      }
+      if (defaultRateSnapshot.allowanceAmountApplied !== null && allowanceAmount === defaultRateSnapshot.allowanceAmountApplied) {
+        setAllowanceAmount(defaultRateSnapshot.allowanceAmountBefore)
+      }
+      if (defaultRateSnapshot.overtimeHourlyRateApplied !== null && overtimeHourlyRate === defaultRateSnapshot.overtimeHourlyRateApplied) {
+        setOvertimeHourlyRate(defaultRateSnapshot.overtimeHourlyRateBefore)
+      }
+    }
+    setAllowances((current) => current.filter((rule) => !rule.id.startsWith('candidate-default-')))
+    setOvertimeRateRules((current) => current.filter((rule) => !rule.id.startsWith('candidate-default-')))
+    setDefaultRateSnapshot(null)
+    setDefaultRatesLoaded(false)
+  }
+
+  const toggleDefaultRates = () => {
+    if (defaultRatesLoaded) {
+      removeLoadedDefaultRates()
+      return
+    }
+
+    const getSharedDefault = (key) => {
+      const values = candidates.map((candidate) => candidate.paymentDefaults?.[key])
+      if (!values.length || values.some((value) => value === '' || value === null || value === undefined || !Number.isFinite(Number(value)))) return ''
+      return values.every((value) => Number(value) === Number(values[0])) ? String(values[0]) : ''
+    }
+    const salaryApplied = Object.fromEntries(candidates.flatMap((candidate) => {
+      const amount = candidate.paymentDefaults?.base_salary
+      return amount === '' || amount === null || amount === undefined || !Number.isFinite(Number(amount))
+        ? []
+        : [[candidate.key, String(amount)]]
+    }))
+    const defaultAllowances = candidates.flatMap((candidate) => PAYMENT_DEFAULT_ALLOWANCES.flatMap(({ key, type }) => {
+      const amount = candidate.paymentDefaults?.[key]
+      return amount === '' || amount === null || amount === undefined || !Number.isFinite(Number(amount))
+        ? []
+        : [makeCandidateDefaultRule(candidate, type, amount, key)]
+    }))
+    const defaultOvertimeRates = candidates.flatMap((candidate) => {
+      const amount = candidate.paymentDefaults?.overtime_hourly_rate
+      return amount === '' || amount === null || amount === undefined || !Number.isFinite(Number(amount))
+        ? []
+        : [makeCandidateDefaultRule(candidate, 'Overtime', amount, 'overtime_hourly_rate')]
+    })
+    const sharedBaseRate = getSharedDefault('base_salary')
+    const sharedAllowance = getSharedDefault('travel_day_meal_allowance')
+    const sharedOvertimeRate = getSharedDefault('overtime_hourly_rate')
+
+    setDefaultRateSnapshot({
+      salaryBefore: Object.fromEntries(candidates.map((candidate) => [candidate.key, salaryByCandidate[candidate.key]])),
+      salaryApplied,
+      defaultBaseRateBefore: defaultBaseRate,
+      defaultBaseRateApplied: sharedBaseRate || null,
+      allowanceAmountBefore: allowanceAmount,
+      allowanceAmountApplied: sharedAllowance || null,
+      overtimeHourlyRateBefore: overtimeHourlyRate,
+      overtimeHourlyRateApplied: sharedOvertimeRate || null,
+    })
+    setSalaryByCandidate((current) => ({ ...current, ...salaryApplied }))
+    if (sharedBaseRate !== '') setDefaultBaseRate(sharedBaseRate)
+    if (sharedAllowance !== '') setAllowanceAmount(sharedAllowance)
+    if (sharedOvertimeRate !== '') setOvertimeHourlyRate(sharedOvertimeRate)
+    setAllowances((current) => [
+      ...current.filter((rule) => !rule.id.startsWith('candidate-default-')),
+      ...defaultAllowances,
+    ])
+    setOvertimeRateRules((current) => [
+      ...current.filter((rule) => !rule.id.startsWith('candidate-default-')),
+      ...defaultOvertimeRates,
+    ])
+    setDefaultRatesLoaded(true)
   }
 
   const continueFromPeriod = async () => {
@@ -869,6 +1146,18 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
     await loadAttendance()
   }
 
+  const continueWithSelectedCandidates = () => {
+    const selectedCandidates = periodCandidates.filter((candidate) => selectedCandidateKeys.has(candidate.key))
+    if (!selectedCandidates.length) {
+      setError('Select at least one candidate to continue.')
+      return
+    }
+    if (defaultRatesLoaded) removeLoadedDefaultRates()
+    setCandidates(selectedCandidates)
+    setStep(1)
+    setError('')
+  }
+
   const refreshAttendance = async () => {
     setLoading(true)
     try {
@@ -877,6 +1166,12 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
       setCandidates(nextCandidates)
       setAttendanceRecords(nextAttendanceRecords)
       setSalaryByCandidate((current) => Object.fromEntries(nextCandidates.map((candidate) => [
+      const selectedCandidates = nextCandidates.filter((candidate) => selectedCandidateKeys.has(candidate.key))
+      setDates(dateRange)
+      setPeriodCandidates(nextCandidates)
+      setCandidates(selectedCandidates)
+      setAttendanceRecords(nextAttendanceRecords)
+      setSalaryByCandidate((current) => Object.fromEntries(selectedCandidates.map((candidate) => [
         candidate.key,
         current[candidate.key] ?? '',
       ])))
@@ -905,9 +1200,8 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
       setError('Choose valid dates for this allowance.')
       return
     }
-    setError('')
-    setAllowances((current) => [...current, {
-      id: `${Date.now()}-${current.length}`,
+    const newRule = {
+      id: `${Date.now()}-${allowances.length}`,
       type: allowanceType,
       amount: money(allowanceAmount),
       scope,
@@ -916,13 +1210,19 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
       fromDate: allowanceDateScope === 'range' ? allowanceFromDate : '',
       toDate: allowanceDateScope === 'range' ? allowanceToDate : '',
       specificDates: allowanceDateScope === 'specific' ? [...allowanceSpecificDates] : [],
-    }])
-    setAllowanceAmount('')
-    setAllowanceFromDate('')
-    setAllowanceToDate('')
-    setAllowanceSpecificDates(new Set())
-    setAllowanceCandidateKeys(new Set())
-    setAllowanceDateScope('all')
+    }
+    const sameTypeRules = allowances.filter((rule) => rule.type === allowanceType)
+    const replacement = replaceOverlappingRules(sameTypeRules, newRule, candidates, dates)
+    requestOverwriteConfirmation(allowanceType.toLowerCase(), replacement.overlappingRules.length, () => {
+      setError('')
+      setAllowances([...allowances.filter((rule) => rule.type !== allowanceType), ...replacement.nextRules, newRule])
+      setAllowanceAmount('')
+      setAllowanceFromDate('')
+      setAllowanceToDate('')
+      setAllowanceSpecificDates(new Set())
+      setAllowanceCandidateKeys(new Set())
+      setAllowanceDateScope('all')
+    })
   }
 
   const chooseAllowanceType = (type) => {
@@ -968,26 +1268,40 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
     setOvertimeRateDateScope('all')
   }
 
-  const addDeduction = (scope) => {
-    if (!deductionAmount || money(deductionAmount) <= 0 || !deductionNote.trim()) {
-      setError('Enter a deduction amount and a note.')
+  const addOvertimeRateRule = (scope) => {
+    if (overtimeHourlyRate === '' || !Number.isFinite(Number(overtimeHourlyRate)) || Number(overtimeHourlyRate) < 0) {
+      setError('Enter a valid overtime amount per hour.')
       return
     }
-    if (scope === 'selected' && deductionCandidateKeys.size === 0) {
-      setError('Select at least one team member for this deduction rate.')
+    if (scope === 'selected' && overtimeRateCandidateKeys.size === 0) {
+      setError('Select at least one team member for this overtime rate.')
       return
     }
-    setError('')
-    setDeductions((current) => [...current, {
-      id: `${Date.now()}-${current.length}`,
-      amount: money(deductionAmount),
-      note: deductionNote.trim(),
+    if ((overtimeRateDateScope === 'range' && (!overtimeRateFromDate || !overtimeRateToDate || overtimeRateFromDate > overtimeRateToDate)) || (overtimeRateDateScope === 'specific' && overtimeRateSpecificDates.size === 0)) {
+      setError('Choose valid dates for this overtime rate.')
+      return
+    }
+    const newRule = {
+      id: `${Date.now()}-${overtimeRateRules.length}`,
+      amount: Number(overtimeHourlyRate),
       scope,
-      candidateKeys: scope === 'selected' ? [...deductionCandidateKeys] : [],
-    }])
-    setDeductionAmount('')
-    setDeductionNote('')
-    setDeductionCandidateKeys(new Set())
+      candidateKeys: scope === 'selected' ? [...overtimeRateCandidateKeys] : [],
+      dateScope: overtimeRateDateScope,
+      fromDate: overtimeRateDateScope === 'range' ? overtimeRateFromDate : '',
+      toDate: overtimeRateDateScope === 'range' ? overtimeRateToDate : '',
+      specificDates: overtimeRateDateScope === 'specific' ? [...overtimeRateSpecificDates] : [],
+    }
+    const replacement = replaceOverlappingRules(overtimeRateRules, newRule, candidates, dates)
+    requestOverwriteConfirmation('overtime rate', replacement.overlappingRules.length, () => {
+      setError('')
+      setOvertimeRateRules([...replacement.nextRules, newRule])
+      setOvertimeHourlyRate('')
+      setOvertimeRateCandidateKeys(new Set())
+      setOvertimeRateFromDate('')
+      setOvertimeRateToDate('')
+      setOvertimeRateSpecificDates(new Set())
+      setOvertimeRateDateScope('all')
+    })
   }
 
   const applyBaseRate = (candidateKeys, amount) => {
@@ -1000,6 +1314,11 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
       candidateKeys.forEach((candidateKey) => { next[candidateKey] = String(amount) })
       return next
     })
+    setDefaultRateSnapshot((current) => current ? {
+      ...current,
+      salaryApplied: Object.fromEntries(Object.entries(current.salaryApplied)
+        .filter(([candidateKey]) => !candidateKeys.includes(candidateKey))),
+    } : current)
     setError('')
     return true
   }
@@ -1012,7 +1331,15 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
     const candidateKeys = baseRateAudience === 'all'
       ? candidates.map((candidate) => candidate.key)
       : [...baseRateCandidateKeys]
-    applyBaseRate(candidateKeys, defaultBaseRate)
+    const incomingRule = { scope: baseRateAudience, candidateKeys, dateScope: 'all' }
+    const replacement = replaceOverlappingRules(baseRateRules, incomingRule, candidates, dates)
+    const existingDefaults = candidateKeys.filter((candidateKey) => (
+      salaryByCandidate[candidateKey] !== undefined && salaryByCandidate[candidateKey] !== ''
+    )).length
+    requestOverwriteConfirmation('base pay', replacement.overlappingRules.length + existingDefaults, () => {
+      setBaseRateRules(replacement.nextRules)
+      applyBaseRate(candidateKeys, defaultBaseRate)
+    })
   }
 
   const addBaseRateRule = () => {
@@ -1028,9 +1355,8 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
       setError('Choose valid dates for this base rate.')
       return
     }
-    setError('')
-    setBaseRateRules((current) => [...current, {
-      id: `${Date.now()}-${current.length}`,
+    const newRule = {
+      id: `${Date.now()}-${baseRateRules.length}`,
       amount: Number(groupBaseRate),
       scope: baseRateAudience,
       candidateKeys: baseRateAudience === 'selected' ? [...baseRateCandidateKeys] : [],
@@ -1038,13 +1364,18 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
       fromDate: baseRateDateScope === 'range' ? baseRateFromDate : '',
       toDate: baseRateDateScope === 'range' ? baseRateToDate : '',
       specificDates: baseRateDateScope === 'specific' ? [...baseRateSpecificDates] : [],
-    }])
-    setGroupBaseRate('')
-    setBaseRateCandidateKeys(new Set())
-    setBaseRateFromDate('')
-    setBaseRateToDate('')
-    setBaseRateSpecificDates(new Set())
-    setBaseRateDateScope('all')
+    }
+    const replacement = replaceOverlappingRules(baseRateRules, newRule, candidates, dates)
+    requestOverwriteConfirmation('base pay', replacement.overlappingRules.length, () => {
+      setError('')
+      setBaseRateRules([...replacement.nextRules, newRule])
+      setGroupBaseRate('')
+      setBaseRateCandidateKeys(new Set())
+      setBaseRateFromDate('')
+      setBaseRateToDate('')
+      setBaseRateSpecificDates(new Set())
+      setBaseRateDateScope('all')
+    })
   }
 
   const validateEarnings = () => {
@@ -1057,6 +1388,14 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
       : overtimeRateRules.length > 0
     if (overtimeEnabled) {
       if (overtimeMode === 'manual' && (overtimeHourlyRate === '' || !Number.isFinite(Number(overtimeHourlyRate)) || Number(overtimeHourlyRate) < 0)) {
+      const missingManualOvertimeRate = candidates.some((candidate) => (
+        money(manualOvertimeHours[candidate.key]) > 0
+        && !Number.isFinite(getEffectiveOvertimeRate(overtimeRateRules, candidate.key, '', Number.NaN))
+      ))
+      const hasValidManualDefaultRate = overtimeHourlyRate !== ''
+        && Number.isFinite(Number(overtimeHourlyRate))
+        && Number(overtimeHourlyRate) >= 0
+      if (overtimeMode === 'manual' && !hasValidManualDefaultRate && missingManualOvertimeRate) {
         setError('Enter a valid overtime hourly rate.')
         return
       }
@@ -1237,6 +1576,13 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
   )).length
   const configuredAllowanceCount = allowances.length + overtimeRateRules.length
   const totalWorkedDays = candidates.reduce((sum, candidate) => sum + dates.reduce((days, date) => days + projectWorkedWeight(candidate, date), 0), 0)
+  const visibleAllowanceRules = allowances.filter((rule) => rule.type === allowanceType)
+  const hasDefaultRates = candidates.some((candidate) => Object.values(candidate.paymentDefaults || {}).some((value) => (
+    value !== '' && value !== null && value !== undefined && Number.isFinite(Number(value))
+  )))
+  const filteredPeriodCandidates = periodCandidates.filter((candidate) =>
+    `${candidate.name} ${candidate.id} ${candidate.mobile}`.toLowerCase().includes(periodCandidateSearch.trim().toLowerCase()),
+  )
   const formatPreviewValue = (value, column) => {
     if (value === '' || value === null || value === undefined) return ''
     if (exportSheetData.columns.currency.includes(column)) {
@@ -1260,6 +1606,9 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
         {step === 0 ? 'Cancel' : 'Back'}
       </button>
       {step === 0 && <button type="button" className="btn btn-primary" onClick={continueFromPeriod} disabled={loading}>{loading ? 'Loading attendance...' : 'Load attendance & selected rates'}</button>}
+      {step === 0 && (ready
+        ? <button type="button" className="btn btn-primary" onClick={continueWithSelectedCandidates} disabled={loading || selectedCandidateKeys.size === 0}>Continue with {selectedCandidateKeys.size} selected</button>
+        : <button type="button" className="btn btn-primary" onClick={continueFromPeriod} disabled={loading}>{loading ? 'Loading candidates...' : 'Load candidates for this period'}</button>)}
       {step === 1 && <>
         <button type="button" className="btn btn-outline" onClick={postAttendanceSheetData} disabled={loading || generating || postingAttendanceSheet || candidates.length === 0}>{postingAttendanceSheet ? 'Saving attendance data...' : 'Save attendance data'}</button>
         <button type="button" className="btn btn-primary" onClick={exportWorkbook} disabled={loading || generating || postingAttendanceSheet || candidates.length === 0}>{generating ? 'Preparing workbook...' : 'Export Excel'}</button>
@@ -1308,6 +1657,41 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
               ))}
             </div>
           </fieldset>
+            <h2>{ready ? 'Select candidates for this period' : 'Choose a project and date range'}</h2>
+            <p>{ready ? 'Choose who to include in the payment sheet. Everyone is selected by default.' : 'Attendance from these dates will be brought into the payment sheet.'}</p>
+          </div>
+          <div className="core-payment-date-fields">
+            <label><span>Project</span><SearchableProjectSelect options={projectOptions} value={selectedProjectId} onChange={(value) => { setSelectedProjectId(value); setReady(false) }} placeholder={projectsLoading ? 'Loading projects...' : 'Search project'} disabled={projectsLoading} /></label>
+            <label><span>From date</span><input className="form-control" type="date" value={fromDate} onChange={(event) => { setFromDate(event.target.value); setReady(false) }} /></label>
+            <label><span>To date</span><input className="form-control" type="date" value={toDate} onChange={(event) => { setToDate(event.target.value); setReady(false) }} /></label>
+          </div>
+          {ready && <fieldset className="core-payment-candidate-picker">
+            <legend>Candidates · {selectedCandidateKeys.size} of {periodCandidates.length} selected</legend>
+            <div className="core-payment-candidate-picker-heading">
+              <input
+                className="form-control"
+                value={periodCandidateSearch}
+                onChange={(event) => setPeriodCandidateSearch(event.target.value)}
+                placeholder="Search name, ID, or mobile"
+                aria-label="Search candidates for this period"
+              />
+              <button type="button" onClick={() => setSelectedCandidateKeys(new Set(periodCandidates.map((candidate) => candidate.key)))}>Select all</button>
+              <button type="button" onClick={() => setSelectedCandidateKeys(new Set())}>Clear</button>
+            </div>
+            <div className="core-payment-candidate-options">
+              {filteredPeriodCandidates.map((candidate) => (
+                <label key={candidate.key}>
+                  <input
+                    type="checkbox"
+                    checked={selectedCandidateKeys.has(candidate.key)}
+                    onChange={(event) => setSelectedCandidateKeys((current) => toggleSetValue(current, candidate.key, event.target.checked))}
+                  />
+                  <span><strong>{candidate.name}</strong><small>{[candidate.id, candidate.mobile].filter(Boolean).join(' · ')}</small></span>
+                </label>
+              ))}
+              {filteredPeriodCandidates.length === 0 && <p>{periodCandidates.length ? 'No candidates match that search.' : 'No candidates found for this project and date range.'}</p>}
+            </div>
+          </fieldset>}
           <div className="core-payment-note"><strong>Included automatically</strong><span>Project attendance, plus eligible Home and Travel attendance. Home and Travel do not count toward base pay.</span></div>
           {error && <div className="attendance-message error">{error}</div>}
         </section>}
@@ -1319,6 +1703,21 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
             <span>{fromDate} to {toDate} · {candidates.length} team members</span>
           </header>
           <div className="core-payment-formula"><strong>Configure rates, then review</strong><span>Base pay + allowances + overtime − deductions</span></div>
+          <div className="core-payment-formula"><strong>Configure rates, then review</strong><span>Base pay + allowances + overtime</span></div>
+          <div className="core-payment-default-rates-control">
+            <button
+              type="button"
+              className="core-payment-default-rates-switch"
+              role="switch"
+              aria-checked={defaultRatesLoaded}
+              onClick={toggleDefaultRates}
+              disabled={!hasDefaultRates && !defaultRatesLoaded}
+            >
+              <span className="core-payment-default-rates-track" aria-hidden="true"><span /></span>
+              <span>{defaultRatesLoaded ? 'Remove default rates' : hasDefaultRates ? 'Load default rates' : 'No saved default rates available'}</span>
+            </button>
+            <small>{defaultRatesLoaded ? 'Default values are loaded. You can still adjust each rate.' : 'Load saved candidate rates into this payment sheet.'}</small>
+          </div>
           {error && <div className="attendance-message error">{error}</div>}
 
           <div className={`core-payment-live-workspace${previewExpanded ? ' is-preview-expanded' : ''}`}>
@@ -1376,7 +1775,13 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
                   {baseRateMode === 'default' ? 'Apply default rate' : 'Add date-specific rate'}
                 </button>
               </div>
-              {baseRateRules.length > 0 && <ul className="core-payment-allowance-list">{baseRateRules.map((rule) => <li key={rule.id}><span><strong>₹{rule.amount}/day</strong> · {rule.scope === 'all' ? 'Everyone' : `${rule.candidateKeys.length} selected`} · {describeRuleDates(rule)}</span><button type="button" onClick={() => setBaseRateRules((current) => current.filter((item) => item.id !== rule.id))}>Remove</button></li>)}</ul>}
+              {baseRateRules.length > 0 && <details className="core-payment-rate-groups core-payment-configured-accordion">
+                <summary>Configured base rates · {baseRateRules.length}</summary>
+                <ul className="core-payment-allowance-list">{baseRateRules.map((rule) => <li key={rule.id}>
+                  <span><strong>₹{rule.amount}/day</strong><small>{describeRuleAudience(rule, candidates)} · {describeRuleDates(rule)}</small></span>
+                  <button type="button" onClick={() => setBaseRateRules((current) => current.filter((item) => item.id !== rule.id))}>Remove</button>
+                </li>)}</ul>
+              </details>}
             </div>
             </section>
           </div>}
@@ -1435,6 +1840,14 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
                 <TargetingControls title="Overtime rate dates" dates={dates} dateScope={overtimeRateDateScope} onDateScopeChange={setOvertimeRateDateScope} fromDate={overtimeRateFromDate} onFromDateChange={setOvertimeRateFromDate} toDate={overtimeRateToDate} onToDateChange={setOvertimeRateToDate} specificDates={overtimeRateSpecificDates} onSpecificDatesChange={setOvertimeRateSpecificDates} />
                 {overtimeRateRules.length > 0 && <ul className="core-payment-allowance-list">{overtimeRateRules.map((rule) => <li key={rule.id}><span><strong>₹{rule.amount}/hour</strong> · {rule.scope === 'all' ? 'Everyone' : `${rule.candidateKeys.length} selected`} · {describeRuleDates(rule)}</span><button type="button" onClick={() => setOvertimeRateRules((current) => current.filter((item) => item.id !== rule.id))}>Remove</button></li>)}</ul>}
                 </>}
+                </>}
+                {overtimeRateRules.length > 0 && <details className="core-payment-rate-groups core-payment-configured-accordion">
+                  <summary>Configured OT rates · {overtimeRateRules.length}</summary>
+                  <ul className="core-payment-allowance-list">{overtimeRateRules.map((rule) => <li key={rule.id}>
+                    <span><strong>₹{rule.amount}/hour</strong><small>{describeRuleAudience(rule, candidates)} · {describeRuleDates(rule)}</small></span>
+                    <button type="button" onClick={() => setOvertimeRateRules((current) => current.filter((item) => item.id !== rule.id))}>Remove</button>
+                  </li>)}</ul>
+                </details>}
               </div>
               {overtimeMode === 'automatic' ? <div className="core-payment-overtime-times">
                 <label><span>Standard start time</span><input className="form-control" type="time" value={standardStartTime} onChange={(event) => setStandardStartTime(event.target.value)} /></label>
@@ -1461,7 +1874,13 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
               }} />
             </details>
             <TargetingControls title="Allowance dates" dates={dates} dateScope={allowanceDateScope} onDateScopeChange={setAllowanceDateScope} fromDate={allowanceFromDate} onFromDateChange={setAllowanceFromDate} toDate={allowanceToDate} onToDateChange={setAllowanceToDate} specificDates={allowanceSpecificDates} onSpecificDatesChange={setAllowanceSpecificDates} />
-            {allowances.length > 0 && <ul className="core-payment-allowance-list">{allowances.map((allowance) => <li key={allowance.id}><span><strong>{allowance.type}</strong> · ₹{allowance.amount} · {allowance.scope === 'all' ? 'Everyone' : `${allowance.candidateKeys.length} selected`} · {describeRuleDates(allowance)}</span><button type="button" onClick={() => setAllowances((current) => current.filter((item) => item.id !== allowance.id))}>Remove</button></li>)}</ul>}
+            {visibleAllowanceRules.length > 0 && <details className="core-payment-rate-groups core-payment-configured-accordion">
+              <summary>Configured {allowanceType.toLowerCase()} rates · {visibleAllowanceRules.length}</summary>
+              <ul className="core-payment-allowance-list">{visibleAllowanceRules.map((rule) => <li key={rule.id}>
+                <span><strong>₹{rule.amount}/day</strong><small>{describeRuleAudience(rule, candidates)} · {describeRuleDates(rule)}</small></span>
+                <button type="button" onClick={() => setAllowances((current) => current.filter((item) => item.id !== rule.id))}>Remove</button>
+              </li>)}</ul>
+            </details>}
             <div className="core-payment-adjustment-actions">
               <button type="button" className="btn btn-primary" onClick={() => addAllowance('all')}>Add for everyone</button>
               <button type="button" className="btn btn-outline" onClick={() => addAllowance('selected')} disabled={allowanceCandidateKeys.size === 0}>Add to {allowanceCandidateKeys.size} selected</button>
@@ -1529,6 +1948,7 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
                       if (overtimeMode === 'manual' && column === 4 + dates.length) {
                         const hasProjectAttendance = hasPresentProjectAttendance(candidate, dates)
                         return <td className={changedPreviewCells.has(`${candidate.key}:${column}`) ? 'core-payment-updated-cell' : ''} key={`${candidate.key}-${column}`}><input className="form-control core-payment-manual-ot-hours" type="number" min="0" step="0.25" value={manualOvertimeHours[candidate.key] ?? ''} onChange={(event) => setManualOvertimeHours((current) => ({ ...current, [candidate.key]: event.target.value }))} disabled={!hasProjectAttendance} title={hasProjectAttendance ? undefined : 'No present project attendance in this period'} aria-label={`Total overtime hours for ${candidate.name}`} /></td>
+                        return <td key={`${candidate.key}-${column}`}><input className="form-control core-payment-manual-ot-hours" type="number" min="0" step="0.25" value={manualOvertimeHours[candidate.key] ?? ''} onChange={(event) => setManualOvertimeHours((current) => ({ ...current, [candidate.key]: event.target.value }))} disabled={!hasProjectAttendance} title={hasProjectAttendance ? undefined : 'No present project attendance in this period'} aria-label={`Total overtime hours for ${candidate.name}`} /></td>
                       }
                       const isAttendanceDate = column >= 4 && column < 4 + dates.length
                       const attendanceParts = isAttendanceDate ? String(value).match(/^([PHTA])(?: \(\+(\d+) hrs\))?$/) : null
@@ -1551,6 +1971,16 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
                     </tr>})}
                   {visibleCandidateRows.length === 0 && <tr><td colSpan={exportSheetData.headers.length}>No team members match that search.</td></tr>}
                   <tr className="total-row">{exportSheetData.totalsRow.map((value, column) => <td className={changedPreviewCells.has(`__total__:${column}`) ? 'core-payment-updated-cell' : ''} key={`total-${column}`}>{formatPreviewValue(value, column)}</td>)}</tr>
+                      const clockDetails = attendanceParts?.[1] === 'P' && attendanceEntry
+                        ? [attendanceEntry.clockIn && `Check-in: ${attendanceEntry.clockIn}`, attendanceEntry.clockOut && `Check-out: ${attendanceEntry.clockOut}`].filter(Boolean).join('\n')
+                        : ''
+                      const cellTitle = clockDetails || undefined
+                      if (column === 1) return <td key={`${candidate.key}-${column}`}><div className="core-payment-member-identity"><strong>{value}</strong><button type="button" className="core-payment-calendar-button" onClick={() => setAttendanceCandidate(candidate)} disabled={!candidate.registrationId} title={candidate.registrationId ? `Edit attendance for ${candidate.name}` : 'Registration ID unavailable'} aria-label={`Open attendance calendar for ${candidate.name}`}><FontAwesomeIcon icon={faCalendarAlt} /></button><button type="button" className="core-payment-history-button" onClick={() => setPaymentHistoryCandidate(candidate)} title={`View saved payments for ${candidate.name}`} aria-label={`View saved payments for ${candidate.name}`}><FontAwesomeIcon icon={faIndianRupee} /></button></div></td>
+                      return <td className={isAttendanceDate ? 'attendance-date' : ''} title={cellTitle} key={`${candidate.key}-${column}`}>{attendanceParts ? <>{attendanceParts[1]}{attendanceParts[2] && <> (+{attendanceParts[2]} hrs)</>}</> : formatPreviewValue(value, column)}</td>
+                    })}
+                    </tr>})}
+                  {visibleCandidateRows.length === 0 && <tr><td colSpan={exportSheetData.headers.length}>No team members match that search.</td></tr>}
+                  <tr className="total-row">{exportSheetData.totalsRow.map((value, column) => <td key={`total-${column}`}>{formatPreviewValue(value, column)}</td>)}</tr>
                 </tbody>
               </table>
             </div>
@@ -1565,6 +1995,25 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
         </div>}
 
       </div>
+    </Modal>
+    <Modal
+      isOpen={Boolean(overwriteConfirmation)}
+      onClose={() => setOverwriteConfirmation(null)}
+      title="Replace configured values?"
+      maxWidth="480px"
+      footer={<div className="core-payment-footer">
+        <button type="button" className="btn btn-outline" onClick={() => setOverwriteConfirmation(null)}>Keep existing</button>
+        <button type="button" className="btn btn-primary" onClick={() => {
+          const apply = overwriteConfirmation?.apply
+          setOverwriteConfirmation(null)
+          apply?.()
+        }}>Replace overlapping</button>
+      </div>}
+    >
+      {overwriteConfirmation && <div className="core-payment-overwrite-confirmation">
+        <p><strong>{overwriteConfirmation.count}</strong> existing {overwriteConfirmation.label} {overwriteConfirmation.count === 1 ? 'configuration overlaps' : 'configurations overlap'} this selection.</p>
+        <p>Only the overlapping people and dates will be replaced. Other configured values will stay as they are.</p>
+      </div>}
     </Modal>
     <Modal
       isOpen={Boolean(paymentHistoryCandidate)}
@@ -1584,12 +2033,17 @@ export default function CoreTeamPaymentSheet({ isOpen, onClose, projectId, proje
         }, 0)
         return <div className="core-payment-history-modal">
           <p className="core-payment-history-context">{selectedProjectTitle || 'Selected project'} · {fromDate} to {toDate}</p>
+          <div className="core-payment-history-heading">
+            <span className="core-payment-eyebrow">PAYMENT HISTORY</span>
+            <p className="core-payment-history-context">{selectedProjectTitle || 'Selected project'} <span aria-hidden="true">·</span> {fromDate} to {toDate}</p>
+          </div>
           {existingPaymentsLoading ? <div className="core-payment-empty" role="status">Loading saved payments...</div>
             : existingPaymentsError ? <div className="attendance-message error" role="alert">{existingPaymentsError}</div>
               : <>
                 <div className="core-payment-history-summary">
                   <div><span>Saved earnings</span><strong>₹{positiveTotal.toFixed(2)}</strong></div>
                   <div><span>Deductions</span><strong>₹{deductionsTotal.toFixed(2)}</strong></div>
+                  <div><span>Deductions</span><strong>-₹{deductionsTotal.toFixed(2)}</strong></div>
                   <div className="net"><span>Net saved</span><strong>₹{(positiveTotal - deductionsTotal).toFixed(2)}</strong></div>
                 </div>
                 {payments.length
@@ -1614,6 +2068,7 @@ function SavedPaymentsCalendar({ payments, fromDate, toDate }) {
   const firstMonth = rangeStart.slice(0, 7)
   const lastMonth = rangeEnd.slice(0, 7)
   const [visibleMonth, setVisibleMonth] = useState(firstMonth)
+  const [selectedDate, setSelectedDate] = useState(() => paymentDates.find((date) => date.startsWith(firstMonth)) || rangeStart)
   const paymentGroups = new Map()
   payments.forEach((record) => {
     const date = normalizeDate(getRecordValue(record, ['attendance_date', 'date']))
@@ -1634,6 +2089,14 @@ function SavedPaymentsCalendar({ payments, fromDate, toDate }) {
     const nextMonth = new Date(Date.UTC(year, month - 1 + amount, 1))
     setVisibleMonth(`${nextMonth.getUTCFullYear()}-${String(nextMonth.getUTCMonth() + 1).padStart(2, '0')}`)
   }
+    const nextMonthKey = `${nextMonth.getUTCFullYear()}-${String(nextMonth.getUTCMonth() + 1).padStart(2, '0')}`
+    setVisibleMonth(nextMonthKey)
+    setSelectedDate(paymentDates.find((date) => date.startsWith(nextMonthKey)) || `${nextMonthKey}-01`)
+  }
+  const selectedPayments = paymentGroups.get(selectedDate) || []
+  const selectedDateLabel = selectedDate
+    ? new Date(`${selectedDate}T00:00:00Z`).toLocaleDateString('en-IN', { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric', timeZone: 'UTC' })
+    : 'Select a date'
 
   return (
     <section className="core-payment-history-calendar" aria-label="Saved payments calendar">
@@ -1642,6 +2105,7 @@ function SavedPaymentsCalendar({ payments, fromDate, toDate }) {
           <FontAwesomeIcon icon={faChevronLeft} />
         </button>
         <h3>{monthLabel}</h3>
+        <div><span>PAYMENT PERIOD</span><h3>{monthLabel}</h3></div>
         <button type="button" className="core-payment-history-month-button" onClick={() => changeMonth(1)} disabled={visibleMonth >= lastMonth} aria-label="Next month" title="Next month">
           <FontAwesomeIcon icon={faChevronRight} />
         </button>
@@ -1675,6 +2139,40 @@ function SavedPaymentsCalendar({ payments, fromDate, toDate }) {
           </div>
         })}
       </div>
+          return <button
+            type="button"
+            className={`core-payment-history-day${inRange ? ' in-range' : ' out-of-range'}${dayPayments.length ? ' has-payments' : ''}${dayPayments.some((record) => money(getRecordValue(record, ['amount', 'payment_amount'])) < 0) ? ' has-deduction' : ''}${selectedDate === date ? ' selected' : ''}`}
+            key={date}
+            onClick={() => setSelectedDate(date)}
+            aria-pressed={selectedDate === date}
+            aria-label={`${selectedDate === date ? 'Selected, ' : ''}${date}${dayPayments.length ? `, ${dayPayments.length} payment entries, net ${dayTotal < 0 ? 'minus ' : ''}${Math.abs(dayTotal).toFixed(2)} rupees` : ', no payment entries'}`}
+          >
+            <span className="core-payment-history-day-number">{day}</span>
+            {dayPayments.length > 0 && <>
+              <strong className={dayTotal < 0 ? 'is-deduction' : ''}>{dayTotal < 0 ? '-₹' : '₹'}{Math.abs(dayTotal).toFixed(2)}</strong>
+              <span className="core-payment-history-day-count">{dayPayments.length} {dayPayments.length === 1 ? 'entry' : 'entries'}</span>
+            </>}
+          </button>
+        })}
+      </div>
+      <section className="core-payment-history-day-details" aria-live="polite" aria-label={`Payments for ${selectedDateLabel}`}>
+        <header>
+          <div><span>SELECTED DATE</span><h4>{selectedDateLabel}</h4></div>
+          <strong>{selectedPayments.length} {selectedPayments.length === 1 ? 'entry' : 'entries'}</strong>
+        </header>
+        {selectedPayments.length ? <ul>
+          {selectedPayments.map((record, recordIndex) => {
+            const amount = money(getRecordValue(record, ['amount', 'payment_amount']))
+            const type = getRecordValue(record, ['payment_type', 'paymentType', 'type'], 'Payment')
+            const location = getRecordValue(record, ['location_name', 'locationName', 'location'])
+            const note = getRecordValue(record, ['note', 'description'])
+            return <li className={amount < 0 ? 'is-deduction' : ''} key={`${type}-${recordIndex}`}>
+              <div><strong>{type}</strong>{(location || note) && <span>{[location, note].filter(Boolean).join(' · ')}</span>}</div>
+              <strong>{amount < 0 ? '-₹' : '₹'}{Math.abs(amount).toFixed(2)}</strong>
+            </li>
+          })}
+        </ul> : <p className="core-payment-history-no-entries">No payment entries recorded for this date.</p>}
+      </section>
     </section>
   )
 }
@@ -1730,6 +2228,14 @@ function describeRuleDates(rule) {
   if (rule.dateScope === 'range') return `${rule.fromDate} to ${rule.toDate}`
   if (rule.dateScope === 'specific') return `${rule.specificDates.length} selected dates`
   return 'All dates'
+}
+
+function describeRuleAudience(rule, candidates) {
+  if (rule.scope === 'all') return 'Everyone'
+  const candidateKeys = rule.candidateKeys || []
+  const names = candidateKeys.map((key) => candidates.find((candidate) => candidate.key === key)?.name || key)
+  if (names.length <= 2) return names.join(', ') || `${candidateKeys.length} selected`
+  return `${names[0]}, ${names[1]} +${names.length - 2}`
 }
 
 function calculateCandidate(candidate, dates, config) {
@@ -1791,9 +2297,7 @@ function calculateCandidate(candidate, dates, config) {
     overtimeAmount: allowanceTotals.Overtime || 0,
     allowanceTotals,
     gross,
-    deduction,
-    deductionNote: [...deductionNotes].join('; '),
-    net: gross - deduction,
+    net: gross,
   }
 }
 
@@ -1801,6 +2305,48 @@ function isRuleDateIncluded(rule, date) {
   if (rule.dateScope === 'range') return date >= rule.fromDate && date <= rule.toDate
   if (rule.dateScope === 'specific') return rule.specificDates.includes(date)
   return true
+}
+
+function replaceOverlappingRules(existingRules, incomingRule, candidates, dates) {
+  const allCandidateKeys = candidates.map((candidate) => candidate.key)
+  const incomingCandidates = new Set(incomingRule.scope === 'all' ? allCandidateKeys : incomingRule.candidateKeys)
+  const incomingDates = new Set(dates.filter((date) => isRuleDateIncluded(incomingRule, date)))
+  const nextRules = []
+  const overlappingRules = []
+
+  const appendRemainder = (rule, candidateKeys, ruleDates, suffix) => {
+    if (!candidateKeys.length || !ruleDates.length) return
+    const coversEveryone = rule.scope === 'all' && candidateKeys.length === allCandidateKeys.length
+    const isAllDates = rule.dateScope === 'all' && ruleDates.length === dates.length
+    const isContiguous = ruleDates.every((date, index) => !index || getDateRange(ruleDates[index - 1], date).length === 2)
+    nextRules.push({
+      ...rule,
+      id: `${rule.id}-${suffix}`,
+      scope: coversEveryone ? 'all' : 'selected',
+      candidateKeys: coversEveryone ? [] : candidateKeys,
+      dateScope: isAllDates ? 'all' : isContiguous ? 'range' : 'specific',
+      fromDate: isAllDates || !isContiguous ? '' : ruleDates[0],
+      toDate: isAllDates || !isContiguous ? '' : ruleDates[ruleDates.length - 1],
+      specificDates: isAllDates || isContiguous ? [] : ruleDates,
+    })
+  }
+
+  existingRules.forEach((rule) => {
+    const ruleCandidates = rule.scope === 'all' ? allCandidateKeys : rule.candidateKeys
+    const ruleDates = dates.filter((date) => isRuleDateIncluded(rule, date))
+    const overlapCandidates = ruleCandidates.filter((key) => incomingCandidates.has(key))
+    const overlapDates = ruleDates.filter((date) => incomingDates.has(date))
+    if (!overlapCandidates.length || !overlapDates.length) {
+      nextRules.push(rule)
+      return
+    }
+
+    overlappingRules.push(rule)
+    appendRemainder(rule, ruleCandidates.filter((key) => !incomingCandidates.has(key)), ruleDates, 'candidate-remainder')
+    appendRemainder(rule, overlapCandidates, ruleDates.filter((date) => !incomingDates.has(date)), 'date-remainder')
+  })
+
+  return { nextRules, overlappingRules }
 }
 
 function getEffectiveBaseRate(rules, candidateKey, date, fallback) {
@@ -1860,6 +2406,9 @@ function getEffectiveOvertimeRate(rules, candidateKey, date, fallback) {
 
 function getConfiguredOvertimeRate(config, candidateKey, date) {
   if (config.overtimeMode === 'manual') return Math.max(0, money(config.overtimeHourlyRate))
+  if (config.overtimeMode === 'manual') {
+    return getEffectiveOvertimeRate(config.overtimeRateRules || [], candidateKey, date, Math.max(0, money(config.overtimeHourlyRate)))
+  }
   return getEffectiveOvertimeRate(config.overtimeRateRules || [], candidateKey, date, 0)
 }
 

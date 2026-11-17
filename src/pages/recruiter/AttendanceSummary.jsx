@@ -9,6 +9,7 @@ import JSZip from 'jszip'
 import * as XLSX from 'xlsx'
 import { recruiterAPI, coreRecruiterAPI } from '../../api/axios'
 import { useAlert } from '../../context/AlertContext'
+import { useAuth } from '../../context/AuthContext'
 import { PageHeader, Card, DataTable, StatCard, Modal, Tag, Tabs } from '../../components/ui'
 import { MapModal } from '../../components/ui/MapModal'
 import { ImageModal } from '../../components/ui/ImageModal'
@@ -29,6 +30,41 @@ const searchModalTabs = [
   { id: 'attendance', label: 'Search attendance' },
   { id: 'aadhaar', label: 'Search candidate aadhaar' }
 ]
+
+const getDraftPaymentSheets = (payload) => {
+  if (Array.isArray(payload)) return payload
+  if (!payload || typeof payload !== 'object') return []
+  for (const key of ['draft_payment_sheets', 'draftPaymentSheets', 'payment_sheets', 'paymentSheets', 'sheets', 'items', 'records', 'results']) {
+    if (Array.isArray(payload[key])) return payload[key]
+  }
+  return payload.data && payload.data !== payload ? getDraftPaymentSheets(payload.data) : []
+}
+
+const getDraftSheetRows = (sheet) => {
+  let rows = sheet?.payment_sheet ?? sheet?.paymentSheet ?? sheet?.sheet_data ?? sheet?.sheetData ?? sheet?.rows ?? sheet?.data
+  if (typeof rows === 'string') {
+    try { rows = JSON.parse(rows) } catch { return [] }
+  }
+  if (Array.isArray(rows)) return rows
+  return Array.isArray(rows?.rows) ? rows.rows : []
+}
+
+const getDraftSheetColumns = (rows) => {
+  if (rows.some(Array.isArray)) {
+    const count = Math.max(...rows.map((row) => Array.isArray(row) ? row.length : 0))
+    return Array.from({ length: count }, (_, index) => `Column ${index + 1}`)
+  }
+  return [...new Set(rows.flatMap((row) => row && typeof row === 'object' ? Object.keys(row) : []))]
+}
+
+const getDraftSheetName = (sheet, index = 0) => sheet?.sheet_name || sheet?.sheetName || sheet?.name || sheet?.title || `Draft ${index + 1}`
+const getDraftSheetId = (sheet) => sheet?.id || sheet?.sheet_id || sheet?.sheetId || sheet?.payment_sheet_id || sheet?.paymentSheetId
+const getDraftSheetAmount = (sheet) => {
+  const amount = sheet?.amount ?? sheet?.total_amount ?? sheet?.totalAmount
+  return amount !== null && amount !== undefined && amount !== '' && Number.isFinite(Number(amount))
+    ? `₹${Number(amount).toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`
+    : 'Amount unavailable'
+}
 
 export default function RecruiterAttendanceSummary() {
   const [attendance, setAttendance] = useState([])
@@ -73,6 +109,7 @@ export default function RecruiterAttendanceSummary() {
   const [searchAadhaarLoading, setSearchAadhaarLoading] = useState(false)
   const [searchAadhaarError, setSearchAadhaarError] = useState('')
   const { alert } = useAlert()
+  const { user } = useAuth()
   const [locationOptionsByProject, setLocationOptionsByProject] = useState({})
   const [centreOptionsByLocation, setCentreOptionsByLocation] = useState({})
   const [assignments, setAssignments] = useState({})
@@ -86,6 +123,25 @@ export default function RecruiterAttendanceSummary() {
   const [mapMarkers, setMapMarkers] = useState([])
   const [mapTitle, setMapTitle] = useState('')
   const [savedSheetProject, setSavedSheetProject] = useState(null)
+  const [draftsOpen, setDraftsOpen] = useState(false)
+  const [draftCategory, setDraftCategory] = useState('core')
+  const [draftSheets, setDraftSheets] = useState([])
+  const [selectedDraft, setSelectedDraft] = useState(null)
+  const [draftSearch, setDraftSearch] = useState('')
+  const [draftFromDate, setDraftFromDate] = useState('')
+  const [draftToDate, setDraftToDate] = useState('')
+  const [appliedDraftFilters, setAppliedDraftFilters] = useState({ search: '', from_date: '', to_date: '' })
+  const [draftOffset, setDraftOffset] = useState(0)
+  const [draftLimit, setDraftLimit] = useState(10)
+  const [draftTotal, setDraftTotal] = useState(null)
+  const [draftHasMore, setDraftHasMore] = useState(false)
+  const [draftLoading, setDraftLoading] = useState(false)
+  const [draftDetailsLoading, setDraftDetailsLoading] = useState(false)
+  const [draftMoveLoading, setDraftMoveLoading] = useState(false)
+  const [draftError, setDraftError] = useState('')
+  const [draftRequestError, setDraftRequestError] = useState('')
+  const draftRequestId = useRef(0)
+  const draftDetailsRequestId = useRef(0)
   const navigate = useNavigate()
 
   const deriveActiveStatus = (value) => {
@@ -1238,6 +1294,140 @@ export default function RecruiterAttendanceSummary() {
     })
   }
 
+  const fetchDraftSheets = useCallback(async () => {
+    const requestId = ++draftRequestId.current
+    setDraftLoading(true)
+    setDraftError('')
+    try {
+      const params = {
+        user_id: user?.userId || 1,
+        ...(appliedDraftFilters.search ? { search: appliedDraftFilters.search } : {}),
+        ...(appliedDraftFilters.from_date ? { from_date: appliedDraftFilters.from_date } : {}),
+        ...(appliedDraftFilters.to_date ? { to_date: appliedDraftFilters.to_date } : {}),
+        offset: draftOffset,
+        limit: draftLimit,
+      }
+      const response = draftCategory === 'core'
+        ? await coreRecruiterAPI.getCoreTeamDraftPaymentSheets(params)
+        : await coreRecruiterAPI.getConsultantDraftPaymentSheets(params)
+      if (requestId !== draftRequestId.current) return
+      const body = response?.data ?? {}
+      const payload = body?.data ?? body
+      const sheets = getDraftPaymentSheets(payload)
+      const pagination = body?.pagination || payload?.pagination || {}
+      const totalValue = pagination.total ?? pagination.total_records ?? pagination.total_count ?? payload?.total ?? body?.total
+      const parsedTotal = Number(totalValue)
+      const responseOffset = Number(pagination.offset ?? draftOffset)
+      setDraftSheets(sheets)
+      setDraftTotal(Number.isFinite(parsedTotal) ? parsedTotal : null)
+      setDraftHasMore(Number.isFinite(parsedTotal)
+        ? responseOffset + sheets.length < parsedTotal
+        : sheets.length >= draftLimit)
+    } catch (error) {
+      if (requestId !== draftRequestId.current) return
+      console.error(`Failed to load ${draftCategory} attendance payment drafts:`, error)
+      setDraftError(`Unable to load ${draftCategory} payment drafts. Please try again.`)
+    } finally {
+      if (requestId === draftRequestId.current) setDraftLoading(false)
+    }
+  }, [appliedDraftFilters, draftCategory, draftLimit, draftOffset, user?.userId])
+
+  useEffect(() => {
+    if (draftsOpen) fetchDraftSheets()
+  }, [draftsOpen, fetchDraftSheets])
+
+  const openDraftPaymentSheets = () => {
+    draftRequestId.current += 1
+    draftDetailsRequestId.current += 1
+    setDraftCategory('core')
+    setDraftSheets([])
+    setSelectedDraft(null)
+    setDraftSearch('')
+    setDraftFromDate('')
+    setDraftToDate('')
+    setAppliedDraftFilters({ search: '', from_date: '', to_date: '' })
+    setDraftOffset(0)
+    setDraftError('')
+    setDraftRequestError('')
+    setDraftsOpen(true)
+  }
+
+  const openDraftSheet = async (sheet) => {
+    const requestId = ++draftDetailsRequestId.current
+    setSelectedDraft(sheet)
+    setDraftRequestError('')
+    setDraftDetailsLoading(true)
+    const sheetId = getDraftSheetId(sheet)
+    if (!sheetId) {
+      setDraftDetailsLoading(false)
+      return
+    }
+
+    try {
+      const params = { user_id: user?.userId || 1 }
+      const response = draftCategory === 'core'
+        ? await coreRecruiterAPI.getCoreTeamDraftPaymentSheetDetails(sheetId, params)
+        : await coreRecruiterAPI.getConsultantDraftPaymentSheetDetails(sheetId, params)
+      if (requestId !== draftDetailsRequestId.current) return
+      const body = response?.data ?? {}
+      const payload = body?.data ?? body
+      const detail = payload?.sheet || payload?.draft_payment_sheet || payload?.draftPaymentSheet || payload
+      if (Array.isArray(detail)) {
+        setSelectedDraft({ ...sheet, payment_sheet: detail })
+      } else if (detail && typeof detail === 'object') {
+        setSelectedDraft({ ...sheet, ...detail })
+      }
+    } catch (error) {
+      if (requestId !== draftDetailsRequestId.current) return
+      console.error(`Failed to load ${draftCategory} payment draft details:`, error)
+      setDraftRequestError('Unable to load draft details. Showing the saved preview if available.')
+    } finally {
+      if (requestId === draftDetailsRequestId.current) setDraftDetailsLoading(false)
+    }
+  }
+
+  const selectedDraftRows = selectedDraft ? getDraftSheetRows(selectedDraft) : []
+  const selectedDraftColumns = getDraftSheetColumns(selectedDraftRows)
+  const selectedDraftIndex = selectedDraft
+    ? draftSheets.findIndex((sheet) => String(getDraftSheetId(sheet)) === String(getDraftSheetId(selectedDraft)))
+    : -1
+  const selectedDraftName = getDraftSheetName(selectedDraft, Math.max(0, selectedDraftIndex))
+
+  const moveDraftToMainSheet = async () => {
+    const sheetId = getDraftSheetId(selectedDraft)
+    if (!sheetId || draftMoveLoading) return
+
+    setDraftMoveLoading(true)
+    setDraftRequestError('')
+    try {
+      await coreRecruiterAPI.moveCoreTeamDraftPaymentSheetToMain({
+        draft_payment_sheet_id: sheetId,
+        user_id: user?.userId || 1,
+      })
+      setSelectedDraft(null)
+      await fetchDraftSheets()
+      alert('success', 'Draft moved to the main sheet.')
+    } catch (error) {
+      console.error('Failed to move core-team draft to main sheet:', error)
+      setDraftRequestError(error?.response?.data?.message || error.message || 'Unable to move this draft to the main sheet.')
+    } finally {
+      setDraftMoveLoading(false)
+    }
+  }
+
+  const downloadDraftSheet = () => {
+    if (!selectedDraftRows.length || !selectedDraftColumns.length) return
+    const rows = Array.isArray(selectedDraftRows[0])
+      ? selectedDraftRows
+      : [selectedDraftColumns, ...selectedDraftRows.map((row) => selectedDraftColumns.map((column) => row?.[column] ?? ''))]
+    const workbook = XLSX.utils.book_new()
+    XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), 'Payment Sheet')
+    const filename = selectedDraftName
+      .replace(/[\\/:*?"<>|]+/g, '_')
+      .slice(0, 100)
+    XLSX.writeFile(workbook, `${filename || 'payment-draft'}.xlsx`)
+  }
+
   const handleCloseOutsideModal = () => {
     setIsOutsideModalOpen(false)
   }
@@ -1703,6 +1893,9 @@ export default function RecruiterAttendanceSummary() {
         subtitle="Review mandays worked by project before drilling into candidate-level attendance."
         action={(
           <div style={{ display: 'flex', gap: '8px', flexWrap: 'wrap' }}>
+            <button type="button" className="btn btn-outline btn-sm" onClick={openDraftPaymentSheets}>
+              <FontAwesomeIcon icon={faFileCsv} /> Open drafts
+            </button>
             <button type="button" className="btn btn-outline btn-sm" onClick={openSearchAttendanceModal}>
               <FontAwesomeIcon icon={faFileCsv} /> Search attendance
             </button>
@@ -2298,6 +2491,138 @@ export default function RecruiterAttendanceSummary() {
         </div>
 
       </Modal>
+      <Modal
+        title={selectedDraft ? selectedDraftName : 'Draft payment sheets'}
+        isOpen={draftsOpen}
+        onClose={() => {
+          draftRequestId.current += 1
+          draftDetailsRequestId.current += 1
+          setDraftsOpen(false)
+        }}
+        fullScreen
+        footer={selectedDraft ? (
+          <div className="attendance-drafts-footer">
+            <button className="btn btn-outline btn-sm" type="button" onClick={() => {
+              draftDetailsRequestId.current += 1
+              setSelectedDraft(null)
+              setDraftRequestError('')
+            }} disabled={draftDetailsLoading}>
+              Back to drafts
+            </button>
+            <div className="attendance-drafts-footer-actions">
+              {draftCategory === 'core' && <button
+                className="btn btn-primary btn-sm"
+                type="button"
+                onClick={moveDraftToMainSheet}
+                disabled={!getDraftSheetId(selectedDraft) || !selectedDraftRows.length || draftDetailsLoading || draftMoveLoading}
+              >
+                {draftMoveLoading ? 'Moving...' : 'Move to main sheet'}
+              </button>}
+              <button className="btn btn-outline btn-sm" type="button" onClick={() => setDraftsOpen(false)} disabled={draftMoveLoading}>Close</button>
+            </div>
+          </div>
+        ) : (
+          <div className="attendance-drafts-footer attendance-drafts-footer-end">
+            <button className="btn btn-outline btn-sm" type="button" onClick={() => setDraftsOpen(false)}>Close</button>
+          </div>
+        )}
+      >
+        <div className="attendance-drafts">
+          {!selectedDraft && <>
+            <div className="attendance-drafts-tabs" role="tablist" aria-label="Draft category">
+              <button type="button" role="tab" aria-selected={draftCategory === 'core'} className={draftCategory === 'core' ? 'active' : ''} onClick={() => {
+                draftRequestId.current += 1
+                draftDetailsRequestId.current += 1
+                setDraftCategory('core')
+                setSelectedDraft(null)
+                setDraftOffset(0)
+                setDraftRequestError('')
+              }}>Core team</button>
+              <button type="button" role="tab" aria-selected={draftCategory === 'consultant'} className={draftCategory === 'consultant' ? 'active' : ''} onClick={() => {
+                draftRequestId.current += 1
+                draftDetailsRequestId.current += 1
+                setDraftCategory('consultant')
+                setSelectedDraft(null)
+                setDraftOffset(0)
+                setDraftRequestError('')
+              }}>Consultant</button>
+            </div>
+            <form className="attendance-drafts-filters" onSubmit={(event) => {
+              event.preventDefault()
+              setSelectedDraft(null)
+              setDraftOffset(0)
+              setAppliedDraftFilters({ search: draftSearch.trim(), from_date: draftFromDate, to_date: draftToDate })
+            }}>
+              <input className="form-control" type="search" value={draftSearch} placeholder="Search draft sheets" aria-label="Search draft sheets" onChange={(event) => setDraftSearch(event.target.value)} />
+              <label><span>Date from</span><input className="form-control" type="date" value={draftFromDate} onChange={(event) => setDraftFromDate(event.target.value)} /></label>
+              <label><span>Date to</span><input className="form-control" type="date" value={draftToDate} onChange={(event) => setDraftToDate(event.target.value)} /></label>
+              <button className="btn btn-primary btn-sm" type="submit" disabled={draftLoading}>Search</button>
+            </form>
+          </>}
+
+          {draftLoading ? (
+            <div className="attendance-drafts-state" role="status">{selectedDraft ? 'Loading draft details...' : 'Loading draft sheets...'}</div>
+          ) : draftError ? (
+            <div className="attendance-drafts-error" role="alert">{draftError}</div>
+          ) : !selectedDraft ? (
+            draftSheets.length ? <>
+              <div className="attendance-drafts-list" aria-label={`${draftCategory} draft payment sheets`}>
+                {draftSheets.map((sheet, index) => {
+                  const sheetId = getDraftSheetId(sheet)
+                  const rowCount = sheet.row_count ?? sheet.rows_count ?? sheet.expense_count ?? sheet.attendance_count
+                  const createdAt = sheet.created_at || sheet.createdAt || sheet.updated_at || sheet.updatedAt
+                  return <button className="attendance-draft-card" key={sheetId || `${getDraftSheetName(sheet, index)}-${index}`} type="button" onClick={() => openDraftSheet(sheet)}>
+                    <span className="attendance-draft-card-copy">
+                      <strong>{getDraftSheetName(sheet, index)}</strong>
+                      <small>Sheet ID: {sheetId || 'Unavailable'}{rowCount !== undefined ? ` · ${rowCount} rows` : ''}</small>
+                      {createdAt && <small>{new Date(createdAt).toLocaleDateString('en-IN')}</small>}
+                    </span>
+                    <strong className="attendance-draft-card-total">{getDraftSheetAmount(sheet)}</strong>
+                    <span className="attendance-draft-card-open">Open</span>
+                  </button>
+                })}
+              </div>
+              <div className="attendance-drafts-pagination">
+                <label><span>Rows</span><select className="form-control form-control-sm" value={draftLimit} onChange={(event) => {
+                  setDraftOffset(0)
+                  setDraftLimit(Number(event.target.value))
+                }}>{[5, 10, 25, 50].map((size) => <option key={size} value={size}>{size}</option>)}</select></label>
+                <span>Showing {draftSheets.length ? draftOffset + 1 : 0}-{draftOffset + draftSheets.length}{draftTotal !== null ? ` of ${draftTotal}` : ''}</span>
+                <div>
+                  <button className="btn btn-outline btn-sm" type="button" onClick={() => setDraftOffset((offset) => Math.max(0, offset - draftLimit))} disabled={draftOffset === 0 || draftLoading}>Previous</button>
+                  <button className="btn btn-outline btn-sm" type="button" onClick={() => setDraftOffset((offset) => offset + draftLimit)} disabled={!draftHasMore || draftLoading}>Next</button>
+                </div>
+              </div>
+            </> : <div className="attendance-drafts-state">No {draftCategory} draft payment sheets found.</div>
+          ) : (
+            <section className="attendance-draft-workspace" aria-label="Selected draft sheet">
+              <header className="attendance-draft-toolbar">
+                <div><strong>{selectedDraftRows.length} rows</strong><span>Sheet ID: {getDraftSheetId(selectedDraft) || 'Unavailable'}</span></div>
+                <button className="btn btn-outline btn-sm" type="button" onClick={downloadDraftSheet} disabled={!selectedDraftRows.length || !selectedDraftColumns.length}>
+                  Download sheet
+                </button>
+              </header>
+              {draftRequestError && <div className="attendance-drafts-error" role="status">{draftRequestError}</div>}
+              {draftDetailsLoading && <div className="attendance-drafts-state" role="status">Loading draft details...</div>}
+              {selectedDraftRows.length && selectedDraftColumns.length ? (
+                <div className="attendance-draft-table-wrap">
+                  <table className="attendance-draft-table">
+                    <thead><tr><th>#</th>{selectedDraftColumns.map((column) => <th key={column}>{column}</th>)}</tr></thead>
+                    <tbody>{selectedDraftRows.map((row, rowIndex) => <tr key={rowIndex}>
+                      <td>{rowIndex + 1}</td>
+                      {selectedDraftColumns.map((column, columnIndex) => {
+                        const value = Array.isArray(row) ? row[columnIndex] : row?.[column]
+                        return <td key={`${rowIndex}-${columnIndex}`}>{value == null ? '' : typeof value === 'object' ? JSON.stringify(value) : String(value)}</td>
+                      })}
+                    </tr>)}</tbody>
+                  </table>
+                </div>
+              ) : !draftDetailsLoading && <div className="attendance-drafts-state">This draft does not contain tabular sheet rows.</div>}
+            </section>
+          )}
+        </div>
+      </Modal>
+
       <CoreTeamSavedAttendanceSheet
         isOpen={Boolean(savedSheetProject)}
         project={savedSheetProject || undefined}

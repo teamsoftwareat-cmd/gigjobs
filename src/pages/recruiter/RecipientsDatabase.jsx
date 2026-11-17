@@ -138,6 +138,7 @@ export default function RecipientsDatabase() {
   const [candidateListPageSize, setCandidateListPageSize] = useState(10)
   const [candidateFilters, setCandidateFilters] = useState({ name: '', mobile: '', age_from: '', age_to: '', location: [], state: [], portal: [] })
   const [appliedCandidateFilters, setAppliedCandidateFilters] = useState({ name: '', mobile: '', age_from: '', age_to: '', location: [], state: [], portal: [] })
+  const [candidateFilters, setCandidateFilters] = useState({ name: '', mobile: '', location: [], state: [] })
   const [candidateStateOptions, setCandidateStateOptions] = useState([])
   const [candidateStateLoading, setCandidateStateLoading] = useState(false)
   const [candidateStateError, setCandidateStateError] = useState('')
@@ -230,6 +231,17 @@ export default function RecipientsDatabase() {
           if (total != null && baseOffset + pageItems.length >= total) break
         }
 
+        const response = await recruiterAPI.getImportedRecipients({
+          offset: (candidateListPage - 1) * candidateListPageSize,
+          limit: candidateListPageSize,
+          search: candidateFilters.name.trim() || undefined,
+          mobile: candidateFilters.mobile.trim() || undefined,
+          location: candidateFilters.location.join(',') || undefined,
+          states: candidateFilters.state.join(',') || undefined,
+        })
+        const data = response?.data?.data || response?.data || {}
+        const items = data.items || data.candidates || data.results || []
+        const total = data.total ?? data.totalCount ?? data.count ?? data.meta?.total ?? items.length
         if (active) {
           setCandidateList(pageItems.slice(0, candidateListPageSize))
           setCandidateListTotal(total ?? baseOffset + pageItems.length)
@@ -251,6 +263,7 @@ export default function RecipientsDatabase() {
       window.clearTimeout(timer)
     }
   }, [candidateListOpen, candidateListPage, candidateListPageSize, appliedCandidateFilters])
+  }, [candidateListOpen, candidateListPage, candidateListPageSize, candidateFilters])
 
   useEffect(() => {
     if (!candidateListOpen) return undefined
@@ -1749,6 +1762,7 @@ export default function RecipientsDatabase() {
               ['mobile', 'Mobile number'],
               ['age_from', 'Age from'],
               ['age_to', 'Age to'],
+              ['mobile', 'Mobile number']
             ].map(([key, label]) => (
               <label key={key} style={{ display: 'flex', flexDirection: 'column', gap: 4, fontSize: 13 }}>
                 <span>{label}</span>
@@ -1756,10 +1770,12 @@ export default function RecipientsDatabase() {
                   type={key.startsWith('age_') ? 'number' : 'search'}
                   min={key.startsWith('age_') ? 0 : undefined}
                   step={key.startsWith('age_') ? 1 : undefined}
+                  type="search"
                   value={candidateFilters[key]}
                   onChange={(event) => {
                     const value = event.target.value
                     setCandidateFilters((current) => ({ ...current, [key]: value }))
+                    setCandidateListPage(1)
                   }}
                   placeholder={`Search ${label.toLowerCase()}`}
                   style={{ minWidth: 0, padding: '8px 10px', border: '1px solid #dfe5ef', borderRadius: 6 }}
@@ -1780,6 +1796,7 @@ export default function RecipientsDatabase() {
                   onChange={(state) => {
                     setCandidateFilters((current) => ({ ...current, state, location: [] }))
                     setCandidateLocationSearch('')
+                    setCandidateListPage(1)
                   }}
                   placeholder="All states"
                   menuMaxHeight={160}
@@ -1812,6 +1829,7 @@ export default function RecipientsDatabase() {
                   selectedValues={candidateFilters.location}
                   onChange={(location) => {
                     setCandidateFilters((current) => ({ ...current, location }))
+                    setCandidateListPage(1)
                   }}
                   onSearch={(search) => {
                     setCandidateLocationSearch(search)
@@ -1856,6 +1874,7 @@ export default function RecipientsDatabase() {
                   style={{ padding: '6px 8px', border: '1px solid #dfe5ef', borderRadius: 6, background: '#fff' }}
                 >
                   {[10, 25, 50, 100, 500, 1000].map((pageSize) => (
+                  {[10, 25, 50, 100, 500].map((pageSize) => (
                     <option key={pageSize} value={pageSize}>{pageSize}</option>
                   ))}
                 </select>
@@ -1879,6 +1898,7 @@ export default function RecipientsDatabase() {
                     />
                   </th>
                   {['S.No', 'Name', 'Mobile', 'Email', 'Area', 'Locality', 'State', 'Portal', 'Age'].map((column) => (
+                  {['S.No', 'Name', 'Mobile', 'Email', 'Area', 'Locality', 'State', 'Age'].map((column) => (
                     <th key={column} style={{ padding: 10, textAlign: 'left', whiteSpace: 'nowrap' }}>{column}</th>
                   ))}
                 </tr>
@@ -1888,6 +1908,9 @@ export default function RecipientsDatabase() {
                   <tr><td colSpan={10} style={{ padding: 24, textAlign: 'center' }}>Loading candidate records...</td></tr>
                 ) : candidateList.length === 0 ? (
                   <tr><td colSpan={10} style={{ padding: 24, textAlign: 'center', color: '#5b6e8c' }}>No candidate records found.</td></tr>
+                  <tr><td colSpan={9} style={{ padding: 24, textAlign: 'center' }}>Loading candidate records...</td></tr>
+                ) : candidateList.length === 0 ? (
+                  <tr><td colSpan={9} style={{ padding: 24, textAlign: 'center', color: '#5b6e8c' }}>No candidate records found.</td></tr>
                 ) : candidateList.map((candidate, index) => {
                   const id = getCandidateId(candidate)
                   return (

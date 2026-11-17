@@ -115,6 +115,38 @@ const getValue = (candidate, keys, fallback = '') => {
   return fallback
 }
 
+const getOutstandingDeductions = (record) => {
+  const entries = getValue(record, ['outstanding_deductions', 'outstandingDeductions', 'deductions', 'deduction_entries', 'deductionEntries'], [])
+  if (Array.isArray(entries)) {
+    return entries.flatMap((entry, index) => {
+      const status = String(getValue(entry, ['status', 'state'], 'outstanding')).trim().toLowerCase()
+      if (['proposed', 'recovered', 'paid', 'cancelled'].includes(status)) return []
+      const amount = Number(getValue(entry, ['outstanding_amount', 'amount', 'deduction_amount'], 0))
+      if (!Number.isFinite(amount) || amount <= 0) return []
+      return [{
+        id: String(getValue(entry, ['id', 'deduction_id', 'deductionId'], `saved-${index}`)),
+        amount: String(amount),
+        note: String(getValue(entry, ['note', 'description', 'reason'], '')),
+      }]
+    })
+  }
+
+  const amount = Number(getValue(record, [
+    'outstanding_deduction_amount', 'outstandingDeductionAmount', 'outstanding_deduction', 'outstandingDeduction',
+    'deduction_balance', 'deductionBalance', 'deduction_amount', 'deductionAmount',
+  ], 0))
+  return Number.isFinite(amount) && amount > 0
+    ? [{ id: 'saved-outstanding-balance', amount: String(amount), note: String(getValue(record, ['deduction_note', 'deductionNote'], '')) }]
+    : []
+}
+
+const getOverallOutstandingDeduction = (record, entries) => {
+  const value = Number(getValue(record, ['overall_outstanding_deduction', 'overallOutstandingDeduction'], Number.NaN))
+  return Number.isFinite(value)
+    ? Math.max(0, value)
+    : entries.reduce((total, entry) => total + (Number(entry.amount) || 0), 0)
+}
+
 const getPhoto = (candidate) => getValue(candidate, [
   'profileImage', 'profileimage', 'profile_image', 'candidate_image', 'candidate_photo', 'photo', 'image', 'image_url'
 ])
@@ -148,6 +180,10 @@ export default function AddCandidates() {
   const [message, setMessage] = useState('')
   const [emergencyContact, setEmergencyContact] = useState('')
   const [paymentDefaults, setPaymentDefaults] = useState(emptyPaymentDefaults)
+  const [deductions, setDeductions] = useState([])
+  const [overallOutstandingDeduction, setOverallOutstandingDeduction] = useState(0)
+  const [newDeductionAmount, setNewDeductionAmount] = useState('')
+  const [newDeductionNote, setNewDeductionNote] = useState('')
   const [editingSavedCandidateId, setEditingSavedCandidateId] = useState(null)
   const [savedCandidates, setSavedCandidates] = useState([])
   const [savedTotal, setSavedTotal] = useState(0)
@@ -216,6 +252,10 @@ export default function AddCandidates() {
     setDateOfJoining('')
     setMotherName('')
     setPanNumber('')
+    setDeductions([])
+    setOverallOutstandingDeduction(0)
+    setNewDeductionAmount('')
+    setNewDeductionNote('')
     try {
       const response = await recruiterAPI.getRegistrationKycStatus({
         mobile: mobile.trim() || undefined,
@@ -238,6 +278,26 @@ export default function AddCandidates() {
             console.warn('Unable to load full candidate details:', detailsError)
           }
         }
+        try {
+          const joiningResponse = await recruiterAPI.getCandidateJoiningDetails({
+            offset: 0,
+            limit: 10,
+            mobile: getValue(candidateDetails, ['mobile', 'candidate_mobile', 'mobile_number', 'phone'], mobile.trim()),
+          })
+          const joiningPayload = joiningResponse?.data?.data ?? joiningResponse?.data ?? joiningResponse
+          const joiningRows = Array.isArray(joiningPayload)
+            ? joiningPayload
+            : [joiningPayload?.items, joiningPayload?.records, joiningPayload?.data, joiningPayload?.results].find(Array.isArray) || []
+          const candidateMobileValue = String(getValue(candidateDetails, ['mobile', 'candidate_mobile', 'mobile_number', 'phone'], mobile)).replace(/\D/g, '')
+          const matchingJoiningDetails = joiningRows.find((joiningRecord) => {
+            const joiningCandidateId = String(getValue(joiningRecord, ['candidate_id', 'candidateId', 'id', '_id'], ''))
+            const joiningMobile = String(getValue(joiningRecord, ['mobile', 'candidate_mobile', 'mobile_number', 'phone'], '')).replace(/\D/g, '')
+            return (candidateId && joiningCandidateId === String(candidateId)) || (candidateMobileValue && joiningMobile === candidateMobileValue)
+          })
+          if (matchingJoiningDetails) candidateDetails = { ...candidateDetails, ...matchingJoiningDetails }
+        } catch (joiningDetailsError) {
+          console.warn('Unable to load candidate outstanding deductions:', joiningDetailsError)
+        }
         setCandidate(candidateDetails)
         setBloodGroup(getValue(candidateDetails, ['blood_group', 'bloodGroup']))
         setMotherName(getValue(candidateDetails, ['mother_name', 'motherName', 'mothers_name', 'mothersName']))
@@ -247,6 +307,11 @@ export default function AddCandidates() {
           key,
           String(getValue(candidateDetails, aliases, '')),
         ])))
+        const outstandingDeductions = getOutstandingDeductions(candidateDetails)
+        setDeductions(outstandingDeductions)
+        setOverallOutstandingDeduction(getOverallOutstandingDeduction(candidateDetails, outstandingDeductions))
+        setNewDeductionAmount('')
+        setNewDeductionNote('')
     } catch (err) {
       console.error('Failed to search candidate:', err)
       setCandidate(null)
@@ -577,6 +642,11 @@ export default function AddCandidates() {
       key,
       String(getValue(candidateDetails, aliases, '')),
     ])))
+    const outstandingDeductions = getOutstandingDeductions(candidateDetails)
+    setDeductions(outstandingDeductions)
+    setOverallOutstandingDeduction(getOverallOutstandingDeduction(candidateDetails, outstandingDeductions))
+    setNewDeductionAmount('')
+    setNewDeductionNote('')
     setError('')
     setMessage('')
     window.scrollTo({ top: 0, behavior: 'smooth' })
@@ -609,6 +679,8 @@ export default function AddCandidates() {
         pan_number: panNumber,
         date_of_joining: dateOfJoining,
         emergency_contact_number: emergencyContact,
+        overall_outstanding_deduction: Number(overallOutstandingDeduction),
+        deductions: deductions.map(({ amount, note }) => ({ amount: Number(amount), note })),
         ...Object.fromEntries(Object.entries(paymentDefaults).map(([key, value]) => [key, value === '' ? '' : Number(value)])),
       }
       await recruiterAPI.saveCandidateJoiningDetails(payload)
@@ -616,6 +688,10 @@ export default function AddCandidates() {
       else setPage(1)
       setMessage(editingSavedCandidateId ? 'Candidate details updated successfully.' : 'Candidate joining details saved successfully.')
       setEditingSavedCandidateId(null)
+      const wasEditingSavedCandidate = Boolean(editingSavedCandidateId)
+      setMessage(wasEditingSavedCandidate ? 'Candidate details updated successfully.' : 'Candidate joining details saved successfully.')
+      setEditingSavedCandidateId(null)
+      if (wasEditingSavedCandidate) setCandidate(null)
     } catch (err) {
       console.error('Failed to save joining details:', err)
       setError('Unable to save candidate details. Please try again.')
@@ -631,6 +707,26 @@ export default function AddCandidates() {
   const offset = (page - 1) * limit
   const totalPages = Math.max(1, Math.ceil(savedTotal / limit))
   const visibleSavedCandidates = savedCandidates
+  const addDeductionEntry = () => {
+    const amount = Number(newDeductionAmount)
+    if (!Number.isFinite(amount) || amount <= 0 || !newDeductionNote.trim()) {
+      setError('Enter a deduction amount and note.')
+      return
+    }
+    setDeductions((current) => [...current, {
+      id: `new-${Date.now()}-${current.length}`,
+      amount: String(amount),
+      note: newDeductionNote.trim(),
+    }])
+    setOverallOutstandingDeduction((current) => current + amount)
+    setNewDeductionAmount('')
+    setNewDeductionNote('')
+    setError('')
+  }
+  const CandidateEditorWrapper = editingSavedCandidateId ? Modal : Card
+  const candidateEditorWrapperProps = editingSavedCandidateId
+    ? { isOpen: true, onClose: cancelEditingCandidate, title: `Edit candidate · ${name}`, maxWidth: '980px' }
+    : { style: { padding: 20 } }
 
   return (
     <div className="recruiter-attendance-page add-candidates-page">
@@ -729,7 +825,7 @@ export default function AddCandidates() {
       </Card>
 
       {candidate && (
-        <Card style={{ padding: 20 }}>
+        <CandidateEditorWrapper {...candidateEditorWrapperProps}>
           <div style={{ display: 'grid', gridTemplateColumns: '140px minmax(0, 1fr)', gap: 24, alignItems: 'start' }}>
             <div style={{ width: 140, height: 160, borderRadius: 12, overflow: 'hidden', background: 'var(--bg-light)', border: '1px solid var(--border-light)', display: 'grid', placeItems: 'center', color: 'var(--text3)' }}>
               {photo ? (
@@ -762,6 +858,25 @@ export default function AddCandidates() {
                 <label><span className="filter-label">Date of Joining</span><input className="form-control" type="date" value={dateOfJoining} onChange={(event) => setDateOfJoining(event.target.value)} required /></label>
                 <label><span className="filter-label">Emergency Contact Number</span><input className="form-control" type="tel" inputMode="numeric" value={emergencyContact} onChange={(event) => setEmergencyContact(event.target.value.replace(/\D/g, '').slice(0, 10))} placeholder="Enter emergency contact" required /></label>
                 <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border-light)', paddingTop: 12 }}>
+                  <h3 style={{ margin: 0, fontSize: 15 }}>Outstanding deductions</h3>
+                  <p style={{ margin: '4px 0 10px', color: 'var(--text3)', fontSize: 12 }}>Outstanding balance: ₹{overallOutstandingDeduction.toFixed(2)}</p>
+                  {deductions.length > 0 && <ul style={{ display: 'grid', gap: 6, margin: '0 0 12px', padding: 0, listStyle: 'none' }}>
+                    {deductions.map((entry) => <li key={entry.id} style={{ display: 'flex', justifyContent: 'space-between', gap: 12, padding: '8px 10px', border: '1px solid var(--border-light)', borderRadius: 6 }}>
+                      <span style={{ minWidth: 0, overflowWrap: 'anywhere' }}>{entry.note || 'Deduction'}</span>
+                      <strong style={{ flexShrink: 0 }}>₹{Number(entry.amount).toFixed(2)}</strong>
+                      {entry.id.startsWith('new-') && <button className="btn btn-outline btn-sm" type="button" onClick={() => {
+                        setDeductions((current) => current.filter((item) => item.id !== entry.id))
+                        setOverallOutstandingDeduction((current) => Math.max(0, current - Number(entry.amount)))
+                      }} aria-label={`Remove deduction: ${entry.note || 'Deduction'}`} title="Remove unsaved deduction"><FontAwesomeIcon icon={faTimesCircle} /></button>}
+                    </li>)}
+                  </ul>}
+                  <div style={{ display: 'grid', gap: 10, gridTemplateColumns: 'repeat(auto-fit, minmax(min(100%, 180px), 1fr))', alignItems: 'end' }}>
+                    <label><span className="filter-label">Add amount</span><input className="form-control" type="number" min="0.01" step="0.01" value={newDeductionAmount} onChange={(event) => setNewDeductionAmount(event.target.value)} placeholder="0.00" /></label>
+                    <label><span className="filter-label">Note / reason</span><input className="form-control" value={newDeductionNote} onChange={(event) => setNewDeductionNote(event.target.value)} placeholder="Required" /></label>
+                    <button className="btn btn-outline" type="button" onClick={addDeductionEntry} style={{ justifySelf: 'start' }}>Add deduction</button>
+                  </div>
+                </div>
+                <div style={{ gridColumn: '1 / -1', borderTop: '1px solid var(--border-light)', paddingTop: 12 }}>
                   <h3 style={{ margin: 0, fontSize: 15 }}>Default payment amounts</h3>
                   <p style={{ margin: '4px 0 0', color: 'var(--text3)', fontSize: 12 }}>Optional rates prefill this candidate's earnings setup and can be changed there.</p>
                 </div>
@@ -781,10 +896,11 @@ export default function AddCandidates() {
                 ))}
                 <button className="btn btn-primary" type="submit" disabled={saving}><FontAwesomeIcon icon={faUserPlus} /> {saving ? 'Saving...' : editingSavedCandidateId ? 'Update Details' : 'Save Details'}</button>
                 {editingSavedCandidateId && <button className="btn btn-outline" type="button" onClick={cancelEditingCandidate} disabled={saving}>Cancel edit</button>}
+                {editingSavedCandidateId && <button className="btn btn-outline" type="button" onClick={cancelEditingCandidate} disabled={saving}>Cancel</button>}
               </form>
             </div>
           </div>
-        </Card>
+        </CandidateEditorWrapper>
       )}
 
       <Card style={{ padding: 20, marginTop: 20 }}>

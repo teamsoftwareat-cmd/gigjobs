@@ -590,7 +590,7 @@ export default function TimingExpensesView({ onSwitchToGigjobs }) {
       const sourceExpenses = savedExpenses.length
         ? savedExpenses
         : await getPaymentSheetExpenseDetails(expenseIds.map((expenseId) => ({ expense_id: expenseId })))
-      const response = await recruiterAPI.generateTimingExpensePaymentSheet(
+      const response = await recruiterAPI.generateExpensePaymentSheet(
         buildTimingExpensePaymentSheetPayload(sourceExpenses)
       )
       const rows = response?.data?.data
@@ -1252,7 +1252,7 @@ export default function TimingExpensesView({ onSwitchToGigjobs }) {
     setDownloadInProgress(true)
     setExportProgress({ active: true, percent: 10, status: 'Sending expenses to payment sheet service...' })
     try {
-      const response = await recruiterAPI.generateTimingExpensePaymentSheet(buildTimingExpensePaymentSheetPayload(source))
+      const response = await recruiterAPI.generateExpensePaymentSheet(buildTimingExpensePaymentSheetPayload(source))
       const rows = response?.data?.data
       if (!Array.isArray(rows)) throw new Error('Payment sheet service returned invalid data')
       setPaymentSheetReview({ rows, expenses: source, filename })
