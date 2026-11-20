@@ -1,14 +1,16 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faCircleExclamation, faRotate } from '@fortawesome/free-solid-svg-icons'
+import { faCircleExclamation, faFileExcel, faRotate } from '@fortawesome/free-solid-svg-icons'
 import { DayPicker } from 'react-day-picker'
 import 'react-day-picker/dist/style.css'
+import * as XLSX from 'xlsx'
 import { coreRecruiterAPI, recruiterAPI } from '../../api/axios'
 import { Modal } from '../../components/ui'
 import { useAuth } from '../../context/AuthContext'
 import './CoreTeamSavedAttendanceSheet.css'
 
 const EMPTY_ROWS = []
+const ATTENDANCE_PAGE_SIZE = 500
 
 const getList = (payload) => {
   if (Array.isArray(payload)) return payload
@@ -28,6 +30,47 @@ const getValue = (record, keys, fallback = '') => {
     if (value !== undefined && value !== null && value !== '') return value
   }
   return fallback
+}
+
+const getAttendanceRecords = async (projectId, from, to) => {
+  const fetchProjectRecords = async (attendanceProjectId) => {
+    const records = []
+    let offset = 0
+    while (true) {
+      const response = await coreRecruiterAPI.getAttendanceRecords({
+        projectId: attendanceProjectId,
+        project_id: attendanceProjectId,
+        from,
+        to,
+        offset,
+        limit: ATTENDANCE_PAGE_SIZE,
+      })
+      let payload = response?.data ?? {}
+      if (typeof payload === 'string') {
+        try {
+          payload = JSON.parse(payload)
+        } catch {
+          payload = {}
+        }
+      }
+      const rows = getList(payload)
+      records.push(...rows.map((record) => ({
+        ...record,
+        _coreSavedSheetSourceProjectId: attendanceProjectId,
+      })))
+      const total = Number(payload?.total ?? payload?.count ?? payload?.total_count ?? payload?.meta?.total)
+      offset += rows.length
+      if (!rows.length || rows.length < ATTENDANCE_PAGE_SIZE || (Number.isFinite(total) && offset >= total)) break
+    }
+    return records
+  }
+
+  const [projectRecords, homeRecords, travelRecords] = await Promise.all([
+    fetchProjectRecords(projectId),
+    fetchProjectRecords('Home'),
+    fetchProjectRecords('Travel'),
+  ])
+  return [...projectRecords, ...homeRecords, ...travelRecords]
 }
 
 const getGeneratedRows = (response) => {
@@ -85,7 +128,23 @@ const normalizeCandidateDeductionDetails = (record) => {
   return { amount, entries: outstandingEntries }
 }
 
-async function fetchCandidateDeductionDetails(candidates) {
+async function fetchCandidateDeductionDetails(candidate) {
+  const mobile = String(getValue(candidate, ['mobile', 'candidate_mobile', 'mobile_number', 'phone'], '')).trim()
+  if (!mobile) throw new Error('Candidate mobile number is unavailable.')
+
+  const response = await recruiterAPI.getCandidateJoiningDetails({ mobile })
+  const payload = response?.data ?? response
+  const rows = getList(payload)
+  const records = rows.length ? rows : [payload?.data ?? payload]
+  const normalizedMobile = mobile.replace(/\D/g, '')
+  const details = records.find((record) => (
+    String(getValue(getCandidateDetails(record), ['mobile', 'candidate_mobile', 'mobile_number', 'phone'], '')).replace(/\D/g, '') === normalizedMobile
+  )) || records[0]
+
+  return normalizeCandidateDeductionDetails(getCandidateDetails(details || {}))
+}
+
+async function fetchCandidateDeductionSummaries(candidates) {
   const joiningDetails = []
   let offset = 0
   while (true) {
@@ -102,11 +161,11 @@ async function fetchCandidateDeductionDetails(candidates) {
     const candidateId = String(getValue(candidate, ['candidate_id', 'candidateId', 'registration_id', 'registrationId', 'user_id', 'userId', 'id'], '')).trim()
     const mobile = String(getValue(candidate, ['mobile', 'candidate_mobile', 'mobile_number', 'phone'], '')).replace(/\D/g, '')
     const details = joiningDetails.find((record) => {
-      const recordId = String(getValue(record, ['candidate_id', 'candidateId', 'registration_id', 'registrationId', 'user_id', 'userId', 'id'], '')).trim()
-      const recordMobile = String(getValue(record, ['mobile', 'candidate_mobile', 'mobile_number', 'phone'], '')).replace(/\D/g, '')
+      const recordId = String(getValue(getCandidateDetails(record), ['candidate_id', 'candidateId', 'registration_id', 'registrationId', 'user_id', 'userId', 'id'], '')).trim()
+      const recordMobile = String(getValue(getCandidateDetails(record), ['mobile', 'candidate_mobile', 'mobile_number', 'phone'], '')).replace(/\D/g, '')
       return (candidateId && recordId === candidateId) || (mobile && recordMobile === mobile)
     })
-    return [candidateIdentity(candidate), normalizeCandidateDeductionDetails(details || {})]
+    return [candidateIdentity(candidate), normalizeCandidateDeductionDetails(getCandidateDetails(details || {}))]
   }))
 }
 
@@ -325,6 +384,23 @@ const normalizeDate = (value) => {
   return Number.isNaN(date.getTime()) ? '' : date.toISOString().slice(0, 10)
 }
 
+const getAttendanceStatus = (record) => {
+  const value = String(getValue(record, ['status', 'attendance_status', 'attendanceStatus'])).trim().toLowerCase()
+  if (['half', 'h'].includes(value)) return 'half'
+  if (['present', 'late', 'p', 'pr', '1'].includes(value)) return 'present'
+  if (['absent', 'a', 'ab', 'missing', 'not marked', 'not_marked'].includes(value)) return 'absent'
+  return getValue(record, ['clock_in', 'clockIn', 'check_in_time', 'checkInTime', 'check_in']) ? 'present' : 'absent'
+}
+
+const getAttendanceKind = (record) => {
+  const source = String(record?._coreSavedSheetSourceProjectId || '').toLowerCase()
+  const project = String(getValue(record, ['project_name', 'projectName', 'project_title', 'projectTitle', 'project'], '')).toLowerCase()
+  const location = String(getValue(record, ['location_name', 'locationName', 'location'], '')).toLowerCase()
+  if (source === 'home' || /\bhome\b/.test(`${project} ${location}`)) return 'home'
+  if (source === 'travel' || /\btravel\b/.test(`${project} ${location}`)) return 'travel'
+  return 'project'
+}
+
 const parseLocalDate = (value) => {
   const [year, month, day] = normalizeDate(value).split('-').map(Number)
   return year && month && day ? new Date(year, month - 1, day) : undefined
@@ -379,6 +455,51 @@ const loadAttendanceMatrixFromPayments = (candidateRecords) => candidateRecords.
   }
 })
 
+const loadAttendanceMatrixFromRecords = (records, fallbackCandidates = []) => {
+  const candidates = new Map()
+  const paymentCandidates = loadAttendanceMatrixFromPayments(fallbackCandidates)
+  const savedCandidatesById = new Map(paymentCandidates.map((candidate) => [candidateIdentity(candidate), candidate]))
+  records.forEach((record) => {
+    const details = getCandidateDetails(record)
+    const candidateId = candidateIdentity(details)
+    const date = normalizeDate(getValue(record, ['date', 'attendance_date', 'attendanceDate']))
+    if (!candidateId || !date || !savedCandidatesById.has(candidateId)) return
+
+    if (!candidates.has(candidateId)) {
+      candidates.set(candidateId, {
+        candidate_id: getValue(details, ['candidate_id', 'candidateId', 'registration_id', 'registrationId', 'user_id', 'userId', 'id'], candidateId),
+        candidate_name: getValue(details, ['candidate_name', 'candidateName', 'name', 'worker_name', 'full_name', 'fullName'], 'Unknown'),
+        mobile: getValue(details, ['mobile', 'mobile_number', 'candidate_mobile', 'phone', 'phone_number', 'contact', 'whatsapp']),
+        aadhaar: getValue(details, ['aadhaar', 'aadhar', 'aadhaar_number', 'aadhaar_no', 'aadhaarNo', 'aadhaarNumber', 'candidate_aadhaar', 'candidate_aadhar', 'aadhar_number', 'aadhar_no']),
+        attendance: {},
+      })
+    }
+    const candidate = candidates.get(candidateId)
+    const entry = {
+      kind: getAttendanceKind(record),
+      status: getAttendanceStatus(record),
+    }
+    const priority = { project: 0, travel: 1, home: 2 }
+    const current = candidate.attendance[date]
+    if (!current || priority[entry.kind] > priority[current.kind]) candidate.attendance[date] = entry
+  })
+
+  paymentCandidates.forEach((candidate) => {
+    const candidateId = candidateIdentity(candidate)
+    if (!candidateId) return
+    const attendanceCandidate = candidates.get(candidateId)
+    candidates.set(candidateId, attendanceCandidate ? {
+      ...attendanceCandidate,
+      candidate_id: candidate.candidate_id || attendanceCandidate.candidate_id,
+      candidate_name: candidate.candidate_name !== 'Unknown' ? candidate.candidate_name : attendanceCandidate.candidate_name,
+      mobile: candidate.mobile || attendanceCandidate.mobile,
+      aadhaar: candidate.aadhaar || attendanceCandidate.aadhaar,
+      attendance: { ...candidate.attendance, ...attendanceCandidate.attendance },
+    } : candidate)
+  })
+  return [...candidates.values()].sort((first, second) => first.candidate_name.localeCompare(second.candidate_name))
+}
+
 export default function CoreTeamSavedAttendanceSheet({
   isOpen,
   onClose,
@@ -394,6 +515,8 @@ export default function CoreTeamSavedAttendanceSheet({
   const requestId = useRef(0)
   const lastAutoFilterSignature = useRef('')
   const directGenerationStarted = useRef(false)
+  const attendanceRecordsRef = useRef([])
+  const savedCandidateRecordsRef = useRef([])
   const projectId = project?.projectId || project?.id || ''
   const projectName = project?.projectName || project?.name || project?.title || String(projectId)
   const [fromDate, setFromDate] = useState('')
@@ -401,12 +524,16 @@ export default function CoreTeamSavedAttendanceSheet({
   const [candidateRecords, setCandidateRecords] = useState([])
   const [filteredCandidateRecords, setFilteredCandidateRecords] = useState([])
   const [candidateDeductionDetails, setCandidateDeductionDetails] = useState(new Map())
+  const [candidateDeductionSummaries, setCandidateDeductionSummaries] = useState(new Map())
   const [selectedDeductionCandidateIds, setSelectedDeductionCandidateIds] = useState(new Set())
   const [deductionCandidateKey, setDeductionCandidateKey] = useState('')
   const [deductionDetailsLoading, setDeductionDetailsLoading] = useState(false)
   const [deductionDetailsError, setDeductionDetailsError] = useState('')
+  const [deductionSummaryError, setDeductionSummaryError] = useState('')
   const [attendanceCandidates, setAttendanceCandidates] = useState([])
   const [attendanceDates, setAttendanceDates] = useState([])
+  const [unconfiguredDates, setUnconfiguredDates] = useState([])
+  const [includeUnconfiguredDates, setIncludeUnconfiguredDates] = useState(false)
   const [attendanceDateRange, setAttendanceDateRange] = useState({ from: '', to: '' })
   const [attendanceWarning, setAttendanceWarning] = useState('')
   const [loading, setLoading] = useState(false)
@@ -446,11 +573,16 @@ export default function CoreTeamSavedAttendanceSheet({
     })
     return grouped
   }, [savedRows])
+  const selectableAttendanceDates = useMemo(() => (
+    includeUnconfiguredDates
+      ? [...new Set([...attendanceDates, ...unconfiguredDates])].sort()
+      : attendanceDates
+  ), [attendanceDates, includeUnconfiguredDates, unconfiguredDates])
   const selectedDates = useMemo(() => {
-    if (dateScope === 'range') return attendanceDates.filter((date) => date >= rangeFromDate && date <= rangeToDate)
-    if (dateScope === 'specific') return attendanceDates.filter((date) => specificDates.has(date))
-    return attendanceDates
-  }, [attendanceDates, dateScope, rangeFromDate, rangeToDate, specificDates])
+    if (dateScope === 'range') return selectableAttendanceDates.filter((date) => date >= rangeFromDate && date <= rangeToDate)
+    if (dateScope === 'specific') return selectableAttendanceDates.filter((date) => specificDates.has(date))
+    return selectableAttendanceDates
+  }, [dateScope, rangeFromDate, rangeToDate, selectableAttendanceDates, specificDates])
   const matrixRows = useMemo(() => attendanceCandidates.map((candidate) => {
     const savedCandidate = earningsByCandidate.get(candidateIdentity(candidate))
     const candidateKey = candidateIdentity(candidate)
@@ -568,26 +700,23 @@ export default function CoreTeamSavedAttendanceSheet({
       setGeneratedSheet(null)
       setSavedMessage('')
       const records = Array.isArray(initialRecords) ? initialRecords : []
-      setDeductionDetailsLoading(true)
-      setDeductionDetailsError('')
-      try {
-        setCandidateDeductionDetails(await fetchCandidateDeductionDetails(records))
-      } catch (deductionError) {
-        console.error('Failed to load candidate outstanding deductions:', deductionError)
-        setCandidateDeductionDetails(new Map())
-        setDeductionDetailsError('Candidate outstanding deductions could not be loaded.')
-      } finally {
-        setDeductionDetailsLoading(false)
-      }
+      savedCandidateRecordsRef.current = records
+      setCandidateDeductionDetails(new Map())
+      setCandidateDeductionSummaries(new Map())
       setSelectedDeductionCandidateIds(new Set())
+      setDeductionDetailsError('')
+      setDeductionSummaryError('')
       setCandidateRecords(records)
       setFilteredCandidateRecords(records)
       setAttendanceCandidates([])
+      attendanceRecordsRef.current = []
       setHasLoadedRecords(true)
       const bounds = getSavedDateBounds(records)
       const rangeFrom = from || bounds.first
       const rangeTo = to || bounds.last
       setAttendanceDates(getDateRange(rangeFrom, rangeTo))
+      setUnconfiguredDates([])
+      setIncludeUnconfiguredDates(false)
       setAttendanceDateRange({ from: rangeFrom, to: rangeTo })
       setAttendanceWarning('')
       const rows = flattenCandidateRecords(records)
@@ -613,34 +742,62 @@ export default function CoreTeamSavedAttendanceSheet({
     setSavedMessage('')
     try {
       const requestedPaymentTypes = filters.paymentTypes || []
-      const response = await coreRecruiterAPI.getSavedAttendanceSheet({
-        project_id: projectId,
-        ...(from ? { from } : {}),
-        ...(to ? { to } : {}),
-        ...(filters.candidateIds?.length ? { candidate_ids: filters.candidateIds.join(',') } : {}),
-        ...(requestedPaymentTypes.length ? { payment_types: requestedPaymentTypes.join(',') } : {}),
-        ...(filters.dates?.length ? { dates: filters.dates.join(',') } : {}),
-      })
+      const [response, attendanceRecords] = await Promise.all([
+        coreRecruiterAPI.getSavedAttendanceSheet({
+          project_id: projectId,
+          ...(from ? { from } : {}),
+          ...(to ? { to } : {}),
+          ...(filters.candidateIds?.length ? { candidate_ids: filters.candidateIds.join(',') } : {}),
+          ...(requestedPaymentTypes.length ? { payment_types: requestedPaymentTypes.join(',') } : {}),
+          ...(filters.dates?.length ? { dates: filters.dates.join(',') } : {}),
+        }),
+        filters.preserveOptions
+          ? Promise.resolve(attendanceRecordsRef.current)
+          : getAttendanceRecords(projectId, from, to),
+      ])
       const records = normalizeSavedCandidateRecords(response?.data ?? response, { id: projectId, name: projectName })
       if (currentRequestId !== requestId.current) return
       if (!filters.preserveOptions) {
-        setDeductionDetailsLoading(true)
+        attendanceRecordsRef.current = attendanceRecords
+        savedCandidateRecordsRef.current = records
+      }
+      if (!filters.preserveOptions) {
+        setCandidateDeductionDetails(new Map())
+        setCandidateDeductionSummaries(new Map())
+        setSelectedDeductionCandidateIds(new Set())
         setDeductionDetailsError('')
+        setDeductionSummaryError('')
         try {
-          setCandidateDeductionDetails(await fetchCandidateDeductionDetails(records))
-          setSelectedDeductionCandidateIds(new Set())
+          const summaries = records.length ? await fetchCandidateDeductionSummaries(records) : new Map()
+          if (currentRequestId !== requestId.current) return
+          setCandidateDeductionSummaries(summaries)
         } catch (deductionError) {
-          console.error('Failed to load candidate outstanding deductions:', deductionError)
-          setCandidateDeductionDetails(new Map())
-          setDeductionDetailsError('Candidate outstanding deductions could not be loaded.')
-        } finally {
-          setDeductionDetailsLoading(false)
+          if (currentRequestId !== requestId.current) return
+          console.error('Failed to preload candidate deduction indicators:', deductionError)
+          setDeductionSummaryError('Outstanding deduction indicators could not be loaded.')
         }
       }
       const bounds = getSavedDateBounds(records)
-      const rangeFrom = from || bounds.first
-      const rangeTo = to || bounds.last
+      const actualAttendanceDates = [...new Set(attendanceRecords
+        .map((record) => normalizeDate(getValue(record, ['date', 'attendance_date', 'attendanceDate'])))
+        .filter(Boolean))].sort()
+      const rangeFrom = from || [bounds.first, actualAttendanceDates[0]].filter(Boolean).sort()[0] || ''
+      const rangeTo = to || [bounds.last, actualAttendanceDates[actualAttendanceDates.length - 1]].filter(Boolean).sort().slice(-1)[0] || ''
       const dates = getDateRange(rangeFrom, rangeTo)
+      const configuredPaymentDates = new Set(flattenCandidateRecords(records)
+        .filter((row) => row.payment_type !== 'Deduction')
+        .flatMap((row) => {
+          const date = normalizeDate(row.attendance_date)
+          if (date) return [date]
+          if (String(row.payment_type).toLowerCase() === 'overtime') {
+            return getDateRange(normalizeDate(row.from_date), normalizeDate(row.to_date))
+          }
+          return []
+        }))
+      const availableDates = dates.filter((date) => configuredPaymentDates.has(date))
+      const omittedDates = filters.preserveOptions
+        ? []
+        : actualAttendanceDates.filter((date) => dates.includes(date) && !configuredPaymentDates.has(date))
       const types = [...new Set(flattenCandidateRecords(records)
         .filter((row) => row.payment_type !== 'Deduction')
         .map((row) => String(row.payment_type)))].sort((a, b) => a.localeCompare(b))
@@ -648,8 +805,8 @@ export default function CoreTeamSavedAttendanceSheet({
         candidateIds: undefined,
         paymentTypes: types,
         dateScope: 'all',
-        rangeFromDate: rangeFrom,
-        rangeToDate: rangeTo,
+        rangeFromDate: availableDates[0] || '',
+        rangeToDate: availableDates[availableDates.length - 1] || '',
         dates: [],
       }
       const datesForMatrix = resolvedFilters.dateScope === 'specific'
@@ -667,14 +824,26 @@ export default function CoreTeamSavedAttendanceSheet({
         : records
       if (!filters.preserveOptions) {
         setCandidateRecords(records)
-        setAttendanceDates(dates)
+        setAttendanceDates(availableDates)
+        setUnconfiguredDates(omittedDates)
+        setIncludeUnconfiguredDates(false)
       }
       setFilteredCandidateRecords(matrixRecords)
       setHasLoadedRecords(true)
       setAutoFilterFailed(false)
       setAttendanceDateRange({ from: rangeFrom, to: rangeTo })
       setAttendanceWarning('')
-      setAttendanceCandidates(loadAttendanceMatrixFromPayments(matrixRecords))
+      const selectedCandidateIds = resolvedFilters.candidateIds == null ? null : new Set(resolvedFilters.candidateIds)
+      const attendanceRecordsForMatrix = attendanceRecords.filter((record) => {
+        const details = getCandidateDetails(record)
+        const candidateId = candidateIdentity(details)
+        const date = normalizeDate(getValue(record, ['date', 'attendance_date', 'attendanceDate']))
+        return (selectedCandidateIds === null || selectedCandidateIds.has(candidateId))
+          && datesForMatrix.includes(date)
+      })
+      const fallbackCandidates = (filters.preserveOptions ? savedCandidateRecordsRef.current : records)
+        .filter((candidate) => selectedCandidateIds === null || selectedCandidateIds.has(candidateIdentity(candidate)))
+      setAttendanceCandidates(loadAttendanceMatrixFromRecords(attendanceRecordsForMatrix, fallbackCandidates))
       if (!filters.preserveOptions) {
         setSelectedCandidateIds(resolvedFilters.candidateIds ? new Set(resolvedFilters.candidateIds) : null)
         setDateScope(resolvedFilters.dateScope)
@@ -690,16 +859,17 @@ export default function CoreTeamSavedAttendanceSheet({
       if (!filters.preserveOptions) {
         setCandidateRecords([])
         setFilteredCandidateRecords([])
+        savedCandidateRecordsRef.current = []
         setSelectedTypes([])
       } else {
         setAutoFilterFailed(true)
       }
       setHasLoadedRecords(true)
-      setError('Saved attendance earnings could not be loaded.')
+      setError('Saved earnings or attendance records could not be loaded.')
     } finally {
       if (currentRequestId === requestId.current) setLoading(false)
     }
-  }, [directMode, initialRecords, projectId, projectName, project])
+  }, [directMode, initialRecords, projectId, projectName])
 
   useEffect(() => {
     if (!isOpen) {
@@ -710,7 +880,11 @@ export default function CoreTeamSavedAttendanceSheet({
     setToDate(initialToDate)
     setCandidateRecords([])
     setAttendanceCandidates([])
+    attendanceRecordsRef.current = []
+    savedCandidateRecordsRef.current = []
     setAttendanceDates([])
+    setUnconfiguredDates([])
+    setIncludeUnconfiguredDates(false)
     setFilteredCandidateRecords([])
     setCandidateDeductionDetails(new Map())
     setSelectedDeductionCandidateIds(new Set())
@@ -762,9 +936,6 @@ export default function CoreTeamSavedAttendanceSheet({
       const body = response?.data ?? response
       const rows = getGeneratedRows(body)
       if (!Array.isArray(rows) || !rows.length) throw new Error('Payment sheet service returned no rows.')
-      if (payload.attendance.some((candidate) => candidate.deductions.length > 0)) {
-        await coreRecruiterAPI.saveAttendancePaymentSheet(payload.attendance)
-      }
       setGeneratedSheet({ rows, response: body, savedStatus: '' })
       setGeneratedSheetView('sheet')
       setSheetName(`${projectName} payments${fromDate || toDate ? ` ${fromDate || 'start'} to ${toDate || 'end'}` : ''}`)
@@ -831,6 +1002,136 @@ export default function CoreTeamSavedAttendanceSheet({
     loadSavedRecords(fromDate, toDate)
   }, [fromDate, loadSavedRecords, toDate])
 
+  const openDeductionReview = async (candidate) => {
+    const candidateKey = candidateIdentity(candidate)
+    setDeductionCandidateKey(candidateKey)
+    setDeductionDetailsError('')
+    if (candidateDeductionDetails.has(candidateKey)) return
+
+    setDeductionDetailsLoading(true)
+    try {
+      const details = await fetchCandidateDeductionDetails(candidate)
+      setCandidateDeductionDetails((current) => new Map(current).set(candidateKey, details))
+    } catch (deductionError) {
+      console.error('Failed to load candidate personal details:', deductionError)
+      setDeductionDetailsError('Candidate personal details could not be loaded.')
+    } finally {
+      setDeductionDetailsLoading(false)
+    }
+  }
+
+  const resolveUnconfiguredDatePrompt = (includeDates) => {
+    setIncludeUnconfiguredDates(includeDates)
+    if (includeDates && dateScope === 'range') {
+      const allDates = [...new Set([...attendanceDates, ...unconfiguredDates])].sort()
+      setRangeFromDate(allDates[0] || '')
+      setRangeToDate(allDates[allDates.length - 1] || '')
+    }
+    if (dateScope === 'specific') {
+      setSpecificDates((current) => {
+        const next = new Set(current)
+        unconfiguredDates.forEach((date) => {
+          if (includeDates) next.add(date)
+          else next.delete(date)
+        })
+        return next
+      })
+    }
+    setGeneratedSheet(null)
+    setSavedMessage('')
+  }
+
+  const exportAttendanceSheet = () => {
+    try {
+      const headers = [
+        'S.No',
+        'Candidate Name',
+        'Mobile',
+        'Aadhaar',
+        ...selectedDates.map((date) => `${date}${unconfiguredDates.includes(date) ? ' (Unconfigured)' : ''}`),
+        'Worked Days',
+      ]
+      const currencyColumns = new Set()
+      let column = headers.length
+      if (includeBasePay) {
+        headers.push('Average Base Rate / Day', 'Base Amount')
+        currencyColumns.add(column)
+        currencyColumns.add(column + 1)
+        column += 2
+      }
+      allowanceTypes.forEach((type) => {
+        headers.push(type)
+        currencyColumns.add(column)
+        column += 1
+      })
+      headers.push('Gross Amount')
+      currencyColumns.add(column)
+      column += 1
+      if (selectedDeductionCandidateIds.size > 0) {
+        headers.push('Deduction', 'Deduction Note')
+        currencyColumns.add(column)
+        column += 2
+      }
+      headers.push('Net Amount')
+      currencyColumns.add(column)
+
+      const rows = matrixRows.map((row, index) => {
+        const candidateKey = candidateIdentity(row.candidate)
+        return [
+          index + 1,
+          row.candidate.candidate_name || 'Unknown',
+          row.candidate.mobile || '',
+          row.candidate.aadhaar || '',
+          ...selectedDates.map((date) => getMatrixStatus(
+            row.candidate.attendance[date],
+            savedEarningsByCandidateAndDate.has(`${candidateKey}|${date}`),
+          )),
+          row.workedDays,
+          ...(includeBasePay ? [row.baseRate, row.baseAmount] : []),
+          ...allowanceTypes.map((type) => row.allowanceTotals[type] || 0),
+          row.gross,
+          ...(selectedDeductionCandidateIds.size > 0 ? [row.deduction, row.deductionNote || ''] : []),
+          row.net,
+        ]
+      })
+      rows.push([
+        'TOTAL',
+        '',
+        '',
+        '',
+        ...selectedDates.map(() => ''),
+        matrixTotals.workedDays,
+        ...(includeBasePay ? ['', matrixTotals.baseAmount] : []),
+        ...allowanceTypes.map((type) => matrixTotals.allowanceTotals[type] || 0),
+        matrixTotals.gross,
+        ...(selectedDeductionCandidateIds.size > 0 ? [matrixTotals.deduction, ''] : []),
+        matrixTotals.net,
+      ])
+
+      const worksheet = XLSX.utils.aoa_to_sheet([headers, ...rows])
+      worksheet['!cols'] = headers.map((header, index) => {
+        const maxLength = rows.reduce((length, row) => Math.max(length, String(row[index] ?? '').length), String(header).length)
+        return { wch: Math.min(Math.max(maxLength + 2, 12), 36) }
+      })
+      currencyColumns.forEach((index) => {
+        for (let row = 1; row <= rows.length; row += 1) {
+          const cell = worksheet[XLSX.utils.encode_cell({ r: row, c: index })]
+          if (cell) cell.z = '"₹"#,##0.00;[Red]-"₹"#,##0.00'
+        }
+      })
+      const workbook = XLSX.utils.book_new()
+      XLSX.utils.book_append_sheet(workbook, worksheet, 'Attendance')
+      const projectFileName = projectName.replace(/[<>:"/\\|?*]+/g, '_').trim() || 'CoreTeam'
+      const dateLabel = selectedDates.length
+        ? `${selectedDates[0]}_to_${selectedDates[selectedDates.length - 1]}`
+        : 'selected_dates'
+      XLSX.writeFile(workbook, `${projectFileName}_attendance_${dateLabel}.xlsx`)
+    } catch (exportError) {
+      console.error('Failed to export saved core team attendance sheet:', exportError)
+      setError('Unable to export the attendance sheet. Please try again.')
+    }
+  }
+
   const footer = useMemo(() => (
     <div className="core-saved-sheet-footer">
       {step === 1 && !directMode && <button type="button" className="btn btn-outline core-saved-sheet-reset" onClick={resetFilters} disabled={loading}>
@@ -865,22 +1166,37 @@ export default function CoreTeamSavedAttendanceSheet({
           <strong>{attendanceDateRange.from || 'All dates'}{attendanceDateRange.to ? ` to ${attendanceDateRange.to}` : ''}</strong>
         </header>
         {error && <div className="attendance-message error" role="alert">{error}</div>}
-        {deductionDetailsLoading && <div className="core-saved-sheet-empty" role="status">Loading candidate outstanding deductions...</div>}
-        {deductionDetailsError && <div className="attendance-message error" role="status">{deductionDetailsError} Deduction application is unavailable until balances load.</div>}
+        {deductionSummaryError && <div className="attendance-message error" role="status">{deductionSummaryError}</div>}
+        {unconfiguredDates.length > 0 && <div className="core-saved-sheet-date-decision" role="region" aria-label="Unconfigured attendance dates">
+          <div>
+            <strong>{unconfiguredDates.length} date{unconfiguredDates.length === 1 ? '' : 's'} have no saved amounts.</strong>
+            <span>Include them anyway? Included dates will be highlighted red.</span>
+          </div>
+          <div>
+            <button type="button" className={`core-saved-sheet-date-decision-keep${includeUnconfiguredDates ? ' is-active' : ''}`} aria-pressed={includeUnconfiguredDates} onClick={() => resolveUnconfiguredDatePrompt(true)}>Keep dates</button>
+            <button type="button" className={!includeUnconfiguredDates ? 'is-active' : ''} aria-pressed={!includeUnconfiguredDates} onClick={() => resolveUnconfiguredDatePrompt(false)}>Omit dates</button>
+          </div>
+        </div>}
         {loading && !hasLoadedRecords ? <div className="core-saved-sheet-empty" role="status">{directMode ? 'Preparing payment sheet...' : 'Loading saved attendance earnings...'}</div> : <>
           {loading && <div className="core-saved-sheet-empty" role="status">Updating attendance filters...</div>}
           {attendanceWarning && <div className="attendance-message" role="status">{attendanceWarning}</div>}
           {directMode && generating && <div className="core-saved-sheet-empty" role="status">Preparing payment sheet from the attendance and earnings you just created...</div>}
           {!directMode && step === 1 && <>
           <section className="core-saved-sheet-section">
-            <header><h3>Saved attendance earnings</h3><span>{savedRows.length} entries · {matrixRows.length} team members</span></header>
+            <header>
+              <h3>Saved attendance earnings</h3>
+              <span>{savedRows.length} entries · {matrixRows.length} team members</span>
+              <button type="button" className="btn btn-outline btn-sm core-saved-sheet-export" onClick={exportAttendanceSheet} disabled={loading || filterRequestPending || !dateSelectionValid || matrixRows.length === 0}>
+                <FontAwesomeIcon icon={faFileExcel} /> Export Excel
+              </button>
+            </header>
             <div className="core-saved-sheet-matrix-title">{projectName} Core Team Attendance and Payment Sheet</div>
-            <div className="core-saved-sheet-matrix-range">Showing {selectedDates.length} of {attendanceDates.length} dates</div>
+            <div className="core-saved-sheet-matrix-range">Showing {selectedDates.length} of {selectableAttendanceDates.length} dates</div>
             {matrixRows.length ? <div className="core-saved-sheet-table-wrap core-saved-sheet-matrix-wrap">
               <table className="core-saved-sheet-table core-saved-sheet-matrix">
                 <thead><tr>
                   <th>S.No</th><th>Candidate Name</th><th>Mobile</th><th>Aadhaar</th>
-                  {selectedDates.map((date) => <th className="attendance-date" key={date}>{date}</th>)}
+                  {selectedDates.map((date) => <th className={`attendance-date${unconfiguredDates.includes(date) ? ' is-unconfigured' : ''}`} key={date}>{date}{unconfiguredDates.includes(date) && <small>Unconfigured</small>}</th>)}
                   <th>Worked Days</th>{includeBasePay && <><th>Average Base Rate / Day</th><th>Base Amount</th></>}
                   {allowanceTypes.map((type) => <th key={type}>{type}</th>)}
                   <th>Gross Amount</th>{selectedDeductionCandidateIds.size > 0 && <><th>Deduction</th><th>Deduction Note</th></>}<th>Net Amount</th>
@@ -889,21 +1205,25 @@ export default function CoreTeamSavedAttendanceSheet({
                   {matrixRows.map((row, index) => {
                     const candidateKey = candidateIdentity(row.candidate)
                     const deductionDetails = candidateDeductionDetails.get(candidateKey) || { amount: 0, entries: [] }
+                    const deductionSummary = candidateDeductionSummaries.get(candidateKey)
+                    const hasDeductionDetails = candidateDeductionDetails.has(candidateKey)
                     return <tr key={candidateKey}>
                       <td>{index + 1}</td>
-                      <td><span className="core-saved-sheet-candidate-name">{row.candidate.candidate_name || 'Unknown'}{deductionDetails.amount > 0 && <button
+                      <td><span className="core-saved-sheet-candidate-name">{row.candidate.candidate_name || 'Unknown'}{deductionSummaryError || deductionSummary?.amount > 0 ? <button
                         type="button"
                         className={`core-saved-sheet-deduction-indicator${selectedDeductionCandidateIds.has(candidateKey) ? ' is-selected' : ''}`}
-                        onClick={() => setDeductionCandidateKey(candidateKey)}
-                        aria-label={`Review outstanding deduction of ${formatMoney(deductionDetails.amount)} for ${row.candidate.candidate_name || 'candidate'}`}
-                        title={`Outstanding deduction: ${formatMoney(deductionDetails.amount)}`}
-                      ><FontAwesomeIcon icon={faCircleExclamation} /></button>}</span></td>
+                        onClick={() => openDeductionReview(row.candidate)}
+                        disabled={deductionDetailsLoading}
+                        aria-label={`Load outstanding deduction details for ${row.candidate.candidate_name || 'candidate'}`}
+                        title={hasDeductionDetails ? `Outstanding deduction: ${formatMoney(deductionDetails.amount)}` : `Outstanding deduction: ${formatMoney(deductionSummary?.amount)}`}
+                      ><FontAwesomeIcon icon={faCircleExclamation} /></button> : null}</span></td>
                       <td>{row.candidate.mobile || '—'}</td>
                       <td>{row.candidate.aadhaar || '—'}</td>
                       {selectedDates.map((date) => {
                         const hasSavedEarning = savedEarningsByCandidateAndDate.has(`${candidateKey}|${date}`)
                         const status = getMatrixStatus(row.candidate.attendance[date], hasSavedEarning)
-                        return <td className="attendance-date" key={date} title={hasSavedEarning ? 'Saved earnings on this date' : undefined} aria-label={`${status}${hasSavedEarning ? ', saved earnings' : ''}`}>
+                        const isUnconfigured = unconfiguredDates.includes(date)
+                        return <td className={`attendance-date${isUnconfigured ? ' is-unconfigured' : ''}`} key={date} title={isUnconfigured ? 'No saved amount is configured for this date' : hasSavedEarning ? 'Saved earnings on this date' : undefined} aria-label={`${status}${hasSavedEarning ? ', saved earnings' : ''}${isUnconfigured ? ', no saved amount configured' : ''}`}>
                           <span>{status}</span>
                         </td>
                       })}
@@ -914,7 +1234,7 @@ export default function CoreTeamSavedAttendanceSheet({
                   })}
                   <tr className="core-saved-sheet-total-row">
                     <td>TOTAL</td><td></td><td></td><td></td>
-                    {selectedDates.map((date) => <td key={date}></td>)}
+                    {selectedDates.map((date) => <td className={unconfiguredDates.includes(date) ? 'attendance-date is-unconfigured' : 'attendance-date'} key={date}></td>)}
                     <td>{matrixTotals.workedDays}</td>{includeBasePay && <><td></td><td>{formatMoney(matrixTotals.baseAmount)}</td></>}
                     {allowanceTypes.map((type) => <td key={type}>{formatMoney(matrixTotals.allowanceTotals[type])}</td>)}
                     <td>{formatMoney(matrixTotals.gross)}</td>{selectedDeductionCandidateIds.size > 0 && <><td>{formatMoney(matrixTotals.deduction)}</td><td></td></>}<td>{formatMoney(matrixTotals.net)}</td>
@@ -925,7 +1245,7 @@ export default function CoreTeamSavedAttendanceSheet({
           </section>
 
           <section className="core-saved-sheet-section core-saved-sheet-targeting">
-            <header><h3>Who and when</h3><span>{selectedCandidateCount} of {candidateRecords.length} candidates · {selectedDates.length} of {attendanceDates.length} dates</span></header>
+            <header><h3>Who and when</h3><span>{selectedCandidateCount} of {candidateRecords.length} candidates · {selectedDates.length} of {selectableAttendanceDates.length} dates</span></header>
             <div className="core-saved-sheet-selection-grid">
               <fieldset>
                 <legend>Candidates</legend>
@@ -959,29 +1279,26 @@ export default function CoreTeamSavedAttendanceSheet({
                   <button type="button" className={dateScope === 'specific' ? 'active' : ''} aria-pressed={dateScope === 'specific'} onClick={() => setDateScope('specific')}>Specific dates</button>
                 </div>
                 {dateScope === 'range' && <div className="core-saved-sheet-date-range">
-                  <label><span>From</span><input className="form-control" type="date" min={attendanceDates[0]} max={attendanceDates[attendanceDates.length - 1]} value={rangeFromDate} onChange={(event) => setRangeFromDate(event.target.value)} /></label>
-                  <label><span>To</span><input className="form-control" type="date" min={attendanceDates[0]} max={attendanceDates[attendanceDates.length - 1]} value={rangeToDate} onChange={(event) => setRangeToDate(event.target.value)} /></label>
+                  <label><span>From</span><input className="form-control" type="date" min={selectableAttendanceDates[0]} max={selectableAttendanceDates[selectableAttendanceDates.length - 1]} value={rangeFromDate} onChange={(event) => setRangeFromDate(event.target.value)} /></label>
+                  <label><span>To</span><input className="form-control" type="date" min={selectableAttendanceDates[0]} max={selectableAttendanceDates[selectableAttendanceDates.length - 1]} value={rangeToDate} onChange={(event) => setRangeToDate(event.target.value)} /></label>
                 </div>}
                 {dateScope === 'range' && !dateSelectionValid && <p className="core-saved-sheet-note">Choose a valid date range to continue.</p>}
                 {dateScope === 'specific' && <>
                   <div className="core-saved-sheet-calendar-actions">
                     <span>{specificDates.size} dates selected</span>
-                    <button type="button" onClick={() => setSpecificDates(new Set(attendanceDates))}>Select all</button>
+                    <button type="button" onClick={() => setSpecificDates(new Set(selectableAttendanceDates))}>Select all</button>
                     <button type="button" onClick={() => setSpecificDates(new Set())}>Clear dates</button>
                   </div>
                   <div className="core-saved-sheet-calendar-wrap">
-                    {attendanceDates.length ? <DayPicker
+                    {selectableAttendanceDates.length ? <DayPicker
                       mode="multiple"
                       className="core-saved-sheet-calendar"
-                      defaultMonth={parseLocalDate(attendanceDates[0])}
+                      defaultMonth={parseLocalDate(selectableAttendanceDates[0])}
                       selected={selectedDates.map(parseLocalDate)}
                       onSelect={(dates) => setSpecificDates(new Set((dates || []).map(formatLocalDate)))}
-                      startMonth={parseLocalDate(attendanceDates[0])}
-                      endMonth={parseLocalDate(attendanceDates[attendanceDates.length - 1])}
-                      disabled={{
-                        before: parseLocalDate(attendanceDates[0]),
-                        after: parseLocalDate(attendanceDates[attendanceDates.length - 1]),
-                      }}
+                      startMonth={parseLocalDate(selectableAttendanceDates[0])}
+                      endMonth={parseLocalDate(selectableAttendanceDates[selectableAttendanceDates.length - 1])}
+                      disabled={(date) => !selectableAttendanceDates.includes(formatLocalDate(date))}
                     /> : <div className="core-saved-sheet-empty">No dates available to select.</div>}
                   </div>
                 </>}
@@ -1073,13 +1390,15 @@ export default function CoreTeamSavedAttendanceSheet({
       footer={<button type="button" className="btn btn-outline" onClick={() => setDeductionCandidateKey('')}>Close</button>}
     >
       {deductionCandidate && <section className="core-saved-sheet-deduction-review">
+        {deductionDetailsLoading ? <p role="status">Loading candidate details...</p> : deductionDetailsError ? <p className="core-saved-sheet-note" role="alert">{deductionDetailsError}</p> : <>
         <div><span>Overall outstanding</span><strong>{formatMoney(activeDeductionDetails.amount)}</strong></div>
+        {activeDeductionDetails.amount === 0 && <p className="core-saved-sheet-note">No outstanding deduction found.</p>}
         {activeDeductionDetails.entries.length > 0 && <ul>
           {activeDeductionDetails.entries.map((entry) => <li key={entry.id}>
             <span>{entry.note || 'Deduction'}</span><strong>{formatMoney(entry.amount)}</strong>
           </li>)}
         </ul>}
-        <label className="core-saved-sheet-deduction-apply">
+        {activeDeductionDetails.amount > 0 && <label className="core-saved-sheet-deduction-apply">
           <input
             type="checkbox"
             checked={activeDeductionSelected}
@@ -1094,8 +1413,8 @@ export default function CoreTeamSavedAttendanceSheet({
             })}
           />
           <span>{activeDeductionSelected ? 'Deduction will be included in this sheet' : `Deduct up to ${formatMoney(activeDeductionAppliedAmount)} in this sheet`}</span>
-        </label>
-        {deductionDetailsError && <p className="core-saved-sheet-note">{deductionDetailsError}</p>}
+        </label>}
+        </>}
       </section>}
     </Modal>
   )

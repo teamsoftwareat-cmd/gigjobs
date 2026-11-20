@@ -43,6 +43,7 @@ export const ROLES = {
           { icon: 'tachometer-alt', label: 'Dashboard', page: '/app/recruiter/dashboard' },
           { icon: 'project-diagram', label: 'Projects', page: '/app/recruiter/projects' },
           { icon: 'clock', label: 'Attendance', page: '/app/recruiter/attendance' },
+          { icon: 'file-invoice-dollar', label: 'Core Team Hub', page: '/app/recruiter/core-team' },
           { icon: 'user-plus', label: 'Add Core Team', page: '/app/recruiter/calling-team/add-candidates' },
           { icon: 'users', label: 'Candidate Database', page: '/app/recruiter/candidate-database' },
           { icon: 'file-invoice-dollar', label: 'Expenses', page: '/app/recruiter/expenses' },
@@ -79,6 +80,7 @@ export const ROLES = {
       {
         section: 'More', items: [
           { icon: 'message', label: 'Campaigns', page: '/app/recruiter/campaigns' },
+          { icon: 'edit', label: 'Form Builder', page: '/app/recruiter/form-builder' },
           { icon: 'certificate', label: 'Certifications', page: '/app/recruiter/certifications' },
           { icon: 'history', label: 'Document History', page: '/app/recruiter/document-history' },
           { icon: 'user', label: 'Applications', page: '/app/recruiter/applications' },
@@ -147,6 +149,7 @@ export const ROLES = {
       {
         section: 'More', items: [
           { icon: 'message', label: 'Campaigns', page: '/app/recruiter/campaigns' },
+          { icon: 'edit', label: 'Form Builder', page: '/app/recruiter/form-builder' },
           { icon: 'user', label: 'Applications', page: '/app/recruiter/applications' },
           { icon: 'headset', label: 'Support Tickets', page: '/app/recruiter/support-tickets' },
           { icon: 'check', label: 'Approve attendance', page: '/app/recruiter/approvals-tickets' }
@@ -201,6 +204,7 @@ export const ROLES = {
       {
         section: 'More', items: [
           { icon: 'message', label: 'Campaigns', page: '/app/recruiter/campaigns' },
+          { icon: 'edit', label: 'Form Builder', page: '/app/recruiter/form-builder' },
           { icon: 'certificate', label: 'Certifications', page: '/app/recruiter/certifications' },
           { icon: 'history', label: 'Document History', page: '/app/recruiter/document-history' },
           { icon: 'user', label: 'Applications', page: '/app/recruiter/applications' },

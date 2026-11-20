@@ -1,9 +1,9 @@
 // src/components/ui/ProjectsTable.jsx
 import { useEffect, useRef, useState } from 'react'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
-import { faSearch, faCalendarAlt, faMapMarkerAlt, faCopy } from '@fortawesome/free-solid-svg-icons'
+import { faSearch, faCalendarAlt, faMapMarkerAlt } from '@fortawesome/free-solid-svg-icons'
 import { Table, Card } from '../ui/index'
-import { normalizeProjectIdParam, recruiterAPI } from '../../api/axios'
+import { recruiterAPI } from '../../api/axios'
 
 const STATUS_OPTIONS = ['pending', 'completed', 'hold', 'cancelled']
 
@@ -47,7 +47,6 @@ export default function ProjectsTable({
   onDateFilter,
   onStatusChange,
   onEditProject,
-  onCreateForm,
   showFilters = true,
   emptyMessage = 'No projects found.'
 }) {
@@ -56,7 +55,6 @@ export default function ProjectsTable({
   const [fromDate, setFromDate] = useState('')
   const [toDate, setToDate] = useState('')
   const [updatingStatus, setUpdatingStatus] = useState(null)
-  const [copiedProjectId, setCopiedProjectId] = useState(null)
   const didMountRef = useRef(false)
   const isMobile = useIsMobile()
 
@@ -103,20 +101,6 @@ export default function ProjectsTable({
     }
   }
 
-  const copyApplicationLink = async (project) => {
-    const projectId = project.projectId || project.id
-    if (projectId == null) return
-    const basePath = import.meta.env.BASE_URL.endsWith('/') ? import.meta.env.BASE_URL : `${import.meta.env.BASE_URL}/`
-    const link = `${window.location.origin}${basePath}#/apply/${encodeURIComponent(normalizeProjectIdParam(projectId))}`
-    try {
-      await navigator.clipboard.writeText(link)
-      setCopiedProjectId(projectId)
-      window.setTimeout(() => setCopiedProjectId(null), 1800)
-    } catch {
-      window.prompt('Copy the application link:', link)
-    }
-  }
-
   const columns = ['#', 'Project ID', 'Project', 'Duration', 'Location', 'Status', 'Actions']
 
   const rows = data.map((project, index) => {
@@ -148,10 +132,6 @@ export default function ProjectsTable({
       </select>,
       <div className="project-row-actions">
         <button className="btn btn-outline btn-sm" onClick={() => onEditProject?.(project)} style={{ padding: '4px 8px' }}>Edit</button>
-        <button className="btn btn-outline btn-sm" onClick={() => onCreateForm?.(project)} style={{ padding: '4px 8px' }}>Create Form</button>
-        <button className="btn btn-outline btn-sm" onClick={() => copyApplicationLink(project)} title="Copy public application link" style={{ padding: '4px 8px' }}>
-          <FontAwesomeIcon icon={faCopy} /> {copiedProjectId === (project.projectId || project.id) ? 'Copied' : 'Copy link'}
-        </button>
       </div>
     ]
   })

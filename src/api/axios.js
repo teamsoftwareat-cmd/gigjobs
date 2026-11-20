@@ -3,7 +3,15 @@ const resolveUrl = (url, params) => {
   if (params && Object.keys(params).length) {
     Object.entries(params).forEach(([key, value]) => {
       if (value !== undefined && value !== null) {
-        targetUrl.searchParams.append(key, String(value))
+                if (Array.isArray(value)) {
+          value.forEach((item) => {
+            if (item !== undefined && item !== null) {
+              targetUrl.searchParams.append(`${key}[]`, String(item))
+            }
+          })
+        } else {
+          targetUrl.searchParams.append(key, String(value))
+        }
       }
     })
     if (targetUrl.search) {
@@ -262,6 +270,24 @@ export const normalizeProjectIdParam = (projectId) => {
 
 const BASE = normalizeBase(API_BASE)
 const MOCK_BASE = normalizeBase(MOCK_API_BASE)
+
+
+const sendWhatsAppMessage = (data) => {
+  const { imageFile, form_id, buttonValues, type = 'WhatsApp', ...message } = data || {}
+  const formData = new FormData()
+  formData.append('type', String(type))
+  if (imageFile) formData.append('image', imageFile)
+  Object.entries(message).forEach(([key, value]) => {
+    if (value !== undefined && value !== null) {
+      formData.append(key, typeof value === 'object' ? JSON.stringify(value) : String(value))
+    }
+  })
+  if (form_id !== undefined && form_id !== null) formData.append('form_id', String(form_id))
+  if (buttonValues !== undefined && buttonValues !== null) {
+    formData.append('buttonValues', typeof buttonValues === 'object' ? JSON.stringify(buttonValues) : String(buttonValues))
+  }
+  return api.post(`${BASE}/employee/remote/candidate-messages`, formData)
+}
 
 const normalizeVerificationTeamPayload = (data = {}) => {
   const payload = { ...(data || {}) }
@@ -602,6 +628,10 @@ export const recruiterAPI = {
   getAadharOverview: () => api.get(`${MOCK_BASE}/recruiter/dashboard/aadhar-overview`),
   getOcrTrend: () => api.get(`${MOCK_BASE}/recruiter/dashboard/ocr-trend`),
   getProjects: (params = {}) => api.get(`${BASE}/projects-list`, { params }),
+  getFormBuilders: (params = {}) => api.get(`${BASE}/employee/remote/form-builders`, { params }),
+  getFormBuilder: (formBuilderId) => api.get(`${BASE}/employee/remote/form-builders/${encodeURIComponent(formBuilderId)}`),
+  createFormBuilder: (data) => api.post(`${BASE}/employee/remote/form-builders`, data),
+  updateFormBuilder: (formBuilderId, data) => api.post(`${BASE}/employee/remote/form-builders/${encodeURIComponent(formBuilderId)}`, data),
   getProjectsSupport: (params = {}) => api.get(`${BASE}/projects-list-support`, { params }),
   getProjectsWithPaymentData: (params = {}) => api.get(`${MOCK_BASE}/projects-with-payment-data`, { params }),
   // Alias for fetching project-level payment summaries / KPIs (used by Payments UI)
@@ -691,7 +721,6 @@ export const recruiterAPI = {
   }, { silent: true }),
   submitProjectApplication: (projectId, data) => api.post(`${BASE}/projects/${encodeURIComponent(normalizeProjectIdParam(projectId))}/application-form/submissions`, {
     ...data,
-    project_id: normalizeProjectIdParam(projectId),
   }),
   checkAttendanceLinkStatus: (projectId) => api.get(`${BASE}/candidate/attendance/link-status`, { params: { projectId } }),
   setProjectAttendanceStatus: (projectId, status) => api.post(`${BASE}/employee/projects/${projectId}/attendance-status`, { status }),
@@ -824,8 +853,7 @@ export const recruiterAPI = {
   getCampaignHistory: (params = {}) => api.get(`${BASE}/employee/registration-campaign-history`, { params }),
   // Notify a list of candidates (expects multipart/form-data with an Excel/CSV file)
   // Accepts optional query params: project_id, portal (sms|whatsapp|email), message_type
-  notifyCampaign: (formData, params = {}) => api.post(`${BASE}/employee/notify-sms`, formData, { params }),
-
+  notifyCampaign: (formData, params = {}) => api.post(`${BASE}/employee/remote/candidate-messages/schedule`, formData, { params }),
   /* ===== RECIPIENTS DATABASE DASHBOARD ===== */
   getTotalCandidates: (params = {}) => api.get(`https://Cynosurejobs.net/gig_jobs/employee/upload_csv_files/total_candidates.php`, { params }),
   getActivePortals: (params = {}) => api.get(`https://Cynosurejobs.net/gig_jobs/employee/upload_csv_files/active_portals.php`, { params }),
@@ -842,9 +870,9 @@ export const recruiterAPI = {
   updateTicketStatus: (ticketId, data) => api.post(`${BASE}/support-tickets/${ticketId}`, data),
   addTicketReply: (ticketId, data) => api.post(`${MOCK_BASE}/support-tickets/${ticketId}/reply`, data),
   sendEmailMessage: (data) => api.post(`${MOCK_BASE}/send-email`, data),
-  sendWhatsAppMessage: (data) => api.post(`${MOCK_BASE}/send-whatsapp`, data),
-  getWhatsAppTemplates: () => api.get(`${MOCK_BASE}/whatsapp-templates`),
-  getWhatsAppTemplateDetails: (id) => api.get(`${MOCK_BASE}/whatsapp-templates-details/id=${id}`),
+  sendWhatsAppMessage,
+  getWhatsAppTemplates: () => api.get(`${BASE}/employee/remote/interakt-templates`),
+  getWhatsAppTemplateDetails: (templateId) => api.get(`${BASE}/employee/remote/interakt-template-details`, { params: { template_id: templateId } }),
   submitTicket: (data) => api.post(`${MOCK_BASE}/support-tickets`, data),
 
   /* ===== AADHAAR UPLOADS (EMPLOYEE) ===== */
@@ -1001,6 +1029,7 @@ recruiterAPI.verifyMobileOTPforverifiers = (mobile, otp) => api.post(`${BASE}/jo
 
 export const coreRecruiterAPI = {
   get: api.get,
+  sendWhatsAppMessage,
   getAttendanceRecords: (params = {}) => api.get(`${BASE}/employee/coreteam/attendance-report`, { params }),
   getWrittenExamAttendanceRecords: (params = {}) => api.get(`${BASE}/employee/coreteam/attendance-report/written-exam`, { params }),
   getAttendancePaymentSheet: (attendanceId) => api.get(`${BASE}/employee/coreteam/attendance-payment-sheet`, {
@@ -1017,6 +1046,7 @@ export const coreRecruiterAPI = {
   getConsultantDraftPaymentSheetDetails: (sheetId, params = {}) => api.get(`${MOCK_BASE}/employee/consultant/draft-payment-sheets-individual/${encodeURIComponent(sheetId)}`, { params }),
   getCoreTeamPaymentSheets: (params = {}) => api.get(`${BASE}/employee/coreteam/final-payment-sheets`, { params }),
   getCoreTeamPaymentSheetDetails: (sheetId, params = {}) => api.get(`${BASE}/employee/coreteam/final-payment-sheet-details/${encodeURIComponent(sheetId)}`, { params }),
+  consolidateAttendancePaymentSheets: (data) => api.post(`${BASE}/employee/coreteam/consolidate-attendance-payment-sheets`, data),
   updateAttendancePaymentSheetsStatus: (data) => api.post(`${BASE}/employee/attendance/payment-sheets/status`, data),
   getConsultantPaymentSheets: (params = {}) => api.get(`${MOCK_BASE}/employee/consultant/payment-sheets`, { params }),
   getConsultantPaymentSheetDetails: (sheetId, params = {}) => api.get(`${MOCK_BASE}/employee/consultant/payment-sheets-individual/${encodeURIComponent(sheetId)}`, { params }),

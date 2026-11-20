@@ -2,6 +2,30 @@
   display: none;
 }
 
+.candidate-database-page .projects-table-wrap table {
+  min-width: 1450px;
+  table-layout: auto;
+}
+
+.candidate-database-page .projects-table-wrap table th,
+.candidate-database-page .projects-table-wrap table td {
+  white-space: nowrap;
+  word-break: normal;
+  overflow-wrap: normal;
+  overflow: visible;
+}
+
+.candidate-database-page .projects-table-wrap table td > div {
+  flex-wrap: nowrap !important;
+}
+
+.candidate-database-page .project-name-cell,
+.candidate-database-page .project-subtext {
+  white-space: nowrap;
+  overflow-wrap: normal;
+  word-break: normal;
+}
+
 .candidate-mobile-actions {
   display: flex;
   gap: 8px;

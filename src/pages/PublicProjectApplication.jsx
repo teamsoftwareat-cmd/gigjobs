@@ -4,6 +4,7 @@ import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faCheck } from '@fortawesome/free-solid-svg-icons'
 import { normalizeProjectIdParam, recruiterAPI } from '../api/axios'
 import { getTrainingCountdownLabel } from '../utils/dateCountdown'
+import { decryptRegistrationId } from '../utils/faceEnrollLinkCrypto'
 import { ensureCoreApplicantFields } from '../utils/applicationFormFields'
 import { getApplicationFieldOptions, getMatchingDeciderRules, isApplicationFieldVisible, isApplicationSectionVisible } from '../utils/applicationFormConditions'
 import { formatProjectFacts } from '../utils/projectFormatting'
@@ -97,7 +98,21 @@ const localizeFacts = (facts, language) => {
 
 const unwrapForm = (response) => {
   const payload = response?.data?.data ?? response?.data
-  return payload?.form_data ?? payload?.form ?? payload
+  if (payload?.form_data && typeof payload.form_data === 'object') {
+    const formData = payload.form_data
+    const fields = Array.isArray(formData.fields)
+      ? formData.fields
+      : Array.isArray(payload.fields)
+        ? payload.fields
+        : []
+    return {
+      ...payload,
+      ...formData,
+      content: formData.content ?? formData,
+      fields: ensureCoreApplicantFields(fields),
+    }
+  }
+  return payload?.form ?? payload
 }
 
 const getText = (value, language, fallback = '') => {
@@ -197,6 +212,7 @@ const translateApplicationForm = async (form, language) => {
 
 export default function PublicProjectApplication() {
   const { projectId } = useParams()
+  const [resolvedProjectId, setResolvedProjectId] = useState(projectId)
   const [form, setForm] = useState(null)
   const [language, setLanguage] = useState('en')
   const [loading, setLoading] = useState(true)
@@ -210,9 +226,16 @@ export default function PublicProjectApplication() {
     setLoading(true)
     setError('')
     try {
-      const response = await recruiterAPI.getProjectApplicationForm(projectId)
+      let decodedProjectId = projectId
+      try {
+        decodedProjectId = await decryptRegistrationId(projectId)
+      } catch {
+        // Keep supporting existing application URLs that use plain project IDs.
+      }
+      const response = await recruiterAPI.getProjectApplicationForm(decodedProjectId)
       const loadedForm = unwrapForm(response)
       if (!loadedForm || !Array.isArray(loadedForm.fields)) throw new Error('This application form is not available yet.')
+      setResolvedProjectId(loadedForm.project_id ?? loadedForm.projectId ?? decodedProjectId)
       setForm(loadedForm)
       setFieldAnswers({})
     } catch (loadError) {
@@ -265,7 +288,7 @@ export default function PublicProjectApplication() {
     const value = selectedContent[key]
     return value || fallback
   }
-  const projectName = rawContent.projectName || rawContent.headline || `Project ${projectId}`
+  const projectName = rawContent.projectName || rawContent.headline || `Project ${resolvedProjectId || projectId}`
   const generatedIntro = getPublicText(language, 'genericIntro', { name: projectName })
   const rawFacts = selectedContent.facts || (language === 'en' ? englishContent.facts : [])
   const openingCount = String(englishContent.urgent || '').match(/^\d+/)?.[0]
@@ -400,7 +423,8 @@ export default function PublicProjectApplication() {
       ;[firstNameField, lastNameField, emailField, mobileField].filter(Boolean).forEach((field) => {
         delete applicantAnswers[field.name]
       })
-      await recruiterAPI.submitProjectApplication(projectId, {
+      await recruiterAPI.submitProjectApplication(form?.id ?? form?.form_id ?? projectId, {
+        form_id: form?.id ?? form?.form_id,
         first_name: firstName,
         last_name: lastName,
         email,
@@ -422,7 +446,7 @@ export default function PublicProjectApplication() {
     }
   }
 
-  const shareUrl = `${window.location.origin}${import.meta.env.BASE_URL}#/apply/${encodeURIComponent(normalizeProjectIdParam(projectId))}`
+  const shareUrl = `${window.location.origin}${import.meta.env.BASE_URL}#/apply/${encodeURIComponent(normalizeProjectIdParam(resolvedProjectId || projectId))}`
   const doneTitle = (content.doneTitle || getPublicText(language, 'received', { name: '{name}' })).replace('{name}', success?.name || '')
   const doneText = (content.doneText || getPublicText(language, 'contactYou', { mobile: '{mobile}' })).replace('{mobile}', success?.mobile || '')
 

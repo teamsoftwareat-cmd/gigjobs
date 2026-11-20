@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react'
+import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
 import { candidateAPI, coreRecruiterAPI, recruiterAPI } from '../../api/axios'
 import { Modal } from '../../components/ui'
 import SearchableProjectSelect from '../../components/ui/SearchableProjectSelect'
@@ -181,6 +181,8 @@ export default function CandidateAttendanceCalendar({ isOpen, onClose, candidate
   const [areaOptions, setAreaOptions] = useState({})
   const [selections, setSelections] = useState({})
   const [initialSelections, setInitialSelections] = useState({})
+  const selectionsRef = useRef({})
+  const initialSelectionsRef = useRef({})
   const [calendarMonth, setCalendarMonth] = useState(() => {
     const now = new Date()
     return `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}`
@@ -193,6 +195,8 @@ export default function CandidateAttendanceCalendar({ isOpen, onClose, candidate
   const [message, setMessage] = useState('')
   const [pendingRequests, setPendingRequests] = useState([])
   const [confirmOpen, setConfirmOpen] = useState(false)
+  const [bulkSelectedDates, setBulkSelectedDates] = useState(new Set())
+  const dateDragRef = useRef({ anchor: '', active: false, dragged: false })
 
   const projectOptions = useMemo(() => [...STATIC_OPTIONS, ...projects], [projects])
   const dateMap = useMemo(() => Object.fromEntries(rows.map((row) => [row.date, row])), [rows])
@@ -206,13 +210,83 @@ export default function CandidateAttendanceCalendar({ isOpen, onClose, candidate
     .map((row) => row.date)), [initialSelections, rows, selections])
 
   useEffect(() => {
+    const finishDateDrag = () => {
+      const drag = dateDragRef.current
+      if (!drag.active) return
+      dateDragRef.current = { ...drag, active: false }
+      if (drag.dragged) {
+        window.setTimeout(() => {
+          if (!dateDragRef.current.active) dateDragRef.current = { anchor: '', active: false, dragged: false }
+        }, 0)
+      }
+    }
+    window.addEventListener('pointerup', finishDateDrag)
+    window.addEventListener('pointercancel', finishDateDrag)
+    return () => {
+      window.removeEventListener('pointerup', finishDateDrag)
+      window.removeEventListener('pointercancel', finishDateDrag)
+    }
+  }, [])
+
+  const mergeAttendanceRows = useCallback((dateRows, nextProjects) => {
+    const currentSelections = selectionsRef.current
+    const currentInitialSelections = initialSelectionsRef.current
+    const nextSelections = { ...currentSelections }
+    const nextInitialSelections = { ...currentInitialSelections }
+
+    dateRows.forEach((row) => {
+      const projectId = matchProjectToOption(row, nextProjects)
+      const loadedSelection = {
+        projectId,
+        locationId: STATIC_OPTION_IDS.has(projectId) ? projectId : row.locationId,
+      }
+      const previousInitial = currentInitialSelections[row.date]
+      const previousSelection = currentSelections[row.date]
+      const hasUnsavedChanges = previousInitial && previousSelection
+        && (previousInitial.projectId !== previousSelection.projectId || previousInitial.locationId !== previousSelection.locationId)
+
+      if (!hasUnsavedChanges) {
+        nextInitialSelections[row.date] = loadedSelection
+        nextSelections[row.date] = loadedSelection
+      }
+    })
+
+    initialSelectionsRef.current = nextInitialSelections
+    selectionsRef.current = nextSelections
+    setInitialSelections(nextInitialSelections)
+    setSelections(nextSelections)
+    if (nextProjects) setProjects(nextProjects)
+    setRows((current) => {
+      const rowsByDate = new Map(current.map((row) => [row.date, row]))
+      dateRows.forEach((row) => rowsByDate.set(row.date, row))
+      return [...rowsByDate.values()].sort((first, second) => first.date.localeCompare(second.date))
+    })
+  }, [])
+
+  useEffect(() => {
+    if (!isOpen || !candidate?.registrationId) return
+    selectionsRef.current = {}
+    initialSelectionsRef.current = {}
+    dateDragRef.current = { anchor: '', active: false, dragged: false }
+    setRows([])
+    setProjects([])
+    setAreaOptions({})
+    setSelections({})
+    setInitialSelections({})
+    setSelectedDate('')
+    setBulkSelectedDates(new Set())
+    setPendingRequests([])
+    setConfirmOpen(false)
+    setError('')
+    setMessage('')
+  }, [candidate?.registrationId, isOpen])
+
+  useEffect(() => {
     if (!isOpen || !candidate?.registrationId) return undefined
     let cancelled = false
     setLoading(true)
     setError('')
     setMessage('')
-    setRows([])
-    setAreaOptions({})
 
     Promise.all([
       candidateAPI.getAttendanceRequestForm(candidate.registrationId, { month: calendarMonth }),
@@ -223,19 +297,11 @@ export default function CandidateAttendanceCalendar({ isOpen, onClose, candidate
         const payload = attendanceResponse?.data?.data ?? attendanceResponse?.data ?? {}
         const dateRows = normalizeDateRows(payload)
         const nextProjects = normalizeOptions(projectResponse?.data ?? projectResponse)
-        const initial = Object.fromEntries(dateRows.map((row) => {
-          const projectId = matchProjectToOption(row, nextProjects)
-          return [row.date, {
-            projectId,
-            locationId: STATIC_OPTION_IDS.has(projectId) ? projectId : row.locationId,
-          }]
-        }))
-        setRows(dateRows)
-        setProjects(nextProjects)
-        setSelections(initial)
-        setInitialSelections(initial)
+        mergeAttendanceRows(dateRows, nextProjects)
         const firstDateInMonth = dateRows.find((row) => row.date.startsWith(calendarMonth))?.date
-        setSelectedDate(firstDateInMonth || dateRows[0]?.date || '')
+        setSelectedDate((current) => dateRows.some((row) => row.date === current)
+          ? current
+          : firstDateInMonth || '')
       })
       .catch((loadError) => {
         if (cancelled) return
@@ -247,7 +313,7 @@ export default function CandidateAttendanceCalendar({ isOpen, onClose, candidate
       })
 
     return () => { cancelled = true }
-  }, [calendarMonth, candidate?.registrationId, isOpen])
+  }, [calendarMonth, candidate?.registrationId, isOpen, mergeAttendanceRows])
 
   useEffect(() => {
     if (!isOpen) return
@@ -273,67 +339,113 @@ export default function CandidateAttendanceCalendar({ isOpen, onClose, candidate
   }
 
   const updateSelection = (date, key, value) => {
-    setSelections((current) => ({
-      ...current,
-      [date]: {
-        ...current[date],
+    const targetDates = viewMode === 'calendar' && bulkSelectedDates.size ? [...bulkSelectedDates] : [date]
+    const next = { ...selectionsRef.current }
+    targetDates.forEach((targetDate) => {
+      next[targetDate] = {
+        ...next[targetDate],
         [key]: value,
         ...(key === 'projectId' ? { locationId: STATIC_OPTION_IDS.has(value) ? value : '' } : {}),
-      },
-    }))
+      }
+    })
+    selectionsRef.current = next
+    setSelections(next)
+  }
+
+  const startDateSelection = (date, event) => {
+    if (event.button !== 0) return
+    dateDragRef.current = { anchor: date, active: true, dragged: false }
+    setSelectedDate(date)
+    setBulkSelectedDates(new Set([date]))
+  }
+
+  const extendDateSelection = (date) => {
+    const drag = dateDragRef.current
+    if (!drag.active || !drag.anchor || drag.anchor === date) return
+    dateDragRef.current = { ...drag, dragged: true }
+    const firstDate = drag.anchor < date ? drag.anchor : date
+    const lastDate = drag.anchor > date ? drag.anchor : date
+    setBulkSelectedDates(new Set(rows
+      .map((row) => row.date)
+      .filter((rowDate) => rowDate >= firstDate && rowDate <= lastDate)))
   }
 
   const renderDateEditor = (row) => {
     const selection = selections[row.date] || {}
-    const fixedLocation = STATIC_OPTION_IDS.has(selection.projectId)
-    const options = fixedLocation ? STATIC_OPTIONS.filter((option) => option.id === selection.projectId) : getAreas(selection.projectId, row)
-    const hasProject = projectOptions.some((project) => project.id === selection.projectId)
-    const hasLocation = options.some((option) => option.id === selection.locationId)
-    const project = projects.find((item) => item.id === selection.projectId)
+    const targetDates = viewMode === 'calendar' && bulkSelectedDates.size ? [...bulkSelectedDates] : [row.date]
+    const targetSelections = targetDates.map((date) => selections[date] || {})
+    const selectedProjectIds = new Set(targetSelections.map((item) => item.projectId || ''))
+    const selectedLocationIds = new Set(targetSelections.map((item) => item.locationId || ''))
+    const projectId = selectedProjectIds.size === 1 ? selection.projectId || '' : ''
+    const locationId = selectedLocationIds.size === 1 ? selection.locationId || '' : ''
+    const fixedLocation = STATIC_OPTION_IDS.has(projectId)
+    const options = fixedLocation ? STATIC_OPTIONS.filter((option) => option.id === projectId) : getAreas(projectId, row)
+    const hasProject = projectOptions.some((project) => project.id === projectId)
+    const hasLocation = options.some((option) => option.id === locationId)
+    const project = projects.find((item) => item.id === projectId)
     const written = isWrittenProject(project) || String(row.projectType || '').toLowerCase() === 'written'
 
     return (
       <div className="candidate-attendance-editor">
         <div><div className="candidate-attendance-label">{viewMode === 'calendar' ? 'Selected date' : 'Attendance date'}</div><strong>{formatDate(row.date)}</strong><div className="candidate-attendance-status">Current status: {row.status || 'Not marked'}</div></div>
-        <label><span className="candidate-attendance-label">Project</span>{row.projectLabel && !hasProject && <small>Recorded project: {row.projectLabel}</small>}<SearchableProjectSelect options={projectOptions} value={selection.projectId || ''} onChange={(value) => updateSelection(row.date, 'projectId', value)} placeholder="Search project" /></label>
-        <label><span className="candidate-attendance-label">{written ? 'Location / District' : 'Location'}</span>{row.locationLabel && !hasLocation && <small>Recorded location: {row.locationLabel}</small>}<SearchableProjectSelect options={options} value={selection.locationId || ''} onChange={(value) => updateSelection(row.date, 'locationId', value)} placeholder={fixedLocation ? selection.projectId : selection.projectId ? `Choose ${written ? 'a district' : 'a location'}` : 'Choose project first'} disabled={!selection.projectId || fixedLocation} /></label>
+        <label><span className="candidate-attendance-label">Project{targetDates.length > 1 ? ' · apply to all selected dates' : ''}</span>{row.projectLabel && !hasProject && targetDates.length === 1 && <small>Recorded project: {row.projectLabel}</small>}<SearchableProjectSelect options={projectOptions} value={projectId} onChange={(value) => updateSelection(row.date, 'projectId', value)} placeholder={targetDates.length > 1 && selectedProjectIds.size > 1 ? 'Choose project for all selected dates' : 'Search project'} /></label>
+        <label><span className="candidate-attendance-label">{written ? 'Location / District' : 'Location'}{targetDates.length > 1 ? ' · apply to all selected dates' : ''}</span>{row.locationLabel && !hasLocation && targetDates.length === 1 && <small>Recorded location: {row.locationLabel}</small>}<SearchableProjectSelect options={options} value={locationId} onChange={(value) => updateSelection(row.date, 'locationId', value)} placeholder={fixedLocation ? projectId : projectId ? `Choose ${written ? 'a district' : 'a location'}` : 'Choose project first'} disabled={!projectId || fixedLocation} /></label>
       </div>
     )
   }
 
   const handleSubmit = (event) => {
     event.preventDefault()
-    const requests = rows
-      .filter((row) => changedDates.has(row.date) && selections[row.date]?.projectId && selections[row.date]?.locationId)
-      .map((row) => {
-        const selection = selections[row.date]
-        const project = projectOptions.find((item) => item.id === selection.projectId)
-        const location = getAreas(selection.projectId, row).find((item) => item.id === selection.locationId)
-        const written = isWrittenProject(project) || String(row.projectType || '').toLowerCase() === 'written' || Boolean(location?.district_id || location?.districtId)
-        return {
-          date: row.date,
-          project_id: normalizeProjectApiId(selection.projectId),
-          project: String(project?.name || selection.projectId),
-          project_type: written ? 'written' : 'regular',
-          ...(written
-            ? { district_id: selection.locationId, district: String(location?.name || selection.locationId) }
-            : { location_id: selection.locationId, location: String(location?.name || selection.locationId) }),
-        }
-      })
-
-    if (!requests.length) {
-      setError(changedDates.size ? 'Choose a project and location for each changed date.' : 'Change at least one date before submitting an attendance request.')
+    const changedRows = rows.filter((row) => changedDates.has(row.date))
+    const incompleteRows = changedRows.filter((row) => !selections[row.date]?.projectId || !selections[row.date]?.locationId)
+    if (!changedRows.length) {
+      setError('Change at least one date before submitting an attendance request.')
       return
     }
+    if (incompleteRows.length) {
+      setError(`Choose a project and location for every changed date. Incomplete dates: ${incompleteRows.map((row) => formatDate(row.date)).join(', ')}.`)
+      return
+    }
+
+    const requests = changedRows.map((row) => {
+      const selection = selections[row.date]
+      const project = projectOptions.find((item) => item.id === selection.projectId)
+      const location = getAreas(selection.projectId, row).find((item) => item.id === selection.locationId)
+      const written = isWrittenProject(project) || String(row.projectType || '').toLowerCase() === 'written' || Boolean(location?.district_id || location?.districtId)
+      return {
+        date: row.date,
+        project_id: normalizeProjectApiId(selection.projectId),
+        project: String(project?.name || selection.projectId),
+        project_type: written ? 'written' : 'regular',
+        ...(written
+          ? { district_id: selection.locationId, district: String(location?.name || selection.locationId) }
+          : { location_id: selection.locationId, location: String(location?.name || selection.locationId) }),
+      }
+    })
+
     setError('')
     setPendingRequests(requests)
     setConfirmOpen(true)
+  }
+
+  const refreshLoadedCalendarMonths = async () => {
+    const months = [...new Set([calendarMonth, ...rows.map((row) => row.date.slice(0, 7))])]
+    const refreshedMonthRows = await Promise.all(months.map(async (month) => {
+      const response = await candidateAPI.getAttendanceRequestForm(candidate.registrationId, { month })
+      const payload = response?.data?.data ?? response?.data ?? {}
+      return normalizeDateRows(payload)
+    }))
+    mergeAttendanceRows(refreshedMonthRows.flat(), projects)
   }
 
   const confirmSubmission = async () => {
     const profile = candidate?.profile || candidate?.candidate || candidate?.user || candidate || {}
     const fullName = String(field(profile, ['name', 'candidate_name', 'full_name', 'fullName'], candidate?.name || '')).trim()
     const nameParts = fullName.split(/\s+/).filter(Boolean)
+    const submittedSelections = Object.fromEntries(pendingRequests.map((request) => [
+      request.date,
+      { ...selectionsRef.current[request.date] },
+    ]))
     setSubmitting(true)
     setConfirmOpen(false)
     setError('')
@@ -354,7 +466,6 @@ export default function CandidateAttendanceCalendar({ isOpen, onClose, candidate
         current_salary: field(profile, ['current_salary', 'currentSalary', 'salary'], ''),
         requests: pendingRequests,
       })
-      setInitialSelections(selections)
 
       let requestIds = getSubmittedRequestIds(response)
       if (!requestIds.length && existingPendingRequestIds) {
@@ -376,13 +487,34 @@ export default function CandidateAttendanceCalendar({ isOpen, onClose, candidate
           action: 'approve',
           status: 'approve',
         })))
-        const refreshed = await onAttendanceUpdated?.()
-        setMessage(refreshed === false
-          ? 'Attendance request submitted and approved, but the payment table could not be refreshed.'
-          : 'Attendance request submitted, approved, and payment table updated.')
       } catch (approvalError) {
         console.error('Unable to auto-approve candidate attendance request:', approvalError)
         setError('Attendance request submitted, but automatic approval failed. It remains pending in Core Team attendance requests.')
+        return
+      }
+
+      const nextInitialSelections = { ...initialSelectionsRef.current, ...submittedSelections }
+      initialSelectionsRef.current = nextInitialSelections
+      setInitialSelections(nextInitialSelections)
+
+      const [calendarRefreshed, paymentTableRefreshed] = await Promise.all([
+        refreshLoadedCalendarMonths().then(() => true).catch((refreshError) => {
+          console.error('Unable to refresh candidate attendance calendar:', refreshError)
+          return false
+        }),
+        Promise.resolve().then(() => onAttendanceUpdated?.()).then((refreshed) => refreshed !== false).catch((refreshError) => {
+          console.error('Unable to refresh the core team payment table:', refreshError)
+          return false
+        }),
+      ])
+      if (!calendarRefreshed || !paymentTableRefreshed) {
+        const staleData = [
+          !calendarRefreshed && 'calendar',
+          !paymentTableRefreshed && 'payment table',
+        ].filter(Boolean).join(' and ')
+        setError(`Attendance request submitted and approved, but the ${staleData} could not be refreshed.`)
+      } else {
+        setMessage('Attendance request submitted, approved, and all loaded attendance data refreshed.')
       }
     } catch (submitError) {
       console.error('Unable to submit candidate attendance request:', submitError)
@@ -395,7 +527,11 @@ export default function CandidateAttendanceCalendar({ isOpen, onClose, candidate
   const shiftMonth = (offset) => {
     const [year, month] = calendarMonth.split('-').map(Number)
     const next = new Date(year, month - 1 + offset, 1)
-    setCalendarMonth(`${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`)
+    const nextMonth = `${next.getFullYear()}-${String(next.getMonth() + 1).padStart(2, '0')}`
+    dateDragRef.current = { anchor: '', active: false, dragged: false }
+    setBulkSelectedDates(new Set())
+    setCalendarMonth(nextMonth)
+    setSelectedDate(rows.find((row) => row.date.startsWith(nextMonth))?.date || '')
   }
 
   const selectedDateRow = dateMap[selectedDate]
@@ -410,20 +546,46 @@ export default function CandidateAttendanceCalendar({ isOpen, onClose, candidate
         {!loading && rows.length > 0 && <>
           <div className="candidate-attendance-toolbar">
             <div><strong>{candidate?.name}</strong><span>{candidate?.mobile || candidate?.registrationId}</span></div>
-            <div className="candidate-attendance-toolbar-actions"><span>{changedDates.size} changed</span><button type="button" className="btn btn-outline btn-sm" onClick={() => setViewMode((current) => current === 'calendar' ? 'list' : 'calendar')}>{viewMode === 'calendar' ? 'Edit all dates' : 'Calendar view'}</button></div>
+            <div className="candidate-attendance-toolbar-actions"><span>{changedDates.size} changed</span><button type="button" className="btn btn-outline btn-sm" onClick={() => {
+              setBulkSelectedDates(new Set(selectedDate ? [selectedDate] : []))
+              setViewMode((current) => current === 'calendar' ? 'list' : 'calendar')
+            }}>{viewMode === 'calendar' ? 'Edit all dates' : 'Calendar view'}</button></div>
           </div>
           {viewMode === 'calendar' ? <>
             <div className="candidate-attendance-month"><button type="button" className="btn btn-outline btn-sm" onClick={() => shiftMonth(-1)} aria-label="Previous month">‹</button><strong>{monthLabel(calendarMonth)}</strong><button type="button" className="btn btn-outline btn-sm" onClick={() => shiftMonth(1)} aria-label="Next month">›</button></div>
+            <p className="candidate-attendance-calendar-hint">Drag across attendance dates to select several, then choose a project and location to apply to all.</p>
             <div className="candidate-attendance-calendar-grid">
               {['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'].map((day) => <div className="weekday" key={day}>{day}</div>)}
               {calendarDays.map((date, index) => {
                 const row = date ? dateMap[date] : null
                 const changed = date && changedDates.has(date)
-                return <button key={date || `empty-${index}`} type="button" className={`day ${row ? getStatusKind(row.status) : 'empty'}${date === selectedDate ? ' selected' : ''}`} onClick={() => date && row && setSelectedDate(date)} disabled={!row}>
+                const bulkSelected = date && bulkSelectedDates.has(date)
+                return <button
+                  key={date || `empty-${index}`}
+                  type="button"
+                  className={`day ${row ? getStatusKind(row.status) : 'empty'}${date === selectedDate ? ' selected' : ''}${bulkSelected && bulkSelectedDates.size > 1 ? ' bulk-selected' : ''}`}
+                  aria-pressed={Boolean(bulkSelected)}
+                  onPointerDown={(event) => {
+                    if (!row) return
+                    event.preventDefault()
+                    startDateSelection(date, event)
+                  }}
+                  onPointerEnter={() => row && extendDateSelection(date)}
+                  onClick={() => {
+                    if (!row || dateDragRef.current.dragged) return
+                    setSelectedDate(date)
+                    if (!bulkSelectedDates.has(date)) setBulkSelectedDates(new Set([date]))
+                  }}
+                  disabled={!row}
+                >
                   {date && <><strong>{Number(date.slice(-2))}{changed && <span className="changed-dot" title="Edited" />}</strong><span>{row?.status || (row ? 'Not marked' : '')}</span></>}
                 </button>
               })}
             </div>
+            {bulkSelectedDates.size > 1 && <div className="candidate-attendance-bulk-selection">
+              <div><strong>Bulk change · {bulkSelectedDates.size} dates selected</strong><span>Choose a project and location below to apply them to every highlighted date.</span></div>
+              <button type="button" onClick={() => setBulkSelectedDates(new Set(selectedDate ? [selectedDate] : []))}>Clear selection</button>
+            </div>}
             {selectedDateRow && renderDateEditor(selectedDateRow)}
           </> : <div className="candidate-attendance-all-dates">{rows.map((row) => <div key={row.date}>{renderDateEditor(row)}</div>)}</div>}
         </>}

@@ -50,6 +50,12 @@
   text-align: center;
 }
 
+.candidate-attendance-calendar-hint {
+  margin: -6px 0 0;
+  color: var(--text2);
+  font-size: 11px;
+}
+
 .candidate-attendance-calendar-grid {
   display: grid;
   grid-template-columns: repeat(7, minmax(0, 1fr));
@@ -75,11 +81,20 @@
 
 .candidate-attendance-calendar-grid .day:not(:disabled) {
   cursor: pointer;
+  user-select: none;
 }
 
 .candidate-attendance-calendar-grid .day.selected {
   outline: 2px solid var(--teal);
   outline-offset: 1px;
+}
+
+.candidate-attendance-calendar-grid .day.bulk-selected {
+  box-shadow: inset 0 0 0 2px var(--teal);
+}
+
+.candidate-attendance-calendar-grid .day.selected.bulk-selected {
+  outline-offset: 3px;
 }
 
 .candidate-attendance-calendar-grid .day.present {
@@ -128,6 +143,38 @@
   padding: 14px 12px;
   border: 1px solid var(--border-light);
   background: var(--bg-light);
+}
+
+.candidate-attendance-bulk-selection {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid #8fc9bd;
+  background: #edf8f5;
+  color: var(--text);
+}
+
+.candidate-attendance-bulk-selection > div {
+  display: grid;
+  gap: 3px;
+}
+
+.candidate-attendance-bulk-selection > div span {
+  color: var(--text2);
+  font-size: 12px;
+}
+
+.candidate-attendance-bulk-selection button {
+  flex: 0 0 auto;
+  padding: 5px 8px;
+  border: 1px solid var(--border-light);
+  background: var(--card);
+  color: var(--text);
+  font: inherit;
+  font-size: 12px;
+  cursor: pointer;
 }
 
 .candidate-attendance-editor > label {
@@ -229,6 +276,11 @@
   .candidate-attendance-toolbar-actions {
     width: 100%;
     justify-content: space-between;
+  }
+
+  .candidate-attendance-bulk-selection {
+    align-items: flex-start;
+    flex-direction: column;
   }
 
   .candidate-attendance-footer .btn {

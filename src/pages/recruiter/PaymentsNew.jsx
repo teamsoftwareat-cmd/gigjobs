@@ -118,6 +118,12 @@ const getDetailedPaymentSheetRecord = (response) => {
   const payload = body?.data ?? body
   return payload?.sheet || payload?.payment_sheet_record || payload?.paymentSheetRecord || payload
 }
+const getDetailedAttendancePaymentSheetRecord = (response) => {
+  const body = response?.data ?? {}
+  const payload = body?.data ?? body
+  if (Array.isArray(payload)) return { payment_sheet: payload }
+  return payload?.sheet || payload?.payment_sheet_record || payload?.paymentSheetRecord || payload
+}
 const getSheetSelectionKey = (record) => [
   getSheetReferenceId(record),
   record?.id,
@@ -177,62 +183,6 @@ const getAttendancePaymentRowReferenceId = (row, rowIndex, rows) => {
   if (headerIndex < 0 || rowIndex <= headerIndex) return ''
   const referenceIndex = rows[headerIndex].findIndex((value) => referenceHeaders.has(normalizeSheetField(value)))
   return referenceIndex < 0 ? '' : String(row[referenceIndex] ?? '').trim()
-}
-
-const mergeAttendancePaymentCandidates = (candidates) => {
-  const mergedCandidates = new Map()
-  candidates.forEach((candidate) => {
-    const candidateId = candidate?.candidate_id || candidate?.candidateId || candidate?.registration_id || candidate?.registrationId || candidate?.user_id || candidate?.id
-    const candidateKey = [candidateId || candidate?.candidate_name || candidate?.name || candidate?.mobile, candidate?.project_id || candidate?.projectId].join(':')
-    if (!candidateKey || candidateKey === ':') return
-
-    if (!mergedCandidates.has(candidateKey)) {
-      mergedCandidates.set(candidateKey, { ...candidate, locations: [], attendance: [], overtime: [], deductions: [] })
-    }
-    const mergedCandidate = mergedCandidates.get(candidateKey)
-    mergedCandidate.locations = [...new Map([
-      ...(mergedCandidate.locations || []),
-      ...(candidate.locations || []),
-    ].map((location) => [JSON.stringify(location), location])).values()]
-    mergedCandidate.overtime = [...new Map([
-      ...(mergedCandidate.overtime || []),
-      ...(candidate.overtime || []),
-    ].map((item) => [JSON.stringify(item), item])).values()]
-    mergedCandidate.deductions = [...new Map([
-      ...(mergedCandidate.deductions || []),
-      ...(candidate.deductions || []),
-    ].map((item) => [JSON.stringify(item), item])).values()]
-    mergedCandidate.overall_outstanding_deduction = Math.max(
-      Number(mergedCandidate.overall_outstanding_deduction) || 0,
-      Number(candidate.overall_outstanding_deduction) || 0,
-    )
-
-    const attendanceByKey = new Map((mergedCandidate.attendance || []).map((item) => [[
-      item?.attendance_id || item?.attendanceId || '',
-      item?.attendance_date || item?.date || '',
-      item?.project_id || item?.projectId || '',
-      item?.location_id || item?.locationId || '',
-    ].join('|'), item]))
-    ;(candidate.attendance || []).forEach((item) => {
-      const attendanceKey = [
-        item?.attendance_id || item?.attendanceId || '',
-        item?.attendance_date || item?.date || '',
-        item?.project_id || item?.projectId || '',
-        item?.location_id || item?.locationId || '',
-      ].join('|')
-      const existing = attendanceByKey.get(attendanceKey)
-      if (!existing) {
-        attendanceByKey.set(attendanceKey, { ...item, payments: [...(item.payments || [])] })
-      } else {
-        existing.payments = [...new Map([
-          ...(existing.payments || []),
-          ...(item.payments || []),
-        ].map((payment) => [JSON.stringify(payment), payment])).values()]
-      }
-    })
-    mergedCandidate.attendance = [...attendanceByKey.values()]
-  })
-  return [...mergedCandidates.values()]
 }
 
 const getPaymentSheetExpenseIds = (record) => {
@@ -315,13 +265,17 @@ const getSheetRowObjects = (record) => {
 }
 
 const getSheetRecipientKey = (person) => {
-  const value = getSheetRecordValue(person, ['registration_id', 'registrationId', 'candidate_id', 'candidateId', 'user_id', 'userId', 'mobile_number', 'mobile', 'phone', 'email', 'email_id', 'name', 'candidate_name', 'candidateName', 'full_name', 'fullName'])
+  const value = getSheetRecordValue(person, [
+    'registration_id', 'registrationId', 'candidate_id', 'candidateId', 'user_id', 'userId',
+    'mobile_number', 'mobile', 'phone', 'contact_phone_number', 'email', 'email_id', 'contact_email_id',
+    'name', 'name_of_contact', 'contact_name', 'candidate_name', 'candidateName', 'full_name', 'fullName',
+  ])
   if (!value) return ''
   const field = ['registration_id', 'registrationId', 'candidate_id', 'candidateId', 'user_id', 'userId'].some((key) => getSheetRecordValue(person, [key]))
     ? 'id'
-    : ['mobile_number', 'mobile', 'phone'].some((key) => getSheetRecordValue(person, [key]))
+    : ['mobile_number', 'mobile', 'phone', 'contact_phone_number'].some((key) => getSheetRecordValue(person, [key]))
       ? 'mobile'
-      : ['email', 'email_id'].some((key) => getSheetRecordValue(person, [key]))
+      : ['email', 'email_id', 'contact_email_id'].some((key) => getSheetRecordValue(person, [key]))
         ? 'email'
         : 'name'
   return `${field}:${String(value).trim().toLowerCase()}`
@@ -393,6 +347,18 @@ const getPaymentSheetRowAmount = (row) => {
   return Number.isFinite(amount) ? amount : 0
 }
 
+const getAttendancePaymentRowAmount = (row, rowIndex, rows) => {
+  let rowRecord = row
+  if (Array.isArray(row)) {
+    const amountFields = new Set(['payout_link_amount', 'payout_amount', 'amount', 'total_amount', 'total_payout'].map(normalizeSheetField))
+    const headerIndex = rows.findIndex((candidate) => Array.isArray(candidate)
+      && candidate.some((value) => amountFields.has(normalizeSheetField(value))))
+    if (headerIndex < 0 || rowIndex <= headerIndex) return null
+    rowRecord = Object.fromEntries(rows[headerIndex].map((header, index) => [String(header || `Column ${index + 1}`), row[index]]))
+  }
+  return parsePaymentAmount(getSheetRecordValue(rowRecord, ['payout_link_amount', 'payout_amount', 'amount', 'total_amount', 'total_payout']))
+}
+
 const parsePaymentAmount = (value) => {
   if (value === undefined || value === null || String(value).trim() === '') return null
   const amount = Number(String(value).replace(/[^\d.-]/g, ''))
@@ -403,7 +369,8 @@ const getSheetRecipientCount = (record) => {
   const people = [...getRecordExpenses(record), ...getSheetRowObjects(record)]
   const recipientKeys = new Set(people.map(getSheetRecipientKey).filter(Boolean))
   if (recipientKeys.size) return { keys: [...recipientKeys], fallbackCount: 0, unavailable: false }
-  const count = Number(getSheetRecordValue(record, ['people_count', 'peopleCount', 'candidate_count', 'candidateCount', 'recipient_count', 'recipientCount']))
+  const countValue = getSheetRecordValue(record, ['people_count', 'peopleCount', 'candidate_count', 'candidateCount', 'recipient_count', 'recipientCount'])
+  const count = countValue === '' ? Number.NaN : Number(countValue)
   return Number.isFinite(count)
     ? { keys: [], fallbackCount: count, unavailable: false }
     : { keys: [], fallbackCount: 0, unavailable: true }
@@ -425,8 +392,18 @@ const getSheetProjectLocationGroups = (record) => {
   const locationsByProject = new Map()
   const items = [...getRecordExpenses(record), ...getSheetRowObjects(record), record]
   items.forEach((item) => {
-    const project = String(getSheetRecordValue(item, ['merged_project_name', 'mergedProjectName', 'project_name', 'projectName', 'project']) || '').trim()
-    const location = String(getSheetRecordValue(item, ['merged_location_name', 'mergedLocationName', 'location_name', 'locationName', 'location', 'venue']) || '').trim()
+    const project = String(getSheetRecordValue(item, [
+      'merged_project_name', 'mergedProjectName', 'project_name', 'projectName', 'project', 'payout_description',
+    ]) || '').trim()
+    const referenceId = String(getSheetRecordValue(item, ['reference_id', 'referenceId', 'Reference ID(optional)']) || '').trim()
+    const referenceSuffix = project && referenceId.startsWith(`${project}-`)
+      ? referenceId.slice(project.length + 1)
+      : ''
+    const referenceLocation = referenceSuffix.match(/^\d+-[^-]+/)?.[0] || ''
+    const location = String(getSheetRecordValue(item, [
+      'merged_location_name', 'mergedLocationName', 'location_name', 'locationName', 'location', 'venue',
+      'centre_name', 'center_name', 'centre', 'center',
+    ]) || referenceLocation).trim()
     if (!project && !location) return
 
     const projectName = project || 'Project unavailable'
@@ -585,8 +562,11 @@ export default function RecruiterPaymentsNew() {
   const [paymentSheetsError, setPaymentSheetsError] = useState('')
   const [selectedSheetReferenceIds, setSelectedSheetReferenceIds] = useState(new Set())
   const [selectedSheetDetails, setSelectedSheetDetails] = useState({})
+  const [selectedAttendanceSheetDetails, setSelectedAttendanceSheetDetails] = useState({})
   const [loadingSheetDetails, setLoadingSheetDetails] = useState(new Set())
+  const [loadingAttendanceSheetDetails, setLoadingAttendanceSheetDetails] = useState(new Set())
   const requestedSheetDetails = useRef(new Set())
+  const requestedAttendanceSheetDetails = useRef(new Set())
   const [selectionSummaryMinimized, setSelectionSummaryMinimized] = useState(false)
   const [updatingSheetStatus, setUpdatingSheetStatus] = useState(false)
   const [consolidatingSheets, setConsolidatingSheets] = useState(false)
@@ -616,6 +596,7 @@ export default function RecruiterPaymentsNew() {
   const [attendancePreviewSheet, setAttendancePreviewSheet] = useState(null)
   const [attendancePreviewRows, setAttendancePreviewRows] = useState([])
   const [selectedAttendancePreviewReferenceIds, setSelectedAttendancePreviewReferenceIds] = useState(new Set())
+  const [attendanceDownloadOmittedRows, setAttendanceDownloadOmittedRows] = useState(null)
   const [attendancePreviewLoading, setAttendancePreviewLoading] = useState(false)
   const [attendancePreviewError, setAttendancePreviewError] = useState('')
   const [selectedAttendanceSheetIds, setSelectedAttendanceSheetIds] = useState(new Set())
@@ -641,9 +622,9 @@ export default function RecruiterPaymentsNew() {
     .map(getAttendanceSheetSelectionKey)
     .filter((key) => key !== undefined && key !== null && key !== '')
     .map(String)
-  const selectedAttendancePaymentSheets = attendancePaymentSheets.filter((record) => (
+  const selectedAttendancePaymentSheets = useMemo(() => attendancePaymentSheets.filter((record) => (
     selectedAttendanceSheetIds.has(String(getAttendanceSheetSelectionKey(record)))
-  ))
+  )), [attendancePaymentSheets, selectedAttendanceSheetIds])
   const allAttendanceSheetsSelected = selectableAttendanceSheetKeys.length > 0
     && selectableAttendanceSheetKeys.every((key) => selectedAttendanceSheetIds.has(key))
   const someAttendanceSheetsSelected = selectableAttendanceSheetKeys.some((key) => selectedAttendanceSheetIds.has(key))
@@ -714,6 +695,42 @@ export default function RecruiterPaymentsNew() {
     })
   }, [activeCategory, activeStatus, selectedPaymentSheets, userId])
 
+  useEffect(() => {
+    if (activeCategory !== 'Attendance') return
+    selectedAttendancePaymentSheets.forEach((record) => {
+      const sheetId = getPaymentSheetId(record)
+      if (!sheetId) return
+      const requestKey = `${attendanceSource}:${activeStatus}:${sheetId}`
+      if (requestedAttendanceSheetDetails.current.has(requestKey)) return
+      requestedAttendanceSheetDetails.current.add(requestKey)
+      setLoadingAttendanceSheetDetails((current) => new Set(current).add(requestKey))
+
+      const params = { status: activeStatus, user_id: userId }
+      const request = attendanceSource === 'core'
+        ? coreRecruiterAPI.getCoreTeamPaymentSheetDetails(sheetId, params)
+        : coreRecruiterAPI.getConsultantPaymentSheetDetails(sheetId, params)
+      request
+        .then((response) => {
+          const detail = getDetailedAttendancePaymentSheetRecord(response)
+          setSelectedAttendanceSheetDetails((current) => ({
+            ...current,
+            [requestKey]: { ...record, ...(detail && typeof detail === 'object' ? detail : {}) },
+          }))
+        })
+        .catch((error) => {
+          console.error(`Failed to load ${attendanceSource} attendance payment sheet summary:`, error)
+          setSelectedAttendanceSheetDetails((current) => ({ ...current, [requestKey]: { ...record } }))
+        })
+        .finally(() => {
+          setLoadingAttendanceSheetDetails((current) => {
+            const next = new Set(current)
+            next.delete(requestKey)
+            return next
+          })
+        })
+    })
+  }, [activeCategory, activeStatus, attendanceSource, selectedAttendancePaymentSheets, userId])
+
   const selectedSheetSummary = useMemo(() => {
     const recipientKeys = new Set()
     const projectLocations = new Map()
@@ -756,7 +773,9 @@ export default function RecruiterPaymentsNew() {
     let totalAmount = 0
     let amountUnavailable = false
 
-    selectedAttendancePaymentSheets.forEach((record) => {
+    selectedAttendancePaymentSheets.forEach((listRecord) => {
+      const requestKey = `${attendanceSource}:${activeStatus}:${getPaymentSheetId(listRecord)}`
+      const record = selectedAttendanceSheetDetails[requestKey] || listRecord
       const recipients = getSheetRecipientCount(record)
       recipients.keys.forEach((key) => recipientKeys.add(key))
       fallbackPeopleCount += recipients.fallbackCount
@@ -779,7 +798,10 @@ export default function RecruiterPaymentsNew() {
       amountUnavailable,
       projectLocations: [...projectLocations].map(([project, locations]) => ({ project, locations: [...locations] })),
     }
-  }, [selectedAttendancePaymentSheets])
+  }, [activeStatus, attendanceSource, selectedAttendancePaymentSheets, selectedAttendanceSheetDetails])
+  const loadingSelectedAttendanceSheetDetails = selectedAttendancePaymentSheets.filter((record) => (
+    loadingAttendanceSheetDetails.has(`${attendanceSource}:${activeStatus}:${getPaymentSheetId(record)}`)
+  )).length
   const loadingSelectedSheetDetails = selectedPaymentSheets.filter((record) => (
     loadingSheetDetails.has(String(getSheetSelectionKey(record)))
   )).length
@@ -925,13 +947,33 @@ export default function RecruiterPaymentsNew() {
       )
       if (!confirmed) return
 
+      const sheetRows = await Promise.all(selectedAttendancePaymentSheets.map(async (record) => {
+        const sheetId = getPaymentSheetId(record)
+        const params = { status: activeStatus, user_id: userId }
+        const response = attendanceSource === 'core'
+          ? await coreRecruiterAPI.getCoreTeamPaymentSheetDetails(sheetId, params)
+          : await coreRecruiterAPI.getConsultantPaymentSheetDetails(sheetId, params)
+        const detail = getDetailedAttendancePaymentSheetRecord(response)
+        return getAttendancePaymentSheetRows({ ...record, ...(detail && typeof detail === 'object' ? detail : {}) })
+      }))
+      const referencesById = new Map()
+      sheetRows.forEach((rows) => rows.forEach((row, rowIndex) => {
+        const referenceId = getAttendancePaymentRowReferenceId(row, rowIndex, rows)
+        if (!referenceId) return
+        const amount = getAttendancePaymentRowAmount(row, rowIndex, rows)
+        if (amount === null) throw new Error(`Attendance row ${referenceId} is missing a valid amount.`)
+        referencesById.set(referenceId, { reference_id: referenceId, amount })
+      }))
+      const referenceIds = [...referencesById.values()]
+      if (!referenceIds.length) throw new Error('The selected attendance sheets contain no payment rows.')
+
       await coreRecruiterAPI.updateAttendancePaymentSheetsStatus({
-        sheet_ids: sheetIds,
+        reference_ids: referenceIds,
         status,
         type: attendanceSource,
         user_id: userId,
       })
-      alert('success', `${sheetIds.length} attendance sheet${sheetIds.length === 1 ? '' : 's'} ${isPaid ? 'marked as paid' : 'rejected'}.`)
+      alert('success', `${referenceIds.length} attendance row${referenceIds.length === 1 ? '' : 's'} from ${sheetIds.length} sheet${sheetIds.length === 1 ? '' : 's'} ${isPaid ? 'marked as paid' : 'rejected'}.`)
       setSelectedAttendanceSheetIds(new Set())
       await fetchAttendancePaymentSheets()
     } catch (error) {
@@ -946,33 +988,18 @@ export default function RecruiterPaymentsNew() {
     if (selectedAttendancePaymentSheets.length < 2 || consolidatingAttendanceSheets) return
     setConsolidatingAttendanceSheets(true)
     try {
-      const sheetAttendance = await Promise.all(selectedAttendancePaymentSheets.map(async (record) => {
-        const sheetId = getPaymentSheetId(record)
-        if (!sheetId) throw new Error('A selected attendance sheet is missing its ID.')
-        const params = { status: activeStatus, user_id: userId }
-        const response = attendanceSource === 'core'
-          ? await coreRecruiterAPI.getCoreTeamPaymentSheetDetails(sheetId, params)
-          : await coreRecruiterAPI.getConsultantPaymentSheetDetails(sheetId, params)
-        const body = response?.data ?? {}
-        const payload = body?.data && !Array.isArray(body.data) ? body.data : body
-        const detail = Array.isArray(payload)
-          ? { payment_sheet: payload }
-          : payload?.sheet || payload?.payment_sheet_record || payload?.paymentSheetRecord || payload
-        const detailedRecord = { ...record, ...(detail && typeof detail === 'object' ? detail : {}) }
-        return Array.isArray(detailedRecord.attendance) ? detailedRecord.attendance : []
-      }))
-      const attendance = mergeAttendancePaymentCandidates(sheetAttendance.flat())
-      if (!attendance.length) throw new Error('The selected attendance sheets contain no attendance records to regenerate.')
-      const response = await coreRecruiterAPI.generateAttendancePaymentSheet({
-        type: 'attendance',
-        attendance,
+      const sheetIds = selectedAttendancePaymentSheets.map(getPaymentSheetId).filter(Boolean).map(String)
+      if (sheetIds.length !== selectedAttendancePaymentSheets.length) {
+        throw new Error('A selected attendance sheet is missing its ID.')
+      }
+      const response = await coreRecruiterAPI.consolidateAttendancePaymentSheets({
+        sheet_ids: sheetIds,
+        type: attendanceSource,
+        status: activeStatus,
+        user_id: userId,
       })
-      const body = response?.data ?? response
-      const payload = body?.data ?? body
-      const rows = Array.isArray(payload)
-        ? payload
-        : payload?.payment_sheet || payload?.paymentSheet || payload?.rows
-      if (!Array.isArray(rows) || !rows.length) throw new Error('The attendance payment generator returned no rows.')
+      const rows = Array.isArray(response?.data?.data) ? response.data.data : []
+      if (!rows.length) throw new Error('The attendance consolidation endpoint returned no payment rows.')
       attendancePreviewRequestRef.current += 1
       setAttendancePreviewSheet({
         record: { sheet_name: `Consolidated ${attendanceSource} attendance payment sheets`, isConsolidated: true },
@@ -980,8 +1007,9 @@ export default function RecruiterPaymentsNew() {
       })
       setAttendancePreviewRows(rows)
       setSelectedAttendancePreviewReferenceIds(new Set())
+      setAttendanceDownloadOmittedRows(null)
       setAttendancePreviewError('')
-      alert('success', `Regenerated one payment sheet from ${selectedAttendancePaymentSheets.length} attendance sheets.`)
+      alert('success', `Consolidated ${selectedAttendancePaymentSheets.length} attendance sheets into ${rows.length} payment rows.`)
     } catch (error) {
       alert('error', error.message || 'Failed to consolidate attendance sheets.')
     } finally {
@@ -1089,6 +1117,7 @@ export default function RecruiterPaymentsNew() {
   const openAttendancePaymentSheet = async (record, index) => {
     const requestId = attendancePreviewRequestRef.current + 1
     attendancePreviewRequestRef.current = requestId
+    setAttendanceDownloadOmittedRows(null)
     setAttendancePreviewSheet({ record, index })
     setAttendancePreviewRows(getAttendancePaymentSheetRows(record))
     setSelectedAttendancePreviewReferenceIds(new Set())
@@ -1102,11 +1131,7 @@ export default function RecruiterPaymentsNew() {
         ? await coreRecruiterAPI.getCoreTeamPaymentSheetDetails(sheetId, params)
         : await coreRecruiterAPI.getConsultantPaymentSheetDetails(sheetId, params)
       if (requestId !== attendancePreviewRequestRef.current) return
-      const body = detailResponse?.data ?? {}
-      const payload = body?.data ?? body
-      const detail = Array.isArray(payload)
-        ? { payment_sheet: payload }
-        : payload?.sheet || payload?.payment_sheet_record || payload?.paymentSheetRecord || payload
+      const detail = getDetailedAttendancePaymentSheetRecord(detailResponse)
       const detailedRecord = { ...record, ...(detail && typeof detail === 'object' ? detail : {}) }
       setAttendancePreviewSheet({ record: detailedRecord, index })
       setAttendancePreviewRows(getAttendancePaymentSheetRows(detailedRecord))
@@ -1121,16 +1146,28 @@ export default function RecruiterPaymentsNew() {
 
   const downloadAttendancePaymentSheet = () => {
     if (!attendancePreviewRows.length) return
+    const omittedRows = []
+    const rowsToDownload = attendancePreviewRows.filter((row, rowIndex) => {
+      const amount = getAttendancePaymentRowAmount(row, rowIndex, attendancePreviewRows)
+      if (amount === null || amount > 0) return true
+      omittedRows.push({
+        rowNumber: rowIndex + 1,
+        referenceId: getAttendancePaymentRowReferenceId(row, rowIndex, attendancePreviewRows),
+        amount,
+      })
+      return false
+    })
     const columns = getSheetColumns(attendancePreviewRows)
     const rows = Array.isArray(attendancePreviewRows[0])
-      ? attendancePreviewRows
-      : [columns, ...attendancePreviewRows.map((row) => columns.map((column) => row?.[column] ?? ''))]
+      ? rowsToDownload
+      : [columns, ...rowsToDownload.map((row) => columns.map((column) => row?.[column] ?? ''))]
     const workbook = XLSX.utils.book_new()
     XLSX.utils.book_append_sheet(workbook, XLSX.utils.aoa_to_sheet(rows), 'Attendance Payment Sheet')
     const filename = String(getSheetLabel(attendancePreviewSheet?.record, attendancePreviewSheet?.index) || 'attendance-payment-sheet')
       .replace(/[<>:"/\\|?*]/g, '_')
       .slice(0, 100)
     XLSX.writeFile(workbook, `${filename || 'attendance-payment-sheet'}.xlsx`)
+    setAttendanceDownloadOmittedRows(omittedRows)
   }
 
   const updateSelectedAttendancePreviewRows = async (status) => {
@@ -1146,8 +1183,18 @@ export default function RecruiterPaymentsNew() {
       )
       if (!confirmed) return
 
+      const selectedReferences = referenceIds.map((referenceId) => {
+        const rowIndex = attendancePreviewRows.findIndex((row, index) => (
+          getAttendancePaymentRowReferenceId(row, index, attendancePreviewRows) === referenceId
+        ))
+        if (rowIndex < 0) throw new Error(`Attendance row ${referenceId} is no longer available.`)
+        const amount = getAttendancePaymentRowAmount(attendancePreviewRows[rowIndex], rowIndex, attendancePreviewRows)
+        if (amount === null) throw new Error(`Attendance row ${referenceId} is missing a valid amount.`)
+        return { reference_id: referenceId, amount }
+      })
+
       await coreRecruiterAPI.updateAttendancePaymentSheetsStatus({
-        reference_ids: referenceIds,
+        reference_ids: selectedReferences,
         status,
         type: attendanceSource,
         user_id: userId,
@@ -1156,7 +1203,7 @@ export default function RecruiterPaymentsNew() {
       setSelectedAttendancePreviewReferenceIds(new Set())
       await fetchAttendancePaymentSheets()
       if (attendancePreviewSheet?.record?.isConsolidated) {
-        const updatedIds = new Set(referenceIds)
+        const updatedIds = new Set(selectedReferences.map(({ reference_id }) => reference_id))
         setAttendancePreviewRows((current) => current.filter((row, index) => (
           !updatedIds.has(getAttendancePaymentRowReferenceId(row, index, current))
         )))
@@ -1374,7 +1421,7 @@ export default function RecruiterPaymentsNew() {
   }
 
   const consolidateSelectedPaymentSheets = async () => {
-    if (selectedPaymentSheets.length < 2 || consolidatingSheets || activeStatus !== 'ready_for_payment') return
+    if (selectedPaymentSheets.length < 2 || consolidatingSheets) return
     setConsolidatingSheets(true)
     try {
       const sheetExpenseData = await Promise.all(selectedPaymentSheets.map(async (record) => {
@@ -1951,7 +1998,7 @@ export default function RecruiterPaymentsNew() {
               ))}</ul>
             ) : <strong>Project/location details unavailable</strong>}
           </div>
-          {activeStatus === 'ready_for_payment' && selectedPaymentSheets.length > 1 && <div className="payments-new-selection-summary-action">
+          {selectedPaymentSheets.length > 1 && <div className="payments-new-selection-summary-action">
             <button
               className="btn btn-outline btn-sm payments-new-selection-summary-consolidate"
               type="button"
@@ -2005,7 +2052,7 @@ export default function RecruiterPaymentsNew() {
               ))}</ul>
             ) : <strong>Project/location details unavailable</strong>}
           </div>
-          {activeStatus === 'ready_for_payment' && selectedAttendancePaymentSheets.length > 1 && <div className="payments-new-selection-summary-action">
+          {selectedAttendancePaymentSheets.length > 1 && <div className="payments-new-selection-summary-action">
             <button
               className="btn btn-outline btn-sm payments-new-selection-summary-consolidate"
               type="button"
@@ -2017,6 +2064,7 @@ export default function RecruiterPaymentsNew() {
           </div>}
           {selectedAttendanceSheetSummary.peopleUnavailable && <p className="payments-new-selection-summary-note">Some sheets do not include recipient details.</p>}
           {selectedAttendanceSheetSummary.amountUnavailable && <p className="payments-new-selection-summary-note">Some sheet totals are unavailable.</p>}
+          {loadingSelectedAttendanceSheetDetails > 0 && <p className="payments-new-selection-summary-note" role="status">Loading details for {loadingSelectedAttendanceSheetDetails} selected sheet{loadingSelectedAttendanceSheetDetails === 1 ? '' : 's'}...</p>}
         </div>
       </aside>}
 
@@ -2327,6 +2375,16 @@ export default function RecruiterPaymentsNew() {
                 <strong>{attendancePreviewRows.length} rows</strong>
                 <span>{attendanceSource === 'core' ? 'Core team' : 'Consultant'} attendance</span>
               </div>
+              {attendanceDownloadOmittedRows !== null && <div className="upload-status" role="status">
+                <strong>{attendanceDownloadOmittedRows.length
+                  ? `Omitted ${attendanceDownloadOmittedRows.length} row${attendanceDownloadOmittedRows.length === 1 ? '' : 's'} from the download (payout link amount <= 0).`
+                  : 'No rows were omitted from the download.'}</strong>
+                {attendanceDownloadOmittedRows.length > 0 && <ul>
+                  {attendanceDownloadOmittedRows.map(({ rowNumber, referenceId, amount }) => <li key={`${rowNumber}-${referenceId}`}>
+                    Row {rowNumber}: {referenceId || 'Reference unavailable'} (₹{amount.toLocaleString('en-IN', { minimumFractionDigits: 2, maximumFractionDigits: 2 })})
+                  </li>)}
+                </ul>}
+              </div>}
               <div className="payments-new-preview-grid-wrap">
                 <table className="payments-new-preview-grid">
                   <thead><tr>

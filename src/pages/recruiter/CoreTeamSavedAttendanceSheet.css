@@ -118,6 +118,11 @@
   white-space: nowrap;
 }
 
+.core-saved-sheet-export {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
 .core-saved-sheet-reset {
   display: inline-flex;
   align-items: center;
@@ -190,6 +195,66 @@
   color: #15334f;
   font-size: 11px;
   text-align: center;
+}
+
+.core-saved-sheet-date-decision {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px 20px;
+  padding: 12px 14px;
+  border: 1px solid #d5a63b;
+  border-radius: 6px;
+  background: #fff8e6;
+  color: #60450b;
+}
+
+.core-saved-sheet-date-decision > div:first-child {
+  display: grid;
+  gap: 3px;
+}
+
+.core-saved-sheet-date-decision > div:last-child {
+  display: flex;
+  flex: 0 0 auto;
+  gap: 8px;
+}
+
+.core-saved-sheet-date-decision button {
+  min-height: 34px;
+  padding: 6px 10px;
+  border: 1px solid #b7cbdc;
+  border-radius: 4px;
+  background: #fff;
+  color: var(--saved-sheet-ink, #15334f);
+  font: inherit;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.core-saved-sheet-date-decision button.is-active {
+  border-color: #9a6b0a;
+  background: #9a6b0a;
+  color: #fff;
+}
+
+.core-saved-sheet-table thead th.is-unconfigured {
+  background: #fee2e2;
+  color: #991b1b;
+}
+
+.core-saved-sheet-table thead th.is-unconfigured small {
+  display: block;
+  margin-top: 3px;
+  color: #991b1b;
+  font-size: 10px;
+  font-weight: 800;
+}
+
+.core-saved-sheet-table td.is-unconfigured {
+  background: #fff1f2;
+  color: #b42318;
 }
 
 .core-saved-sheet-search {
@@ -680,6 +745,15 @@
 }
 
 @media (max-width: 640px) {
+  .core-saved-sheet-date-decision {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .core-saved-sheet-date-decision > div:last-child {
+    justify-content: flex-end;
+  }
+
   .core-saved-sheet-filters {
     grid-template-columns: 1fr;
   }
