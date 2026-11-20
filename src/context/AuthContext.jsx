@@ -79,6 +79,8 @@ export const ROLES = {
       {
         section: 'More', items: [
           { icon: 'message', label: 'Campaigns', page: '/app/recruiter/campaigns' },
+          { icon: 'comment-dots', label: 'WhatsApp Inbox', page: '/app/recruiter/whatsapp' },
+          { icon: 'edit', label: 'Form Builder', page: '/app/recruiter/form-builder' },
           { icon: 'certificate', label: 'Certifications', page: '/app/recruiter/certifications' },
           { icon: 'history', label: 'Document History', page: '/app/recruiter/document-history' },
           { icon: 'user', label: 'Applications', page: '/app/recruiter/applications' },
@@ -147,6 +149,8 @@ export const ROLES = {
       {
         section: 'More', items: [
           { icon: 'message', label: 'Campaigns', page: '/app/recruiter/campaigns' },
+          { icon: 'comment-dots', label: 'WhatsApp Inbox', page: '/app/recruiter/whatsapp' },
+          { icon: 'edit', label: 'Form Builder', page: '/app/recruiter/form-builder' },
           { icon: 'user', label: 'Applications', page: '/app/recruiter/applications' },
           { icon: 'headset', label: 'Support Tickets', page: '/app/recruiter/support-tickets' },
           { icon: 'check', label: 'Approve attendance', page: '/app/recruiter/approvals-tickets' }
@@ -201,6 +205,8 @@ export const ROLES = {
       {
         section: 'More', items: [
           { icon: 'message', label: 'Campaigns', page: '/app/recruiter/campaigns' },
+          { icon: 'comment-dots', label: 'WhatsApp Inbox', page: '/app/recruiter/whatsapp' },
+          { icon: 'edit', label: 'Form Builder', page: '/app/recruiter/form-builder' },
           { icon: 'certificate', label: 'Certifications', page: '/app/recruiter/certifications' },
           { icon: 'history', label: 'Document History', page: '/app/recruiter/document-history' },
           { icon: 'user', label: 'Applications', page: '/app/recruiter/applications' },

@@ -16,6 +16,7 @@ const PAGE_TITLES = {
   '/app/recruiter/timing-expenses': ['Timing Expenses', 'Recruiter Operations'],
   '/app/recruiter/applications': ['Applications', 'Recruiter Module'],
   '/app/recruiter/calling-team/recipients': ['Recipients Database', 'Manage call recipients'],
+  '/app/recruiter/whatsapp': ['WhatsApp Inbox', 'One-to-one candidate conversations'],
   '/app/recruiter/verification-team/list': ['Verification Team List', 'Manage your verification team'],
   '/app/recruiter/verification-team/recipients': ['Verification Team Database', 'Upload verification team roster'],
   '/app/recruiter/candidates': ['Candidate Database', 'Recruiter Module'],
@@ -48,12 +49,10 @@ export default function AppLayout() {
       {sidebarOpen && <div className="sidebar-overlay show" onClick={() => setSidebarOpen(false)} />}
       <div className="app-main">
         <Header title={title} subtitle={subtitle} onMenuClick={toggleSidebar} />
-        <main className="main-content">
+        <main className={`main-content${pathname === '/app/recruiter/whatsapp' ? ' whatsapp-inbox-main' : ''}`}>
           <Outlet />
         </main>
       </div>
     </div>
   )
 }
-
-

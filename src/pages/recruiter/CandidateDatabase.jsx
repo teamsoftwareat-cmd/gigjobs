@@ -50,6 +50,7 @@ function CandidateDatabase() {
   const [showCheckRegisterModal, setShowCheckRegisterModal] = useState(false)
   const [showNotifyNotRegisteredModal, setShowNotifyNotRegisteredModal] = useState(false)
   const [selectedWhatsAppCandidateIds, setSelectedWhatsAppCandidateIds] = useState(new Set())
+  const [selectedWhatsAppCandidatesById, setSelectedWhatsAppCandidatesById] = useState(new Map())
   const [isWhatsAppMessengerOpen, setIsWhatsAppMessengerOpen] = useState(false)
   const [isAadhaarModalOpen, setIsAadhaarModalOpen] = useState(false)
   const [selectedAadhaarCandidate, setSelectedAadhaarCandidate] = useState(null)
@@ -1235,10 +1236,6 @@ function CandidateDatabase() {
     fetchCandidates()
   }, [fetchCandidates])
 
-  useEffect(() => {
-    setSelectedWhatsAppCandidateIds(new Set())
-  }, [candidates])
-
   const offset = Math.max(0, (page - 1) * pageSize)
   const totalPages = Math.max(1, Math.ceil(totalCandidates / pageSize))
   const firstRow = totalCandidates === 0 ? 0 : offset + 1
@@ -1261,7 +1258,7 @@ function CandidateDatabase() {
   const getCandidateWhatsAppId = (candidate) => String(candidate.id ?? candidate.candidateId ?? candidate.candidate_id ?? candidate._id ?? candidate.new_id ?? candidate.newId ?? '')
   const getCandidateWhatsAppPhone = (candidate) => String(candidate.whatsapp || candidate.phone || candidate.mobile || candidate.mobile_number || '').trim()
   const whatsappCandidates = candidates.filter((candidate) => getCandidateWhatsAppPhone(candidate))
-  const selectedWhatsAppCandidates = candidates.filter((candidate) => selectedWhatsAppCandidateIds.has(getCandidateWhatsAppId(candidate)))
+  const selectedWhatsAppCandidates = [...selectedWhatsAppCandidatesById.values()]
   const allWhatsAppCandidatesSelected = whatsappCandidates.length > 0 && whatsappCandidates.every((candidate) => selectedWhatsAppCandidateIds.has(getCandidateWhatsAppId(candidate)))
 
   const toggleWhatsAppCandidate = (candidate, checked) => {
@@ -1273,14 +1270,27 @@ function CandidateDatabase() {
       else next.delete(candidateId)
       return next
     })
+    setSelectedWhatsAppCandidatesById((current) => {
+      const next = new Map(current)
+      if (checked) next.set(candidateId, candidate)
+      else next.delete(candidateId)
+      return next
+    })
   }
 
-  const handleSendCandidateWhatsApp = async ({ templateId, variables }) => {
-    const recipientIds = selectedWhatsAppCandidates.map(getCandidateWhatsAppId).filter(Boolean)
-    if (!recipientIds.length) return
-    await recruiterAPI.sendWhatsAppMessage({ to: recipientIds, templateId, variables, origin: 'candidate_database_id' })
+  const handleSendCandidateWhatsApp = async ({ templateId, template_name, variables, imageFile, project_id, project_name, tagged_field, form_id, buttonValues }) => {
+    const recipients = selectedWhatsAppCandidates.map((candidate) => ({
+      id: getCandidateWhatsAppId(candidate),
+      name: String(candidate.name || candidate.fullName || candidate.candidate_name || 'Unknown'),
+      mobile: getCandidateWhatsAppPhone(candidate),
+      email: String(candidate.email || candidate.email_id || candidate.email_address || candidate.primary_email || '').trim(),
+      origin: 'candidate_database_id',
+    })).filter((candidate) => candidate.id)
+    if (!recipients.length) return
+    await recruiterAPI.sendWhatsAppMessage({ to: recipients, templateId, template_name, variables, imageFile, project_id, project_name, tagged_field, form_id, buttonValues })
     setIsWhatsAppMessengerOpen(false)
     setSelectedWhatsAppCandidateIds(new Set())
+    setSelectedWhatsAppCandidatesById(new Map())
   }
 
   const tableRows = candidates.map((candidate, index) => {
@@ -1668,7 +1678,27 @@ function CandidateDatabase() {
                     type="checkbox"
                     aria-label="Select all candidates with WhatsApp on this page"
                     checked={allWhatsAppCandidatesSelected}
-                    onChange={(event) => setSelectedWhatsAppCandidateIds(event.target.checked ? new Set(whatsappCandidates.map(getCandidateWhatsAppId).filter(Boolean)) : new Set())}
+                    onChange={(event) => {
+                      const pageCandidates = whatsappCandidates.filter((candidate) => getCandidateWhatsAppId(candidate))
+                      setSelectedWhatsAppCandidateIds((current) => {
+                        const next = new Set(current)
+                        pageCandidates.forEach((candidate) => {
+                          const candidateId = getCandidateWhatsAppId(candidate)
+                          if (event.target.checked) next.add(candidateId)
+                          else next.delete(candidateId)
+                        })
+                        return next
+                      })
+                      setSelectedWhatsAppCandidatesById((current) => {
+                        const next = new Map(current)
+                        pageCandidates.forEach((candidate) => {
+                          const candidateId = getCandidateWhatsAppId(candidate)
+                          if (event.target.checked) next.set(candidateId, candidate)
+                          else next.delete(candidateId)
+                        })
+                        return next
+                      })
+                    }}
                     disabled={whatsappCandidates.length === 0}
                   />
                 </th>

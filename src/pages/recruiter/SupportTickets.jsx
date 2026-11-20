@@ -684,12 +684,19 @@ export function SupportTickets() {
     await alert('Email request has been submitted.')
   }
 
-  const handleWhatsAppSend = async ({ to, templateId, variables }) => {
+  const handleWhatsAppSend = async ({ to, templateId, template_name, variables, imageFile, project_id, project_name, tagged_field, form_id, buttonValues }) => {
     if (!selectedTicket) return
     await recruiterAPI.sendWhatsAppMessage({
       to,
       templateId,
+      template_name,
       variables,
+      imageFile,
+      project_id,
+      project_name,
+      tagged_field,
+      form_id,
+      buttonValues,
       ticketId: selectedTicket.id,
       candidateId: selectedTicket.candidateId,
     })

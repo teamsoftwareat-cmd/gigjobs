@@ -1136,7 +1136,18 @@ export default function RecruiterAttendance({ forcedAttendanceMode = '', attenda
       return
     }
     try {
-      await attendanceAPI.sendWhatsAppMessage({ to: recipientIds, templateId: payload.templateId, variables: payload.variables })
+      await attendanceAPI.sendWhatsAppMessage({
+        to: recipientIds,
+        templateId: payload.templateId,
+        template_name: payload.template_name,
+        variables: payload.variables,
+        imageFile: payload.imageFile,
+        project_id: payload.project_id,
+        project_name: payload.project_name,
+        tagged_field: payload.tagged_field,
+        form_id: payload.form_id,
+        buttonValues: payload.buttonValues,
+      })
       await alert('WhatsApp messages sent (requests queued).')
       setIsWhatsAppOpen(false)
       setIsMembersModalOpen(false)

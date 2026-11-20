@@ -48,6 +48,7 @@ import { RecruiterDashboard, RecruiterCandidates } from './pages/recruiter/index
 import { SupportTickets } from './pages/recruiter/SupportTickets'
 import RecruiterProjects from './pages/recruiter/Projects'
 import ProjectFormBuilder from './pages/recruiter/ProjectFormBuilder'
+import FormBuilderProjects from './pages/recruiter/FormBuilderProjects'
 import ProjectStats from './pages/recruiter/ProjectStats'
 import Campaigns from './pages/recruiter/Campaigns'
 import CallingTeam from './pages/recruiter/CallingTeam'
@@ -70,6 +71,7 @@ import FaceMatching from './pages/recruiter/FaceSearch'
 import Certifications from './pages/recruiter/Certifications'
 import FaceEnroll from './pages/attendance/FaceEnroll'
 import RequestAttendance from './pages/attendance/RequestAttendance'
+import WhatsAppInbox from './pages/recruiter/WhatsAppInbox'
 
 /* Client */
 import { ClientDashboard, ClientAttendance } from './pages/client/index'
@@ -154,9 +156,13 @@ function AppRoutes({ showToast }) {
         <Route path="recruiter/attendance/details" element={<MaintenanceGate enabled={false}><RecruiterAttendanceDetails /></MaintenanceGate>} />
         <Route path="recruiter/core-team-attendance" element={<MaintenanceGate enabled={false}><CoreTeamAttendance /></MaintenanceGate>} />
         <Route path="recruiter/attendance/payment" element={<MaintenanceGate enabled={false}><RecruiterPaymentSheet /></MaintenanceGate>} />
+        <Route path="recruiter/form-builder" element={<MaintenanceGate enabled={false}><FormBuilderProjects /></MaintenanceGate>} />
+        <Route path="recruiter/form-builder/new" element={<MaintenanceGate enabled={false}><ProjectFormBuilder standalone /></MaintenanceGate>} />
+        <Route path="recruiter/form-builder/:formBuilderId" element={<MaintenanceGate enabled={false}><ProjectFormBuilder standalone /></MaintenanceGate>} />
         <Route path="recruiter/projects/:projectId/form-builder" element={<MaintenanceGate enabled={false}><ProjectFormBuilder /></MaintenanceGate>} />
         <Route path="recruiter/projects" element={<MaintenanceGate enabled={false}><RecruiterProjects /></MaintenanceGate>} />
         <Route path="recruiter/campaigns" element={<MaintenanceGate enabled={false}><Campaigns /></MaintenanceGate>} />
+        <Route path="recruiter/whatsapp" element={<MaintenanceGate enabled={false}><WhatsAppInbox /></MaintenanceGate>} />
         <Route path="recruiter/project-stats" element={<MaintenanceGate enabled={false}><ProjectStats /></MaintenanceGate>} />
         <Route path="recruiter/calling-team/list" element={<MaintenanceGate enabled={false}><CallingTeam /></MaintenanceGate>} />
         <Route path="recruiter/calling-team/add-candidates" element={<MaintenanceGate enabled={false}><AddCandidates /></MaintenanceGate>} />

@@ -1,16 +1,14 @@
 // src/pages/recruiter/Projects.jsx
 import { useCallback, useEffect, useMemo, useState } from 'react'
-import { useNavigate } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faFolderPlus } from '@fortawesome/free-solid-svg-icons'
 import { PageHeader, Card, CardHeader, Tabs } from '../../components/ui/index'
 import ProjectsTable from '../../components/ui/ProjectsTable'
 import { ProjectMonthlyChart } from '../../components/ui/Charts'
 import CreateProjectModal from './CreateProjectModal'
-import { normalizeProjectIdParam, recruiterAPI } from '../../api/axios'
+import { recruiterAPI } from '../../api/axios'
 
 export default function RecruiterProjects() {
-  const navigate = useNavigate()
   const [projects, setProjects] = useState([])
   const [chartProjects, setChartProjects] = useState([])
   const [loading, setLoading] = useState(true)
@@ -139,11 +137,6 @@ export default function RecruiterProjects() {
     setShowCreateProjectModal(true)
   }, [])
 
-  const handleCreateForm = useCallback((project) => {
-    const projectId = project.projectId || project.id
-    if (projectId != null) navigate(`/app/recruiter/projects/${normalizeProjectIdParam(projectId)}/form-builder`, { state: { project } })
-  }, [navigate])
-
   useEffect(() => {
     fetchProjects()
   }, [fetchProjects])
@@ -247,7 +240,6 @@ export default function RecruiterProjects() {
           onDateFilter={handleDateFilter}
           onStatusChange={() => fetchProjects()}
           onEditProject={handleEditProject}
-          onCreateForm={handleCreateForm}
           showFilters={true}
           emptyMessage={loading ? 'Loading projects…' : `No ${selectedStatus} projects found.`}
         />

@@ -3,7 +3,9 @@ import { useLocation, useNavigate, useParams } from 'react-router-dom'
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome'
 import { faArrowLeft, faCopy, faEye, faGripVertical, faPlus, faTrash, faXmark } from '@fortawesome/free-solid-svg-icons'
 import { recruiterAPI } from '../../api/axios'
+import { useAuth } from '../../context/AuthContext'
 import { useAlert } from '../../context/AlertContext'
+import SearchableProjectSelect from '../../components/ui/SearchableProjectSelect'
 import { getTrainingCountdownLabel } from '../../utils/dateCountdown'
 import { formatProjectFacts, formatWorkingDays } from '../../utils/projectFormatting'
 import { CORE_APPLICANT_FIELDS, ensureCoreApplicantFields, isCoreApplicantField } from '../../utils/applicationFormFields'
@@ -278,11 +280,12 @@ const BUILDER_TEXT = {
 
 const getFormFromResponse = (response) => {
   const payload = response?.data?.data ?? response?.data
-  return payload?.form_data ?? payload?.form ?? payload
+  return payload?.form_data ?? payload?.form_builder ?? payload?.formBuilder ?? payload?.form ?? payload?.item ?? payload
 }
 
 const getLocalized = (value, language) => typeof value === 'string' ? value : value?.[language] || value?.en || ''
 const getLocaleValue = (value, language) => typeof value === 'string' ? value : value?.[language] || value?.en || ''
+const trimText = (value) => typeof value === 'string' ? value.trim() : ''
 const normalizeFieldLocales = (value, translations = {}) => {
   const englishValue = typeof value === 'string' ? value : value?.en || translations.en || ''
   return Object.fromEntries([
@@ -559,10 +562,12 @@ const mapProjectToFields = (fields, project) => {
   return keepWillingToWorkLast(ensureCoreApplicantFields(mappedFields))
 }
 
-export default function ProjectFormBuilder() {
-  const { projectId } = useParams()
+export default function ProjectFormBuilder({ standalone = false }) {
+  const { projectId, formBuilderId } = useParams()
+  const isStandalone = standalone && !projectId
   const location = useLocation()
   const navigate = useNavigate()
+  const { user } = useAuth()
   const { confirm: showConfirm } = useAlert()
   const languageMenuRef = useRef(null)
   const [language, setLanguage] = useState('en')
@@ -573,8 +578,12 @@ export default function ProjectFormBuilder() {
   const [descriptionError, setDescriptionError] = useState('')
   const [previewOpen, setPreviewOpen] = useState(false)
   const [previewAnswers, setPreviewAnswers] = useState({})
-  const [content, setContent] = useState(DEFAULT_CONTENT)
-  const [fields, setFields] = useState(DEFAULT_FIELDS)
+  const [content, setContent] = useState(isStandalone ? EMPTY_CONTENT : DEFAULT_CONTENT)
+  const [fields, setFields] = useState(isStandalone ? ensureCoreApplicantFields([]) : DEFAULT_FIELDS)
+  const [projectOptions, setProjectOptions] = useState([])
+  const [projectsLoading, setProjectsLoading] = useState(false)
+  const [projectsError, setProjectsError] = useState('')
+  const [selectedProjectId, setSelectedProjectId] = useState('')
   const [sectionOrder, setSectionOrder] = useState(BUILDER_SECTIONS)
   const [customFieldSections, setCustomFieldSections] = useState([])
   const [sectionComposer, setSectionComposer] = useState(null)
@@ -583,6 +592,37 @@ export default function ProjectFormBuilder() {
   const [saving, setSaving] = useState(false)
   const [message, setMessage] = useState('')
   const [messageType, setMessageType] = useState('error')
+
+  useEffect(() => {
+    if (!isStandalone) return undefined
+    let active = true
+    const loadProjects = async () => {
+      setProjectsLoading(true)
+      setProjectsError('')
+      try {
+        const response = await recruiterAPI.getProjectSuggestions('', 1000)
+        const payload = response?.data?.data ?? response?.data ?? response
+        const items = Array.isArray(payload)
+          ? payload
+          : payload?.projects ?? payload?.items ?? payload?.results ?? payload?.data ?? []
+        const options = items.map((item) => {
+          if (!item) return null
+          if (typeof item !== 'object') return { id: String(item), name: String(item) }
+          const id = item.id ?? item.project_id ?? item.projectId ?? item.value ?? item._id
+          const name = item.name ?? item.project_name ?? item.projectName ?? item.title ?? item.label ?? id
+          return id == null ? null : { ...item, id: String(id), name: String(name ?? id) }
+        }).filter(Boolean)
+        if (active) setProjectOptions(options)
+      } catch (loadError) {
+        if (active) setProjectsError(loadError?.message || 'Unable to load project suggestions.')
+      } finally {
+        if (active) setProjectsLoading(false)
+      }
+    }
+
+    loadProjects()
+    return () => { active = false }
+  }, [isStandalone])
 
   useEffect(() => {
     let active = true
@@ -595,20 +635,33 @@ export default function ProjectFormBuilder() {
     setSectionOrder(BUILDER_SECTIONS)
     setCustomFieldSections([])
     setFieldGroupOrder(FIELD_GROUPS)
+    setContent(isStandalone ? EMPTY_CONTENT : DEFAULT_CONTENT)
+    setFields(isStandalone ? ensureCoreApplicantFields([]) : DEFAULT_FIELDS)
+    setSelectedProjectId('')
     const selectedProject = location.state?.project
 
     const loadProjectData = async () => {
       setLoading(true)
       const [projectResult, formResult] = await Promise.allSettled([
-        recruiterAPI.getProject(projectId),
-        recruiterAPI.getProjectApplicationForm(projectId),
+        isStandalone
+          ? Promise.resolve(null)
+          : recruiterAPI.getProject(projectId),
+        isStandalone
+          ? formBuilderId ? recruiterAPI.getFormBuilder(formBuilderId) : Promise.resolve(null)
+          : recruiterAPI.getProjectApplicationForm(projectId),
       ])
       if (!active) return
 
       const form = formResult.status === 'fulfilled' ? getFormFromResponse(formResult.value) : null
+      if (isStandalone && form) {
+        const savedProjectId = form.project_id ?? form.projectId ?? form.project?.id ?? form.project?._id
+        if (savedProjectId != null) setSelectedProjectId(String(savedProjectId))
+      }
       const hasSavedFormData = Boolean(form && (
         Array.isArray(form.fields)
         || (form.content && typeof form.content === 'object' && Object.keys(form.content).length > 0)
+        || form.name
+        || form.form_name
         || form.title
         || form.description != null
       ))
@@ -649,10 +702,16 @@ export default function ProjectFormBuilder() {
             locale,
             { ...localeContent, facts: formatProjectFacts(localeContent?.facts) },
           ]))
-          setContent(alignLocalizedListStructure(createSavedContent(savedContent)))
+          const normalizedContent = createSavedContent(savedContent)
+          if (isStandalone) normalizedContent.en.projectName = form.name ?? form.form_name ?? normalizedContent.en.projectName
+          setContent(alignLocalizedListStructure(normalizedContent))
         }
         else if (hasSavedFormData) setContent(alignLocalizedListStructure(createSavedContent({
-          en: { formTitle: form.title || '', formIntro: form.description ?? '' },
+          en: {
+            formTitle: form.title || '',
+            formIntro: form.description ?? '',
+            ...(isStandalone ? { projectName: form.name ?? form.form_name ?? '' } : {}),
+          },
         })))
         if (Array.isArray(form?.fields)) setFields(keepWillingToWorkLast(ensureCoreApplicantFields(form.fields.map((field, index) => ({
           ...field,
@@ -665,6 +724,9 @@ export default function ProjectFormBuilder() {
           group: field.group || '',
         })))))
         else if (hasSavedFormData) setFields(ensureCoreApplicantFields([]))
+      } else if (formResult.status === 'rejected' && isStandalone) {
+        setMessage(formResult.reason?.message || 'Unable to load this form builder.')
+        setMessageType('error')
       } else {
         setMessage(BUILDER_TEXT.en.noSavedForm)
         setMessageType('warning')
@@ -674,7 +736,7 @@ export default function ProjectFormBuilder() {
 
     loadProjectData()
     return () => { active = false }
-  }, [projectId, location.state])
+  }, [projectId, formBuilderId, isStandalone, location.state])
 
   useEffect(() => {
     if (!previewOpen) return undefined
@@ -1045,13 +1107,13 @@ export default function ProjectFormBuilder() {
   }
 
   const createCustomFieldSection = () => {
-    const sectionTitle = sectionComposer?.title.trim()
+    const sectionTitle = trimText(sectionComposer?.title)
     if (!sectionTitle) {
       setSectionComposer((current) => current ? { ...current, error: t('sectionNameRequired') } : current)
       return
     }
 
-    const draftFields = sectionComposer.fields.filter((field) => field.label.trim())
+    const draftFields = sectionComposer.fields.filter((field) => trimText(field.label))
     if (!draftFields.length) {
       setSectionComposer((current) => current ? { ...current, error: t('sectionFieldRequired') } : current)
       return
@@ -1061,7 +1123,7 @@ export default function ProjectFormBuilder() {
     const sectionTitleTranslations = { en: sectionTitle, hi: '', mr: '', ta: '', te: '', ml: '' }
     const newFields = draftFields.map((draft, index) => {
       const fieldId = globalThis.crypto?.randomUUID?.() || `field-${Date.now()}-${index}`
-      const label = draft.label.trim()
+      const label = trimText(draft.label)
       return {
         id: fieldId,
         name: `field_${fieldId.replace(/[^a-zA-Z0-9]/g, '_')}`,
@@ -1170,14 +1232,19 @@ export default function ProjectFormBuilder() {
         }
         return [locale, localeContent]
       }))
-      const response = await recruiterAPI.saveProjectApplicationForm(projectId, {
+      const formData = {
+        ...(isStandalone ? { name: trimText(content.en.projectName) || trimText(content.en.formTitle) } : {}),
+        ...(isStandalone ? {
+          project_id: selectedProjectId || null,
+          user_id: user?.userId ?? user?.user_id ?? null,
+        } : {}),
         content: savedContent,
-        title: content.en.formTitle.trim(),
-        description: content.en.formIntro.trim(),
+        title: trimText(content.en.formTitle),
+        description: trimText(content.en.formIntro),
         fields: fields.map((field) => ({
           ...field,
-          name: field.name.trim(),
-          label: (typeof field.label === 'string' ? field.label : field.label.en).trim(),
+          name: trimText(field.name),
+          label: trimText(typeof field.label === 'string' ? field.label : field.label?.en),
           placeholder: getLocalized(field.placeholder, 'en'),
           hint: getLocalized(field.hint, 'en'),
           translations: {
@@ -1191,7 +1258,12 @@ export default function ProjectFormBuilder() {
             ? String(field.options || '').split('\n').map((option) => option.trim()).filter(Boolean)
             : [],
         })),
-      })
+      }
+      const response = isStandalone
+        ? formBuilderId
+          ? await recruiterAPI.updateFormBuilder(formBuilderId, formData)
+          : await recruiterAPI.createFormBuilder(formData)
+        : await recruiterAPI.saveProjectApplicationForm(projectId, formData)
       if (response?.data?.success === false) throw new Error(response.data.message || 'The form could not be saved.')
       if (incompleteLanguages.length) {
         const languageNames = incompleteLanguages.map((locale) => (
@@ -1200,10 +1272,19 @@ export default function ProjectFormBuilder() {
         setMessage(`Form saved. Complete and review these translations before they appear to applicants: ${languageNames.join(', ')}.`)
         setMessageType('warning')
       } else {
-        setMessage(t('formSaved'))
+        setMessage(isStandalone ? 'Form builder saved.' : t('formSaved'))
         setMessageType('success')
       }
       notify('success', t('formSavedNotice'))
+      if (isStandalone && !formBuilderId) {
+        const payload = response?.data?.data ?? response?.data ?? response
+        const createdForm = payload?.form_builder ?? payload?.formBuilder ?? payload?.item ?? payload
+        const createdId = createdForm?.formBuilderId ?? createdForm?.form_builder_id ?? createdForm?.id ?? createdForm?._id
+        navigate(createdId != null
+          ? `/app/recruiter/form-builder/${encodeURIComponent(createdId)}`
+          : '/app/recruiter/form-builder',
+        { replace: true })
+      }
     } catch (error) {
       setMessage(error?.response?.data?.message || error.message || t('formSaveTryAgain'))
       setMessageType('error')
@@ -1467,8 +1548,8 @@ export default function ProjectFormBuilder() {
   return (
     <div className="project-form-builder">
       <div className="form-builder-page-actions">
-        <button type="button" className="btn btn-outline btn-sm" onClick={() => navigate(-1)}>
-          <FontAwesomeIcon icon={faArrowLeft} /> {t('backToProjects')}
+        <button type="button" className="btn btn-outline btn-sm" onClick={() => navigate(isStandalone ? '/app/recruiter/form-builder' : -1)}>
+          <FontAwesomeIcon icon={faArrowLeft} /> {isStandalone ? 'Back to Form Builders' : t('backToProjects')}
         </button>
       </div>
       {message && <div className={`form-builder-message ${messageType}`} role="status">{message}</div>}
@@ -1511,6 +1592,20 @@ export default function ProjectFormBuilder() {
             </div>
           </div>
 
+          {isStandalone && (
+            <div className="form-builder-control">
+              <span>Project</span>
+              <SearchableProjectSelect
+                options={projectOptions}
+                value={selectedProjectId}
+                onChange={setSelectedProjectId}
+                placeholder={projectsLoading ? 'Loading projects...' : 'Search and select a project'}
+                disabled={projectsLoading}
+              />
+              {projectsError && <span role="alert" className="form-builder-message error">{projectsError}</span>}
+            </div>
+          )}
+
           <div className="form-builder-tab-row">
             <div className="form-builder-tabs" role="tablist" aria-label={t('builderHeading')}>
               <button type="button" role="tab" aria-selected={editorTab === 'build'} className={editorTab === 'build' ? 'active' : ''} onClick={() => setEditorTab('build')}>{t('formBuilderTab')}</button>
@@ -1550,7 +1645,7 @@ export default function ProjectFormBuilder() {
             <summary className="form-builder-accordion-summary" draggable="true" title={t('dragToReorder')} onDragStart={(event) => startOrderDrag(event, 'section', 'jobIntroduction')}><FontAwesomeIcon icon={faGripVertical} className="form-builder-order-grip" aria-hidden="true" /><h3>{t('jobIntroduction')}</h3></summary>
             <div className="form-builder-accordion-content">
             <label className="form-builder-control"><span>{t('brandLine')}</span><input className="form-control" value={copy.brandLine} onChange={(event) => updateContent('brandLine', event.target.value)} /></label>
-            <label className="form-builder-control"><span>{t('projectName')}</span><input className="form-control" value={copy.projectName} onChange={(event) => updateContent('projectName', event.target.value)} /></label>
+            <label className="form-builder-control"><span>{isStandalone ? 'Form name' : t('projectName')}</span><input className="form-control" value={copy.projectName} onChange={(event) => updateContent('projectName', event.target.value)} /></label>
             <label className="form-builder-control"><span>{t('trainingDate')}</span><input className="form-control" type="date" value={copy.trainingDate} onChange={(event) => updateContent('trainingDate', event.target.value)} /></label>
             <label className="form-builder-control"><span>{t('eyebrow')}</span><input className="form-control" value={copy.eyebrow} onChange={(event) => updateContent('eyebrow', event.target.value)} /></label>
             <label className="form-builder-control"><span>{t('headline')}</span><input className="form-control" value={copy.headline} onChange={(event) => updateContent('headline', event.target.value)} /></label>
